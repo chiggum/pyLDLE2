@@ -2,4 +2,4 @@
 __pycache__*
 data/*
 old_notebooks*
-*.ipynb_checkpoints*
+nbks/.ipynb_checkpoints*
