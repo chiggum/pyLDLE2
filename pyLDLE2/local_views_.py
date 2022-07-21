@@ -3,10 +3,10 @@ import time
 import numpy as np
 import copy
 
-import gl_
-import ipge_
-from util_ import print_log, compute_zeta
-from util_ import Param, sparse_matrix
+from . import gl_
+from . import ipge_
+from .util_ import print_log, compute_zeta
+from .util_ import Param, sparse_matrix
 
 from scipy.linalg import inv, svd
 from scipy.sparse import csr_matrix
@@ -17,9 +17,9 @@ from scipy.spatial.distance import pdist, squareform
 import multiprocess as mp
 
 class LocalViews:
-    def __init__(self, exit_at=None, print_logs=True, debug=False):
+    def __init__(self, exit_at=None, verbose=True, debug=False):
         self.exit_at = exit_at
-        self.logs = print_logs
+        self.logs = verbose
         self.debug = debug
         
         

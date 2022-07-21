@@ -7,10 +7,11 @@ from sklearn.neighbors import NearestNeighbors, KNeighborsTransformer
 
 from scipy.sparse import csr_matrix
 
-import local_views_
-import intermed_views_
-import visualize_
-from util_ import print_log, sparse_matrix, nearest_neighbors
+from . import local_views_
+from . import intermed_views_
+from . import global_views_
+from . import visualize_
+from .util_ import print_log, sparse_matrix, nearest_neighbors
 import multiprocessing
     
 def double_manifold(X, ddX, k_nn):
@@ -152,6 +153,20 @@ default_vis_opts = {'save_dir': '',
                      'c': None}
 
 class LDLE:
+    """LDLE 
+        :param int d: Embedding dimension. [default=2]
+        :param dict local_opts: Options for local views construction. The key-value pairs
+                                provided override the ones in default_local_opts.
+        :param dict intermed_opts: Options for intermediate views construction. The key-value pairs
+                                provided override the ones in default_intermed_opts.
+        :param dict global_opts: Options for global views construction. The key-value pairs
+                                provided override the ones in default_global_opts.
+        :param dict global_opts: Options for global views construction. The key-value pairs
+                                provided override the ones in default_global_opts.
+        :param bool verbose: print logs if True. [default=False]
+        :param bool debug: saves intermediate objects/data for debugging. [default=False]
+        :rtype: object
+    """
     def __init__(self,
                  d = 2, # embedding dimension
                  local_opts = {}, # see default_local_opts above
@@ -159,7 +174,7 @@ class LDLE:
                  global_opts = {},# see default_global_opts above
                  vis_opts = {}, # see default_vis_opts above
                  exit_at = None,
-                 print_logs = True,
+                 verbose = False,
                  debug = False):
 
         self.d = d
@@ -188,7 +203,7 @@ class LDLE:
             
         #############################################
         self.exit_at = exit_at
-        self.print_logs = print_logs
+        self.verbose = verbose
         self.debug = debug
         #############################################
         
@@ -206,7 +221,7 @@ class LDLE:
         self.IntermedViews = None
         
     def log(self, s='', log_time=False):
-        if self.print_logs:
+        if self.verbose:
             self.local_start_time = print_log(s, log_time,
                                               self.local_start_time, 
                                               self.global_start_time)
@@ -229,7 +244,7 @@ class LDLE:
         d_e = d_e.maximum(d_e.transpose())
         
         # Construct low dimensional local views
-        LocalViews = local_views_.LocalViews(self.exit_at, self.print_logs, self.debug)
+        LocalViews = local_views_.LocalViews(self.exit_at, self.verbose, self.debug)
         LocalViews.fit(self.d, X, d_e, neigh_dist, neigh_ind, ddX, self.local_opts)
         
         # Halving distance matrix
@@ -238,13 +253,19 @@ class LDLE:
             d_e = d_e[:n,:n]
         
         # Construct intermediate views
-        IntermedViews = intermed_views_.IntermedViews(self.exit_at, self.print_logs, self.debug)
+        IntermedViews = intermed_views_.IntermedViews(self.exit_at, self.verbose, self.debug)
         IntermedViews.fit(self.d, d_e, neigh_ind[:,:self.local_opts['k']], LocalViews.U,
                           LocalViews.local_param_post, self.intermed_opts)
         
+        # Construct Global views
+        GlobalViews = global_views_.GlobalViews(self.exit_at, self.verbose, self.debug)
+        GlobalViews.fit(self.d, IntermedViews.Utilde, IntermedViews.C, IntermedViews.c,
+                        IntermedViews.n_C, IntermedViews.intermed_param, self.global_opts,
+                        self.vis, self.vis_opts)
         
         self.LocalViews = LocalViews
         self.IntermedViews = IntermedViews
+        self.GlobalViews = GlobalViews
         
         if self.debug:
             self.d_e = d_e

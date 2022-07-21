@@ -3,8 +3,8 @@ import time
 import numpy as np
 import copy
 
-from util_ import procrustes, print_log
-from global_reg_ import sequential_init, spectral_init, sequential_final, retraction_final, compute_alignment_err
+from .util_ import procrustes, print_log
+from .global_reg_ import sequential_init, spectral_init, sequential_final, retraction_final, compute_alignment_err
 
 from scipy.linalg import svdvals
 from scipy.sparse.csgraph import minimum_spanning_tree, breadth_first_order
@@ -60,7 +60,7 @@ class GlobalViews:
             
             # Visualize embedding before init
             if global_opts['vis_before_init']:
-                self.vis_embedding(d, intermed_param, C, Utilde,
+                self.vis_embedding_(d, intermed_param, C, Utilde,
                                   n_Utilde_Utilde, global_opts, vis,
                                   vis_opts, title='Before_Init')
             
@@ -208,7 +208,7 @@ class GlobalViews:
                         
         return color_of_pts_on_tear
     
-    def vis_embedding(self, d, intermed_param, C, Utilde,
+    def vis_embedding_(self, d, intermed_param, C, Utilde,
                       n_Utilde_Utilde, global_opts, vis,
                       vis_opts, title='', color_of_pts_on_tear=None):
         M,n = Utilde.shape
@@ -226,6 +226,12 @@ class GlobalViews:
                               title)
         plt.show()
         return color_of_pts_on_tear
+    
+    def vis_embedding(self, y, vis, vis_opts, color_of_pts_on_tear=None, title=''):
+        vis.global_embedding(y, vis_opts['c'], vis_opts['cmap_interior'],
+                              color_of_pts_on_tear, vis_opts['cmap_boundary'],
+                              title)
+        plt.show()
         
     
     def compute_init_embedding(self, d, Utilde, n_Utilde_Utilde, intermed_param,
@@ -324,7 +330,7 @@ class GlobalViews:
             offset = np.max(y[pts_in_cluster_i,0])
         
         # Visualize the initial embedding
-        color_of_pts_on_tear = self.vis_embedding(d, intermed_param, C, Utilde,
+        color_of_pts_on_tear = self.vis_embedding_(d, intermed_param, C, Utilde,
                                                   n_Utilde_Utilde, global_opts, vis,
                                                   vis_opts, title='Init')
 
@@ -464,7 +470,7 @@ class GlobalViews:
                 
              
             # Visualize the current embedding
-            self.vis_embedding(d, intermed_param, C, Utilde,
+            self.vis_embedding_(d, intermed_param, C, Utilde,
                               n_Utilde_Utilde, global_opts, vis,
                               vis_opts, title='Iter_%d' % it0,
                               color_of_pts_on_tear=color_of_pts_on_tear)

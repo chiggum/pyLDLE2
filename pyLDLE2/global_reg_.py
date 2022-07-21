@@ -2,7 +2,7 @@ import pdb
 import numpy as np
 import time
 
-from util_ import procrustes
+from .util_ import procrustes
 
 import scipy
 from sklearn.neighbors import NearestNeighbors

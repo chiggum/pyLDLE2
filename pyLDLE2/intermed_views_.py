@@ -3,8 +3,8 @@ import time
 import numpy as np
 import copy
 
-from util_ import print_log, compute_zeta
-from util_ import Param
+from .util_ import print_log, compute_zeta
+from .util_ import Param
 
 from scipy.spatial.distance import pdist, squareform
 
@@ -66,9 +66,9 @@ def cost_of_moving(k, d_e, neigh_ind_k, U_k, local_param, c, n_C,
     return cost_k, dest_k
 
 class IntermedViews:
-    def __init__(self, exit_at, print_logs=True, debug=False):
+    def __init__(self, exit_at, verbose=True, debug=False):
         self.exit_at = exit_at
-        self.print_logs = print_logs
+        self.verbose = verbose
         self.debug = debug
         
         self.c = None
@@ -81,7 +81,7 @@ class IntermedViews:
         self.global_start_time = time.time()
     
     def log(self, s='', log_time=False):
-        if self.print_logs:
+        if self.verbose:
             self.local_start_time = print_log(s, log_time,
                                               self.local_start_time, 
                                               self.global_start_time)
