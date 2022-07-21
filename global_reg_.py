@@ -1,5 +1,6 @@
 import pdb
 import numpy as np
+import time
 
 from util_ import procrustes
 
@@ -7,7 +8,7 @@ import scipy
 from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import pdist, squareform
 
-from numba import jit
+import multiprocess as mp
 
 # Computes Z_s for the case when to_tear is True.
 # Input Z_s is the Z_s for the case when to_tear is False.
@@ -38,7 +39,7 @@ def compute_Z_s_to_tear(y, s, Z_s, C, c, k):
     Utildeg[n_Z_s,:] = np.any(Ug[c==s,:], 0)
 
     # |Utildeg_{mm'}|
-    n_Utildeg_Utildeg = np.dot(Utildeg, Utildeg.T)
+    n_Utildeg_Utildeg = np.matmul(Utildeg, Utildeg.T)
     np.fill_diagonal(n_Utildeg_Utildeg, 0)
 
     return Z_s[n_Utildeg_Utildeg[-1,:-1]>0]
@@ -119,8 +120,8 @@ def sequential_init(seq, rho, y, is_visited_view, d, Utilde, n_Utilde_Utilde,
         T_s, v_s = procrustes(V_s_Z_s, mu_s)
 
         # Update T_s, v_
-        intermed_param.T[s,:,:] = np.dot(intermed_param.T[s,:,:], T_s)
-        intermed_param.v[s,:] = np.dot(intermed_param.v[s,:][np.newaxis,:], T_s) + v_s
+        intermed_param.T[s,:,:] = np.matmul(intermed_param.T[s,:,:], T_s)
+        intermed_param.v[s,:] = np.matmul(intermed_param.v[s,:][np.newaxis,:], T_s) + v_s
 
         # Mark sth view as visited
         is_visited_view[s] = True
@@ -134,11 +135,12 @@ def sequential_init(seq, rho, y, is_visited_view, d, Utilde, n_Utilde_Utilde,
     else:
         return y, is_visited_view
 
+
 # Ngoc-Diep Ho, Paul Van Dooren, On the pseudo-inverse of the Laplacian of a bipartite graph
 def compute_Lpinv(Utilde):
     B_ = Utilde.T.astype('int')
-    D_1 = np.sum(B_,axis=1)[:,None]
-    D_2 = np.sum(B_.T,axis=1)[None,:]
+    D_1 = np.sum(B_, axis=1, keepdims=True)
+    D_2 = np.sum(B_, axis=0, keepdims=True)
     D_1_inv_sqrt = np.sqrt(1/D_1)
     D_2_inv_sqrt = np.sqrt(1/D_2)
     B_tilde = D_1_inv_sqrt*B_*D_2_inv_sqrt
@@ -146,50 +148,74 @@ def compute_Lpinv(Utilde):
     V = VT.T
     mask = np.abs(SS-1)<1e-6
     m_1 = np.sum(mask)
-    Sigma = SS[m_1:]
+    Sigma = np.expand_dims(SS[m_1:], 1)
     Sigma_1 = 1/(1-Sigma**2)
     Sigma_2 = Sigma*Sigma_1
     U1 = U12[:,:m_1]
     U2 = U12[:,m_1:]
     V1 = V[:,:m_1]
     V2 = V[:,m_1:]
-
-    L_tilde_pinv_11 = -0.75*np.dot(U1,U1.T) + np.dot(U2, ((Sigma_1-1)[:,None])*(U2.T)) + np.eye(U12.shape[0])
-    L_tilde_pinv_12 = -0.25*np.dot(U1,V1.T) + np.dot(U2, Sigma_2[:,None]*(V2.T))
-    L_tilde_pinv_21 = L_tilde_pinv_12.T
-    L_tilde_pinv_22 = 0.25*np.dot(V1,V1.T) + np.dot(V2, Sigma_1[:,None]*(V2.T))
-
-    L_pinv_11 = L_tilde_pinv_11*D_1_inv_sqrt*(D_1_inv_sqrt.T)
-    L_pinv_12 = L_tilde_pinv_12*D_1_inv_sqrt*D_2_inv_sqrt
-    L_pinv_21 = L_pinv_12.T
-    L_pinv_22 = L_tilde_pinv_22*(D_2_inv_sqrt.T)*D_2_inv_sqrt
-
-    L_pinv_1 = np.concatenate([L_pinv_11, L_pinv_12], axis=1)
-    L_pinv_2 = np.concatenate([L_pinv_21, L_pinv_22], axis=1)
+    
+    def target_proc(i):
+        if i == 0:
+            tmp = -0.75*np.matmul(U1,U1.T) + np.matmul(U2, ((Sigma_1-1))*(U2.T)) + np.eye(U12.shape[0])
+            tmp = tmp*D_1_inv_sqrt*(D_1_inv_sqrt.T)
+        elif i==1:
+            tmp = -0.25*np.matmul(U1,V1.T) + np.matmul(U2, Sigma_2*(V2.T))
+            tmp = tmp*D_1_inv_sqrt*D_2_inv_sqrt
+        elif i==2:
+            tmp = 0.25*np.matmul(V1,V1.T) + np.matmul(V2, Sigma_1*(V2.T))
+            tmp = tmp*(D_2_inv_sqrt.T)*D_2_inv_sqrt
+        return tmp, np.sum(tmp, axis=1, keepdims=True), np.sum(tmp, axis=0, keepdims=True)
+    
+    L_tilde = []
+    L_tilde_sum_1 = []
+    L_tilde_sum_0 = []
+    ################################################
+    # Parallel
+#     with mp.Pool(3) as p:
+#         tmp = p.map(target_proc, [0,1,2])
+#         for elem in tmp:
+#             L_tilde.append(elem[0])
+#             L_tilde_sum_1.append(elem[1])
+#             L_tilde_sum_0.append(elem[2])
+        
+    # Sequential
+    for i in range(3):
+        elem = target_proc(i)
+        L_tilde.append(elem[0])
+        L_tilde_sum_1.append(elem[1])
+        L_tilde_sum_0.append(elem[2])
+    ################################################
+    
+    L_pinv_1 = np.concatenate((L_tilde[0], L_tilde[1]), axis=1)
+    L_pinv_2 = np.concatenate((L_tilde[1].T, L_tilde[2]), axis=1)
     Lpinv = np.concatenate([L_pinv_1, L_pinv_2], axis=0)
-    Lpinv = Lpinv - np.mean(Lpinv, axis=1)[:,None]
-    Lpinv = Lpinv - np.mean(Lpinv, axis=0)[:,None]
+
+    n1 = Lpinv.shape[1]
+    v1 = np.concatenate((L_tilde_sum_1[0]+L_tilde_sum_1[1],
+                         L_tilde_sum_0[1].T+L_tilde_sum_1[2]), axis=0)
+    n0 = Lpinv.shape[0]
+    v0 = np.concatenate((L_tilde_sum_0[0]+L_tilde_sum_1[1].T,
+                         L_tilde_sum_0[1]+L_tilde_sum_0[2]), axis=1)
+    Lpinv = Lpinv - v1/n1 - v0.T/n0
     return Lpinv
     
 
 def compute_CC(D, B, Lpinv):
-    CC = D - np.dot(B,np.dot(Lpinv,B.T))
+    CC = D - np.matmul(B, np.matmul(Lpinv, B.T))
     CC = 0.5*(CC + CC.T)
     return CC
+
     
 def build_ortho_optim(d, Utilde, intermed_param, tol = 1e-6, Lpinv=None):
     M,n = Utilde.shape
-    L = np.zeros((n+M,n+M))
     B = np.zeros((M*d,n+M))
     D = np.zeros((M*d,M*d))
-
-    L[:n,n:] = -Utilde.T.astype('int')
-    L[n:,:n] = -Utilde.astype('int')
-    np.fill_diagonal(L, -np.sum(L,axis=1))
     for i in range(M):
         X_ = intermed_param.eval_({'view_index': i,
                                    'data_mask': Utilde[i,:]})
-        D[d*i:d*(i+1),d*i:d*(i+1)] = np.dot(X_.T,X_)
+        D[d*i:d*(i+1),d*i:d*(i+1)] = np.matmul(X_.T,X_)
         B[d*i:d*(i+1),n+i] = -np.sum(X_.T, axis=1)
         B[d*i:d*(i+1),np.where(Utilde[i,:])[0]] = X_.T
 
@@ -197,7 +223,6 @@ def build_ortho_optim(d, Utilde, intermed_param, tol = 1e-6, Lpinv=None):
     if Lpinv is None:
         print('Computing Pseudoinverse of a matrix of L of size', n+M, flush=True)
         Lpinv = compute_Lpinv(Utilde)
-        print('Done', flush=True)
     
     CC = compute_CC(D, B, Lpinv)
     return CC, Lpinv, B
@@ -230,20 +255,20 @@ def spectral_init(y, is_visited_view, d, Utilde,
     Tstar = np.zeros((d, M*d))
     for i in range(M):
         U_,S_,VT_ = scipy.linalg.svd(Wstar[:,d*i:d*(i+1)])
-        temp_ = np.dot(U_,VT_)
+        temp_ = np.matmul(U_,VT_)
         if (global_opts['init_algo']['name'] != 'spectral') and (np.linalg.det(temp_) < 0):
             VT_[-1,:] *= -1
-            Tstar[:,i*d:(i+1)*d] = np.dot(U_, VT_)
+            Tstar[:,i*d:(i+1)*d] = np.matmul(U_, VT_)
         else:
             Tstar[:,i*d:(i+1)*d] = temp_
     
-    Zstar = np.dot(Tstar, np.dot(B, Lpinv))
+    Zstar = np.matmul(Tstar, np.matmul(B, Lpinv))
     
     for s in range(M):
         T_s = Tstar[:,s*d:(s+1)*d].T
         v_s = Zstar[:,n+s]
-        intermed_param.T[s,:,:] = np.dot(intermed_param.T[s,:,:], T_s)
-        intermed_param.v[s,:] = np.dot(intermed_param.v[s,:][np.newaxis,:], T_s) + v_s
+        intermed_param.T[s,:,:] = np.matmul(intermed_param.T[s,:,:], T_s)
+        intermed_param.v[s,:] = np.matmul(intermed_param.v[s,:][np.newaxis,:], T_s) + v_s
         C_s = C[s,:]
         y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
         is_visited_view[s] = 1
@@ -305,8 +330,8 @@ def sequential_final(y, d, Utilde, C, intermed_param, n_Utilde_Utilde, n_Utildeg
             T_s, v_s = procrustes(V_s_Z_s, mu_s)
 
             # Update T_s, v_s
-            intermed_param.T[s,:,:] = np.dot(intermed_param.T[s,:,:], T_s)
-            intermed_param.v[s,:] = np.dot(intermed_param.v[s,:][np.newaxis,:], T_s) + v_s
+            intermed_param.T[s,:,:] = np.matmul(intermed_param.T[s,:,:], T_s)
+            intermed_param.v[s,:] = np.matmul(intermed_param.v[s,:][np.newaxis,:], T_s) + v_s
 
             # Compute global embedding of points in sth cluster
             C_s = C[s,:]
@@ -324,6 +349,7 @@ def retraction_final(y, d, Utilde, C, intermed_param,
     else:
         CC, Lpinv, B = build_ortho_optim(d, Utilde, intermed_param, tol = 1e-6, Lpinv=Lpinv)
     M,n = Utilde.shape
+    n_proc = min(M,global_opts['n_proc'])
     def skew(A):
         return 0.5*(A-A.T)
 
@@ -336,13 +362,51 @@ def retraction_final(y, d, Utilde, C, intermed_param,
 
     def update(O, t):
         O = np.copy(O)
-        xi = 2*np.dot(O, CC)
+        xi = 2*np.matmul(O, CC)
         I_d = np.eye(d)
-        for i in range(M):
-            temp0 = O[:,i*d:(i+1)*d]
-            temp1 = skew(np.dot(xi[:,i*d:(i+1)*d],temp0.T))
-            Q_,R_ = unique_qr(temp0 - t*np.dot(temp1,temp0))
-            O[:,i*d:(i+1)*d] = Q_
+        
+        ###########################################
+        # Parallel Updates
+        ###########################################
+        def target_proc(p_num, chunk_sz, q_):
+            start_ind = p_num*chunk_sz
+            if p_num == (n_proc-1):
+                end_ind = M
+            else:
+                end_ind = (p_num+1)*chunk_sz
+            for i in range(start_ind, end_ind):
+                temp0 = O[:,i*d:(i+1)*d]
+                temp1 = skew(np.matmul(xi[:,i*d:(i+1)*d],temp0.T))
+                Q_,R_ = unique_qr(temp0 - t*np.matmul(temp1,temp0))
+                O[:,i*d:(i+1)*d] = Q_
+
+            q_.put((start_ind, end_ind, O[:,start_ind*d:end_ind*d]))
+        
+        q_ = mp.Queue()
+        proc = []
+        chunk_sz = int(M/n_proc)
+        for p_num in range(n_proc):
+            proc.append(mp.Process(target=target_proc,
+                                   args=(p_num,chunk_sz,q_),
+                                   daemon=True))
+            proc[-1].start()
+
+        for p_num in range(n_proc):
+            start_ind, end_ind, O_ = q_.get()
+            O[:,start_ind*d:end_ind*d] = O_
+
+        q_.close()
+        for p_num in range(n_proc):
+            proc[p_num].join()
+        ###########################################
+        
+        # Sequential version of above
+        # for i in range(M):
+        #     temp0 = O[:,i*d:(i+1)*d]
+        #     temp1 = skew(np.matmul(xi[:,i*d:(i+1)*d],temp0.T))
+        #     Q_,R_ = unique_qr(temp0 - t*np.matmul(temp1,temp0))
+        #     O[:,i*d:(i+1)*d] = Q_
+        
         return O
 
     alpha = global_opts['refine_algo']['alpha']
@@ -351,16 +415,17 @@ def retraction_final(y, d, Utilde, C, intermed_param,
     for s in range(M):
         Tstar[:,s*d:(s+1)*d] = np.eye(d)
     
+    print('Descent starts', flush=True)
     for _ in range(max_iter):
         Tstar = update(Tstar, alpha)
     
-    Zstar = np.dot(Tstar, np.dot(B, Lpinv))
+    Zstar = np.matmul(Tstar, np.matmul(B, Lpinv))
     
     for s in range(M):
         T_s = Tstar[:,s*d:(s+1)*d].T
         v_s = Zstar[:,n+s]
-        intermed_param.T[s,:,:] = np.dot(intermed_param.T[s,:,:], T_s)
-        intermed_param.v[s,:] = np.dot(intermed_param.v[s,:][np.newaxis,:], T_s) + v_s
+        intermed_param.T[s,:,:] = np.matmul(intermed_param.T[s,:,:], T_s)
+        intermed_param.v[s,:] = np.matmul(intermed_param.v[s,:][np.newaxis,:], T_s) + v_s
         C_s = C[s,:]
         y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
 

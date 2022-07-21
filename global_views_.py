@@ -420,7 +420,7 @@ class GlobalViews:
                                 Z_s = [Z_s]
                             
                             contrib_of_view[s,:] |= (Utilde[s,:] & np.any(C[Z_s,:], 0))
-                
+                            
                 if refine_algo == 'retraction':
                     y, CCLpinvB = retraction_final(y, d, contrib_of_view, C, intermed_param,
                                                    n_Utilde_Utilde, n_Utildeg_Utildeg,

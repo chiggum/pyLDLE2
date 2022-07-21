@@ -1,5 +1,6 @@
 # pyLDLE2
 
 ### TODO
-- multiprocessing support
+- optimize Lpinv and CC computation in global_reg_
 - sparse DS support following intermediate views
+- Create documentation

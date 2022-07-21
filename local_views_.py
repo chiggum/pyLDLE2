@@ -14,6 +14,8 @@ from scipy.sparse.linalg import svds
 from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import pdist, squareform
 
+import multiprocess as mp
+
 class LocalViews:
     def __init__(self, exit_at=None, print_logs=True, debug=False):
         self.exit_at = exit_at
@@ -43,7 +45,7 @@ class LocalViews:
             
     def fit(self, d, X, d_e, neigh_dist, neigh_ind, ddX, local_opts):
         if local_opts['algo'] == 'LDLE':
-            self.log('Constructing graph Laplacian + its eigendecomposition.')
+            self.log('Constructing ' + local_opts['gl_type'] + ' graph Laplacian + its eigendecomposition.')
             GL = gl_.GL()
             GL.fit(neigh_dist, neigh_ind, local_opts)
             self.log('Done.', log_time=True)
@@ -133,6 +135,7 @@ class LocalViews:
                 self.log('Done.', log_time=True)
             #############################################
         else:
+            self.log('Constructing local views using LTSA.')
             # Local views in the ambient space
             epsilon = neigh_dist[:,[local_opts['k']-1]]
             U = sparse_matrix(neigh_ind[:,:local_opts['k']-1],
@@ -140,6 +143,7 @@ class LocalViews:
             local_param_pre = None
             local_param_post = self.compute_LTSAP(d, X, d_e, neigh_ind)
             local_param_post.b = np.ones(X.shape[0])
+            self.log('Done.', log_time=True)
             
         print('Max local distortion =', np.max(local_param_post.zeta))
         if self.debug:
@@ -170,62 +174,91 @@ class LocalViews:
         local_param.Psi_gamma = np.zeros((n,d))
         local_param.Psi_i = np.zeros((n,d),dtype='int')
         local_param.zeta = np.zeros(n)
+        n_proc = local_opts['n_proc']
+        
+        def target_proc(p_num, chunk_sz, q_):
+            start_ind = p_num*chunk_sz
+            if p_num == (n_proc-1):
+                end_ind = n
+            else:
+                end_ind = (p_num+1)*chunk_sz
 
-        # iterate over points in the data
-        # TODO: parallelize
-        for k in range(n):
-            if print_freq and np.mod(k, print_freq)==0:
-                print('local_param: %d points processed...' % k)
-            
-            # to store i_1, ..., i_d
-            i = np.zeros(d, dtype='int')
-            
-            # Grab the precomputed U_k, Atilde_{kij}, gamma_{ki}
-            U_k = U[k,:]
-            Atilde_k = Atilde[k,:,:]
-            gamma_k = gamma[k,:]
-            
-            # Compute theta_1
-            Atikde_kii = Atilde_k.diagonal()
-            theta_1 = np.percentile(Atikde_kii, tau)
-            
-            # Compute Stilde_k
-            Stilde_k = Atikde_kii >= theta_1
-            
-            # Compute i_1
-            r_1 = np.argmax(Stilde_k) # argmax finds first index with max value
-            temp = gamma_k * np.abs(Atilde_k[:,r_1])
-            alpha_1 = np.max(temp * Stilde_k)
-            i[0] = np.argmax((temp >= delta*alpha_1) & (Stilde_k))
+            for k in range(start_ind, end_ind):
+                # to store i_1, ..., i_d
+                i = np.zeros(d, dtype='int')
 
-            for s in range(1,d):
-                i_prev = i[0:s]
-                # compute temp variable to help compute Hs_{kij} below
-                temp = inv(Atilde_k[np.ix_(i_prev,i_prev)])
-                
-                # Compute theta_s
-                Hs_kii = Atikde_kii - np.sum(Atilde_k[:,i_prev] * np.dot(temp, Atilde_k[i_prev,:]).T, 1)
-                temp_ = Hs_kii[Stilde_k]
-                theta_s = np.percentile(temp_, tau)
-                
-                #theta_s=np.max([theta_s,np.min([np.max(temp_),1e-4])])
-                
-                # Compute i_s
-                r_s = np.argmax((Hs_kii>=theta_s) & Stilde_k)
-                Hs_kir_s = Atilde_k[:,[r_s]] - np.dot(Atilde_k[:,i_prev], np.dot(temp, Atilde_k[i_prev,r_s][:,np.newaxis]))
-                temp = gamma_k * np.abs(Hs_kir_s.flatten())
-                alpha_s = np.max(temp * Stilde_k)
-                i[s]=np.argmax((temp >= delta*alpha_s) & Stilde_k);
-            
-            # Compute Psi_k
-            local_param.Psi_gamma[k,:] = gamma_k[i]
-            local_param.Psi_i[k,:] = i
-            
-            # Compute zeta_{kk}
-            d_e_k = d_e[np.ix_(neigh_ind[k,:],neigh_ind[k,:])].toarray()
-            local_param.zeta[k] = compute_zeta(d_e_k,
-                                               local_param.eval_({'view_index': k,
-                                                                  'data_mask': neigh_ind[k,:]}))
+                # Grab the precomputed U_k, Atilde_{kij}, gamma_{ki}
+                U_k = U[k,:]
+                Atilde_k = Atilde[k,:,:]
+                gamma_k = gamma[k,:]
+
+                # Compute theta_1
+                Atikde_kii = Atilde_k.diagonal()
+                theta_1 = np.percentile(Atikde_kii, tau)
+
+                # Compute Stilde_k
+                Stilde_k = Atikde_kii >= theta_1
+
+                # Compute i_1
+                r_1 = np.argmax(Stilde_k) # argmax finds first index with max value
+                temp = gamma_k * np.abs(Atilde_k[:,r_1])
+                alpha_1 = np.max(temp * Stilde_k)
+                i[0] = np.argmax((temp >= delta*alpha_1) & (Stilde_k))
+
+                for s in range(1,d):
+                    i_prev = i[0:s]
+                    # compute temp variable to help compute Hs_{kij} below
+                    temp = inv(Atilde_k[np.ix_(i_prev,i_prev)])
+
+                    # Compute theta_s
+                    Hs_kii = Atikde_kii - np.sum(Atilde_k[:,i_prev] * np.dot(temp, Atilde_k[i_prev,:]).T, 1)
+                    temp_ = Hs_kii[Stilde_k]
+                    theta_s = np.percentile(temp_, tau)
+
+                    #theta_s=np.max([theta_s,np.min([np.max(temp_),1e-4])])
+
+                    # Compute i_s
+                    r_s = np.argmax((Hs_kii>=theta_s) & Stilde_k)
+                    Hs_kir_s = Atilde_k[:,[r_s]] - np.dot(Atilde_k[:,i_prev],
+                                                          np.dot(temp, Atilde_k[i_prev,r_s][:,np.newaxis]))
+                    temp = gamma_k * np.abs(Hs_kir_s.flatten())
+                    alpha_s = np.max(temp * Stilde_k)
+                    i[s]=np.argmax((temp >= delta*alpha_s) & Stilde_k);
+
+                # Compute Psi_k
+                local_param.Psi_gamma[k,:] = gamma_k[i]
+                local_param.Psi_i[k,:] = i
+
+                # Compute zeta_{kk}
+                d_e_k = d_e[np.ix_(neigh_ind[k,:],neigh_ind[k,:])].toarray()
+                local_param.zeta[k] = compute_zeta(d_e_k,
+                                                   local_param.eval_({'view_index': k,
+                                                                      'data_mask': neigh_ind[k,:]}))
+
+            q_.put((start_ind, end_ind,
+                    local_param.zeta[start_ind:end_ind],
+                    local_param.Psi_gamma[start_ind:end_ind,:],
+                    local_param.Psi_i[start_ind:end_ind,:]))
+        
+        q_ = mp.Queue()
+        chunk_sz = int(n/n_proc)
+        proc = []
+        for p_num in range(n_proc):
+            proc.append(mp.Process(target=target_proc,
+                                   args=(p_num,chunk_sz,q_),
+                                   daemon=True))
+            proc[-1].start()
+
+        for p_num in range(n_proc):
+            start_ind, end_ind, zeta_, Psi_gamma_, Psi_i_ = q_.get()
+            local_param.zeta[start_ind:end_ind] = zeta_
+            local_param.Psi_gamma[start_ind:end_ind,:] = Psi_gamma_
+            local_param.Psi_i[start_ind:end_ind,:] = Psi_i_
+
+        q_.close()
+        
+        for p_num in range(n_proc):
+            proc[p_num].join()
             
         print('local_param: all %d points processed...' % n)
         print("max distortion is %f" % (np.max(local_param.zeta)))
@@ -275,54 +308,110 @@ class LocalViews:
         n = neigh_ind.shape[0]
         local_param = copy.deepcopy(local_param_pre)
         
-        N_replaced = 1
+        N_replaced = n
         itr = 1
         # Extra variable to speed up
         param_changed_old = None
+        n_proc = local_opts['n_proc']
         
         while N_replaced:
-            new_param_of = np.arange(n)
-            # Extra variable to speed up
-            param_changed_new = np.zeros(n)
-            # Iterate over all local parameterizations
-            # To speed up the process, only consider those neighbors
-            # for which the parameterization changed in the prev step
-            if param_changed_old is None:
-                cand = U.tocoo()
-            else:
-                cand = U.multiply(param_changed_old[None,:])
-                cand.eliminate_zeros()
-            
-            cand_i = cand.row
-            cand_j = cand.col
-            n_ind = cand_i.shape[0]
-            ind = 0
-            for k in range(n):
-                cand_k = []
-                while (ind < n_ind) and (k == cand_i[ind]):
-                    cand_k.append(cand_j[ind])
-                    ind += 1
-                
-                neigh_ind_k = neigh_ind[k,:]
-                d_e_k = d_e[np.ix_(neigh_ind_k,neigh_ind_k)].toarray()
-                for kp in cand_k:
-                    Psi_kp_on_U_k = local_param.eval_({'view_index': kp,
-                                                       'data_mask': neigh_ind_k})
-                    zeta_kkp = compute_zeta(d_e_k, Psi_kp_on_U_k)
+            new_param_of = np.arange(n, dtype='int')
+            param_changed_new = np.zeros(n, dtype=bool)
+            if N_replaced > local_opts['pp_n_thresh']: # use multiple processors
+                zeta = local_param.zeta
+                if param_changed_old is not None:
+                    param_changed_old = set(np.where(param_changed_old)[0])
                     
-                    # if zeta_{kk'} < zeta_{kk}
-                    if zeta_kkp < local_param.zeta[k]:
-                        local_param.zeta[k] = zeta_kkp
-                        new_param_of[k] = kp
-                        param_changed_new[k] = 1
+                def target_proc(p_num, chunk_sz, q_):
+                    start_ind = p_num*chunk_sz
+                    if p_num == (n_proc-1):
+                        end_ind = n
+                    else:
+                        end_ind = (p_num+1)*chunk_sz
+
+                    for k in range(start_ind, end_ind):
+                        U_k = U[k,:].nonzero()[1].tolist()
+                        if param_changed_old is None:
+                            cand_k = U_k
+                        else:
+                            cand_k = param_changed_old.intersection(U_k)
+                        neigh_ind_k = neigh_ind[k,:]
+                        d_e_k = d_e[np.ix_(neigh_ind_k,neigh_ind_k)].toarray()
+                        for kp in cand_k:
+                            Psi_kp_on_U_k = local_param.eval_({'view_index': kp,
+                                                               'data_mask': neigh_ind_k})
+                            zeta_kkp = compute_zeta(d_e_k, Psi_kp_on_U_k)
+
+                            # if zeta_{kk'} < zeta_{kk}
+                            if zeta_kkp < zeta[k]:
+                                zeta[k] = zeta_kkp
+                                new_param_of[k] = kp
+                                param_changed_new[k] = 1
+
+                    q_.put((start_ind, end_ind, zeta[start_ind:end_ind],
+                            new_param_of[start_ind:end_ind],
+                            param_changed_new[start_ind:end_ind]))
+                
+                q_ = mp.Queue()
+                chunk_sz = int(n/n_proc)
+                proc = []
+                for p_num in range(n_proc):
+                    proc.append(mp.Process(target=target_proc,
+                                           args=(p_num,chunk_sz,q_),
+                                           daemon=True))
+                    proc[-1].start()
+
+                for p_num in range(n_proc):
+                    start_ind, end_ind, zeta_, new_param_of_, param_changed_new_ = q_.get()
+                    zeta[start_ind:end_ind] = zeta_
+                    param_changed_new[start_ind:end_ind] = param_changed_new_
+                    new_param_of[start_ind:end_ind] = new_param_of_
+                
+                q_.close()
+                
+                for p_num in range(n_proc):
+                    proc[p_num].join()
+                    
+                local_param.zeta = zeta
+            else: # do sequentially (single processor)
+                # Iterate over all local parameterizations
+                # To speed up the process, only consider those neighbors
+                # for which the parameterization changed in the prev step
+                if param_changed_old is None:
+                    cand = U.tocoo()
+                else:
+                    cand = U.multiply(param_changed_old[None,:])
+                    cand.eliminate_zeros()
+
+                cand_i = cand.row
+                cand_j = cand.col
+                n_ind = cand_i.shape[0]
+                ind = 0
+                for k in range(n):
+                    cand_k = []
+                    while (ind < n_ind) and (k == cand_i[ind]):
+                        cand_k.append(cand_j[ind])
+                        ind += 1
+
+                    neigh_ind_k = neigh_ind[k,:]
+                    d_e_k = d_e[np.ix_(neigh_ind_k,neigh_ind_k)].toarray()
+                    for kp in cand_k:
+                        Psi_kp_on_U_k = local_param.eval_({'view_index': kp,
+                                                           'data_mask': neigh_ind_k})
+                        zeta_kkp = compute_zeta(d_e_k, Psi_kp_on_U_k)
+
+                        # if zeta_{kk'} < zeta_{kk}
+                        if zeta_kkp < local_param.zeta[k]:
+                            local_param.zeta[k] = zeta_kkp
+                            new_param_of[k] = kp
+                            param_changed_new[k] = 1
             
             local_param.Psi_i = local_param.Psi_i[new_param_of,:]
             local_param.Psi_gamma = local_param.Psi_gamma[new_param_of,:]
-                
-            param_changed_old = param_changed_new==1
+            param_changed_old = param_changed_new.copy()
             N_replaced = np.sum(param_changed_new)
             
-            print("After iter %d, max distortion is %f" % (itr, np.max(local_param.zeta)))
+            print("Iter %d, Param replaced: %d, max distortion: %f" % (itr, N_replaced, np.max(local_param.zeta)))
             itr = itr + 1
         
         return local_param

@@ -8,6 +8,8 @@ from util_ import Param
 
 from scipy.spatial.distance import pdist, squareform
 
+import multiprocess as mp
+
 # Computes cost_k, d_k (dest_k)
 def cost_of_moving(k, d_e, neigh_ind_k, U_k, local_param, c, n_C,
                    Utilde, eta_min, eta_max, b=None):
@@ -93,20 +95,65 @@ class IntermedViews:
         U_ = list(map(set, neigh_ind.tolist()))
         
         eta_max = intermed_opts['eta_max']
+        n_proc = intermed_opts['n_proc']
         
         # Vary eta from 2 to eta_{min}
         self.log('Constructing intermediate views.')
         for eta in range(2,intermed_opts['eta_min']+1):
             self.log('eta = %d.' % eta)
-            print('# non-empty views with sz < %d = %d' % (eta, np.sum((n_C > 0)*(n_C < eta))))
-            print('#nodes in views with sz < %d = %d' % (eta, np.sum(n_C[c]<eta)))
+            self.log('# non-empty views with sz < %d = %d' % (eta, np.sum((n_C > 0)*(n_C < eta))))
+            self.log('#nodes in views with sz < %d = %d' % (eta, np.sum(n_C[c]<eta)))
             
             # Compute cost_k and d_k (dest_k) for all k
             cost = np.zeros(n)+np.inf
             dest = np.zeros(n,dtype='int')-1
-            for k in range(n):
-                cost[k], dest[k] = cost_of_moving(k, d_e, neigh_ind[k,:], U_[k], local_param,
-                                                  c, n_C, Utilde, eta, eta_max)
+            
+            
+            ###########################################
+            # Proc for computing the cost and dest
+            def target_proc(p_num, chunk_sz, q_, n_, S):
+                start_ind = p_num*chunk_sz
+                if p_num == (n_proc-1):
+                    end_ind = n_
+                else:
+                    end_ind = (p_num+1)*chunk_sz
+                cost_ = np.zeros(end_ind-start_ind)+np.inf
+                dest_ = np.zeros(end_ind-start_ind, dtype='int')-1
+                for k in range(start_ind, end_ind):
+                    k0 = k-start_ind
+                    if S is None:
+                        k1 = k
+                    else:
+                        k1 = S[k]
+                    cost_[k0], dest_[k0] = cost_of_moving(k1, d_e, neigh_ind[k1,:], U_[k1], local_param,
+                                                      c, n_C, Utilde, eta, eta_max)
+                q_.put((start_ind, end_ind, cost_, dest_))
+            
+            ###########################################
+            # Parallel cost and dest computation
+            q_ = mp.Queue()
+            proc = []
+            for p_num in range(n_proc):
+                proc.append(mp.Process(target=target_proc,
+                                       args=(p_num,int(n/n_proc),q_,n,None),
+                                       daemon=True))
+                proc[-1].start()
+            
+            for p_num in range(n_proc):
+                start_ind, end_ind, cost_, dest_ = q_.get()
+                cost[start_ind:end_ind] = cost_
+                dest[start_ind:end_ind] = dest_
+            q_.close()
+                
+            for p_num in range(n_proc):
+                proc[p_num].join()
+            ###########################################
+            
+            # Sequential version of above
+            # for k in range(n):
+            #     cost[k], dest[k] = cost_of_moving(k, d_e, neigh_ind[k,:], U_[k], local_param,
+            #                                       c, n_C, Utilde, eta, eta_max)
+            
             # Compute point with minimum cost
             # Compute k and cost^* 
             k = np.argmin(cost)
@@ -131,12 +178,35 @@ class IntermedViews:
                 # Compute the set of points S for which 
                 # cost of moving needs to be recomputed
                 S = np.where((c==dest_k) | (dest==dest_k) | np.any(U[:,list(Clstr[s])].toarray(),1))[0].tolist()
+                len_S = len(S)
                 
-                # Update cost_k and d_k (dest_k) for k in S
-                for k in S:
-                    cost[k], dest[k] = cost_of_moving(k, d_e, neigh_ind[k,:], U_[k], local_param,
+                ###########################################
+                # cost, dest update for k in S
+                ###########################################
+                if len_S > intermed_opts['len_S_thresh']: # do parallel update (almost never true)
+                    q_ = mp.Queue()
+                    proc = []
+                    for p_num in range(n_proc):
+                        proc.append(mp.Process(target=target_proc,
+                                               args=(p_num,int(len_S/n_proc),q_,len_S,S),
+                                               daemon=True))
+                        proc[-1].start()
+
+                    for p_num in range(n_proc):
+                        start_ind, end_ind, cost_, dest_ = q_.get()
+                        cost[S[start_ind:end_ind]] = cost_
+                        dest[S[start_ind:end_ind]] = dest_
+                    q_.close()
+
+                    for p_num in range(n_proc):
+                        proc[p_num].join()
+                    ###########################################
+                else: # sequential update
+                    for k in S:
+                        cost[k], dest[k] = cost_of_moving(k, d_e, neigh_ind[k,:], U_[k], local_param,
                                                       c, n_C, Utilde, eta, eta_max)
-                
+                ###########################################
+                ###########################################
                 # Recompute point with minimum cost
                 # Recompute k and cost^*
                 k = np.argmin(cost)

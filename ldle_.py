@@ -122,14 +122,16 @@ def double_manifold(X, ddX, k_nn):
     return neigh_dist, neigh_ind
     
 
-default_local_opts = {'k_nn': 23, 'k_tune': 5, 'k': 17,
-                       'gl_type': 'diffusion', 'N': 100, 'no_gamma': False,
+default_local_opts = {'k_nn': 48, 'k_tune': 6, 'k': 24,
+                       'gl_type': 'unnorm', 'N': 100, 'no_gamma': False,
                        'Atilde_method': 'LDLE_1', 'p': 0.99, 'tau': 50,
-                       'delta': 0.9, 'to_postprocess': True, 'algo': 'LDLE'}
+                       'delta': 0.9, 'to_postprocess': True, 'algo': 'LDLE',
+                       'n_proc': max(1,int(multiprocessing.cpu_count()*0.75)),
+                       'pp_n_thresh': 32}
 
-default_intermed_opts = {'eta_min': 5, 'eta_max': 100, 'n_proc': max(1,int(multiprocessing.cpu_count()/2))}
+default_intermed_opts = {'eta_min': 5, 'eta_max': 100, 'len_S_thresh': 256,}
 
-default_global_opts = {'to_tear': True, 'nu': 3, 'max_iter': 5,
+default_global_opts = {'to_tear': True, 'nu': 3, 'max_iter': 10,
                        'vis_before_init': False,
                        'compute_error': False,
                        'main_algo': 'LDLE', # ['LDLE', 'LTSA']
@@ -141,8 +143,7 @@ default_global_opts = {'to_tear': True, 'nu': 3, 'max_iter': 5,
                            'name': 'retraction', # ['sequential', 'retraction', 'spectral']
                            'max_internal_iter': 100, # 10 for sequential and 100 for retraction
                            'alpha': 0.3, # step size for retraction
-                        },
-                        'n_proc': max(1,int(multiprocessing.cpu_count()/2))
+                        }
                       }
 
 default_vis_opts = {'save_dir': '',
@@ -151,9 +152,6 @@ default_vis_opts = {'save_dir': '',
                      'c': None}
 
 class LDLE:
-    '''
-        
-    '''
     def __init__(self,
                  d = 2, # embedding dimension
                  local_opts = {}, # see default_local_opts above
@@ -168,18 +166,17 @@ class LDLE:
         for i in local_opts:
             default_local_opts[i] = local_opts[i]
         self.local_opts = default_local_opts
-        
         self.local_opts['k_nn'] = max(self.local_opts['k_nn'],
                                       self.local_opts['k'])
         #############################################
-        
         intermed_opts['algo'] = self.local_opts['algo']
+        intermed_opts['n_proc'] = self.local_opts['n_proc']
         for i in intermed_opts:
             default_intermed_opts[i] = intermed_opts[i]
-            
         self.intermed_opts = default_intermed_opts
         #############################################
         global_opts['k'] = self.local_opts['k']
+        global_opts['n_proc'] = self.local_opts['n_proc']
         for i in global_opts:
             default_global_opts[i] = global_opts[i]
         self.global_opts = default_global_opts
