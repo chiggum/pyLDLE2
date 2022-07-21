@@ -70,10 +70,10 @@
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">copy</span>
 
-<span class="kn">import</span> <span class="nn">gl_</span>
-<span class="kn">import</span> <span class="nn">ipge_</span>
-<span class="kn">from</span> <span class="nn">util_</span> <span class="kn">import</span> <span class="n">print_log</span><span class="p">,</span> <span class="n">compute_zeta</span>
-<span class="kn">from</span> <span class="nn">util_</span> <span class="kn">import</span> <span class="n">Param</span><span class="p">,</span> <span class="n">sparse_matrix</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">gl_</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">ipge_</span>
+<span class="kn">from</span> <span class="nn">.util_</span> <span class="kn">import</span> <span class="n">print_log</span><span class="p">,</span> <span class="n">compute_zeta</span>
+<span class="kn">from</span> <span class="nn">.util_</span> <span class="kn">import</span> <span class="n">Param</span><span class="p">,</span> <span class="n">sparse_matrix</span>
 
 <span class="kn">from</span> <span class="nn">scipy.linalg</span> <span class="kn">import</span> <span class="n">inv</span><span class="p">,</span> <span class="n">svd</span>
 <span class="kn">from</span> <span class="nn">scipy.sparse</span> <span class="kn">import</span> <span class="n">csr_matrix</span>
@@ -84,9 +84,9 @@
 <span class="kn">import</span> <span class="nn">multiprocess</span> <span class="k">as</span> <span class="nn">mp</span>
 
 <div class="viewcode-block" id="LocalViews"><a class="viewcode-back" href="../../pyLDLE2.html#pyLDLE2.local_views_.LocalViews">[docs]</a><span class="k">class</span> <span class="nc">LocalViews</span><span class="p">:</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exit_at</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">print_logs</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exit_at</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">exit_at</span> <span class="o">=</span> <span class="n">exit_at</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">logs</span> <span class="o">=</span> <span class="n">print_logs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logs</span> <span class="o">=</span> <span class="n">verbose</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">debug</span> <span class="o">=</span> <span class="n">debug</span>
         
         

@@ -6,6 +6,9 @@
 Welcome to pyLDLE2's documentation!
 ===================================
 
+.. automodule:: pyLDLE2.ldle_
+    :members:
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:

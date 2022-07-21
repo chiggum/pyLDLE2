@@ -70,8 +70,8 @@
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">copy</span>
 
-<span class="kn">from</span> <span class="nn">util_</span> <span class="kn">import</span> <span class="n">print_log</span><span class="p">,</span> <span class="n">compute_zeta</span>
-<span class="kn">from</span> <span class="nn">util_</span> <span class="kn">import</span> <span class="n">Param</span>
+<span class="kn">from</span> <span class="nn">.util_</span> <span class="kn">import</span> <span class="n">print_log</span><span class="p">,</span> <span class="n">compute_zeta</span>
+<span class="kn">from</span> <span class="nn">.util_</span> <span class="kn">import</span> <span class="n">Param</span>
 
 <span class="kn">from</span> <span class="nn">scipy.spatial.distance</span> <span class="kn">import</span> <span class="n">pdist</span><span class="p">,</span> <span class="n">squareform</span>
 
@@ -133,9 +133,9 @@
     <span class="k">return</span> <span class="n">cost_k</span><span class="p">,</span> <span class="n">dest_k</span></div>
 
 <div class="viewcode-block" id="IntermedViews"><a class="viewcode-back" href="../../pyLDLE2.html#pyLDLE2.intermed_views_.IntermedViews">[docs]</a><span class="k">class</span> <span class="nc">IntermedViews</span><span class="p">:</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exit_at</span><span class="p">,</span> <span class="n">print_logs</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exit_at</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">exit_at</span> <span class="o">=</span> <span class="n">exit_at</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">print_logs</span> <span class="o">=</span> <span class="n">print_logs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">debug</span> <span class="o">=</span> <span class="n">debug</span>
         
         <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="kc">None</span>
@@ -148,7 +148,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">global_start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
     
 <div class="viewcode-block" id="IntermedViews.log"><a class="viewcode-back" href="../../pyLDLE2.html#pyLDLE2.intermed_views_.IntermedViews.log">[docs]</a>    <span class="k">def</span> <span class="nf">log</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">log_time</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">print_logs</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">local_start_time</span> <span class="o">=</span> <span class="n">print_log</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">log_time</span><span class="p">,</span>
                                               <span class="bp">self</span><span class="o">.</span><span class="n">local_start_time</span><span class="p">,</span> 
                                               <span class="bp">self</span><span class="o">.</span><span class="n">global_start_time</span><span class="p">)</span></div>
