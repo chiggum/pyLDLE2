@@ -42,6 +42,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../../modules.html">Modules</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../nbks/example_1.html">Example 1</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../nbks/vis_1.html">Example 1 - further visualizations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../nbks/example_2.html">Example 2</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../nbks/vis_2.html">Example 2 - further visualizations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../todo.html">TODO</a></li>
 </ul>
 
         </div>
@@ -218,7 +221,7 @@
     <span class="k">return</span> <span class="n">neigh_dist</span><span class="p">,</span> <span class="n">neigh_ind</span></div>
     
 
-<div class="viewcode-block" id="get_default_local_opts"><a class="viewcode-back" href="../../pyLDLE2.html#pyLDLE2.ldle_.get_default_local_opts">[docs]</a><span class="k">def</span> <span class="nf">get_default_local_opts</span><span class="p">(</span><span class="n">algo</span><span class="o">=</span><span class="s1">&#39;LDLE&#39;</span><span class="p">,</span> <span class="n">k_nn</span><span class="o">=</span><span class="mi">48</span><span class="p">,</span> <span class="n">k_tune</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">24</span><span class="p">,</span> <span class="n">gl_type</span><span class="o">=</span><span class="s1">&#39;unnorm&#39;</span><span class="p">,</span>
+<div class="viewcode-block" id="get_default_local_opts"><a class="viewcode-back" href="../../pyLDLE2.html#pyLDLE2.ldle_.get_default_local_opts">[docs]</a><span class="k">def</span> <span class="nf">get_default_local_opts</span><span class="p">(</span><span class="n">algo</span><span class="o">=</span><span class="s1">&#39;LDLE&#39;</span><span class="p">,</span> <span class="n">k_nn</span><span class="o">=</span><span class="mi">49</span><span class="p">,</span> <span class="n">k_tune</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">24</span><span class="p">,</span> <span class="n">gl_type</span><span class="o">=</span><span class="s1">&#39;unnorm&#39;</span><span class="p">,</span>
                            <span class="n">N</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">no_gamma</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">Atilde_method</span><span class="o">=</span><span class="s1">&#39;LDLE_1&#39;</span><span class="p">,</span>
                            <span class="n">p</span><span class="o">=</span><span class="mf">0.99</span><span class="p">,</span> <span class="n">tau</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">delta</span><span class="o">=</span><span class="mf">0.9</span><span class="p">,</span> <span class="n">to_postprocess</span><span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
                            <span class="n">pp_n_thresh</span><span class="o">=</span><span class="mi">32</span><span class="p">):</span>
@@ -280,7 +283,7 @@
            <span class="s1">&#39;delta&#39;</span><span class="p">:</span> <span class="n">delta</span><span class="p">,</span> <span class="s1">&#39;to_postprocess&#39;</span><span class="p">:</span> <span class="n">to_postprocess</span><span class="p">,</span> <span class="s1">&#39;algo&#39;</span><span class="p">:</span> <span class="n">algo</span><span class="p">,</span>
            <span class="s1">&#39;pp_n_thresh&#39;</span><span class="p">:</span> <span class="n">pp_n_thresh</span><span class="p">}</span></div>
 
-<div class="viewcode-block" id="get_default_intermed_opts"><a class="viewcode-back" href="../../pyLDLE2.html#pyLDLE2.ldle_.get_default_intermed_opts">[docs]</a><span class="k">def</span> <span class="nf">get_default_intermed_opts</span><span class="p">(</span><span class="n">eta_min</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">eta_max</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">len_S_thresh</span><span class="o">=</span><span class="mi">256</span><span class="p">):</span>
+<div class="viewcode-block" id="get_default_intermed_opts"><a class="viewcode-back" href="../../pyLDLE2.html#pyLDLE2.ldle_.get_default_intermed_opts">[docs]</a><span class="k">def</span> <span class="nf">get_default_intermed_opts</span><span class="p">(</span><span class="n">eta_min</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">eta_max</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span> <span class="n">len_S_thresh</span><span class="o">=</span><span class="mi">256</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Sets and returns a dictionary of default_intermed_opts.</span>
 <span class="sd">    </span>
 <span class="sd">    Parameters</span>
@@ -356,15 +359,11 @@
                <span class="s1">&#39;vis_before_init&#39;</span><span class="p">:</span> <span class="n">vis_before_init</span><span class="p">,</span>
                <span class="s1">&#39;compute_error&#39;</span><span class="p">:</span> <span class="n">compute_error</span><span class="p">,</span>
                <span class="s1">&#39;main_algo&#39;</span><span class="p">:</span> <span class="n">main_algo</span><span class="p">,</span> <span class="c1"># [&#39;LDLE&#39;, &#39;LTSA&#39;]</span>
-               <span class="s1">&#39;init_algo&#39;</span><span class="p">:</span> <span class="p">{</span>
-                   <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">init_algo_name</span><span class="p">,</span> <span class="c1"># [&#39;sequential&#39;, &#39;spectral&#39;, &#39;sequential+spectral&#39;], spectral ignores to_tear</span>
-                   <span class="s1">&#39;align_w_parent_only&#39;</span><span class="p">:</span> <span class="n">init_algo_align_w_parent_only</span>
-                <span class="p">},</span>
-               <span class="s1">&#39;refine_algo&#39;</span><span class="p">:</span> <span class="p">{</span>
-                   <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">refine_algo_name</span><span class="p">,</span> <span class="c1"># [&#39;sequential&#39;, &#39;retraction&#39;, &#39;spectral&#39;]</span>
-                   <span class="s1">&#39;max_internal_iter&#39;</span><span class="p">:</span> <span class="n">refine_algo_max_internal_iter</span><span class="p">,</span> <span class="c1"># 10 for sequential and 100 for retraction</span>
-                   <span class="s1">&#39;alpha&#39;</span><span class="p">:</span> <span class="n">refine_algo_alpha</span><span class="p">,</span> <span class="c1"># step size for retraction</span>
-                <span class="p">}</span>
+               <span class="s1">&#39;init_algo_name&#39;</span><span class="p">:</span> <span class="n">init_algo_name</span><span class="p">,</span> <span class="c1"># [&#39;sequential&#39;, &#39;spectral&#39;, &#39;sequential+spectral&#39;], spectral ignores to_tear</span>
+               <span class="s1">&#39;init_algo_align_w_parent_only&#39;</span><span class="p">:</span> <span class="n">init_algo_align_w_parent_only</span><span class="p">,</span>
+               <span class="s1">&#39;refine_algo_name&#39;</span><span class="p">:</span> <span class="n">refine_algo_name</span><span class="p">,</span> <span class="c1"># [&#39;sequential&#39;, &#39;retraction&#39;, &#39;spectral&#39;]</span>
+               <span class="s1">&#39;refine_algo_max_internal_iter&#39;</span><span class="p">:</span> <span class="n">refine_algo_max_internal_iter</span><span class="p">,</span> <span class="c1"># 10 for sequential and 100 for retraction</span>
+               <span class="s1">&#39;refine_algo_alpha&#39;</span><span class="p">:</span> <span class="n">refine_algo_alpha</span><span class="p">,</span> <span class="c1"># step size for retraction</span>
               <span class="p">}</span></div>
 <div class="viewcode-block" id="get_default_vis_opts"><a class="viewcode-back" href="../../pyLDLE2.html#pyLDLE2.ldle_.get_default_vis_opts">[docs]</a><span class="k">def</span> <span class="nf">get_default_vis_opts</span><span class="p">(</span><span class="n">save_dir</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">cmap_interior</span><span class="o">=</span><span class="s1">&#39;summer&#39;</span><span class="p">,</span> <span class="n">cmap_boundary</span><span class="o">=</span><span class="s1">&#39;jet&#39;</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;save_dir&#39;</span><span class="p">:</span> <span class="n">save_dir</span><span class="p">,</span>
@@ -420,14 +419,16 @@
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">local_opts</span><span class="p">:</span>
             <span class="n">default_local_opts</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">local_opts</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span> <span class="o">=</span> <span class="n">default_local_opts</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn&#39;</span><span class="p">],</span>
-                                      <span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">])</span>
         <span class="c1">#############################################</span>
         <span class="n">intermed_opts</span><span class="p">[</span><span class="s1">&#39;algo&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;algo&#39;</span><span class="p">]</span>
         <span class="n">intermed_opts</span><span class="p">[</span><span class="s1">&#39;n_proc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">n_proc</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">intermed_opts</span><span class="p">:</span>
             <span class="n">default_intermed_opts</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">intermed_opts</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">intermed_opts</span> <span class="o">=</span> <span class="n">default_intermed_opts</span>
+        <span class="c1"># Update k_nn </span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn0&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn&#39;</span><span class="p">],</span>
+                                       <span class="bp">self</span><span class="o">.</span><span class="n">intermed_opts</span><span class="p">[</span><span class="s1">&#39;eta_max&#39;</span><span class="p">]</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">])</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;local_opts[&#39;k_nn0&#39;] =&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn0&#39;</span><span class="p">],</span> <span class="s2">&quot;is created.&quot;</span><span class="p">)</span>
         <span class="c1">#############################################</span>
         <span class="n">global_opts</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">]</span>
         <span class="n">global_opts</span><span class="p">[</span><span class="s1">&#39;n_proc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">n_proc</span>
@@ -490,16 +491,24 @@
         <span class="k">if</span> <span class="n">d_e</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">ddX</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;algo&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;LTSA&#39;</span><span class="p">:</span>
                 <span class="n">neigh_dist</span><span class="p">,</span> <span class="n">neigh_ind</span> <span class="o">=</span> <span class="n">nearest_neighbors</span><span class="p">(</span><span class="n">X</span><span class="p">,</span>
-                                                          <span class="n">k_nn</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn&#39;</span><span class="p">],</span>
+                                                          <span class="n">k_nn</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn0&#39;</span><span class="p">],</span>
                                                           <span class="n">metric</span><span class="o">=</span><span class="s1">&#39;euclidean&#39;</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="s1">&#39;Doubling manifold.&#39;</span><span class="p">)</span>
-                <span class="n">neigh_dist</span><span class="p">,</span> <span class="n">neigh_ind</span> <span class="o">=</span> <span class="n">double_manifold_k_nn</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">ddX</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn&#39;</span><span class="p">])</span>
+                <span class="n">neigh_dist</span><span class="p">,</span> <span class="n">neigh_ind</span> <span class="o">=</span> <span class="n">double_manifold_k_nn</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">ddX</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn0&#39;</span><span class="p">])</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="s1">&#39;Done.&#39;</span><span class="p">,</span> <span class="n">log_time</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        
-        <span class="c1"># Construct a sparse d_e matrix based on neigh_ind and neigh_dist</span>
-        <span class="n">d_e</span> <span class="o">=</span> <span class="n">sparse_matrix</span><span class="p">(</span><span class="n">neigh_ind</span><span class="p">,</span> <span class="n">neigh_dist</span><span class="p">)</span>
-        <span class="n">d_e</span> <span class="o">=</span> <span class="n">d_e</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">d_e</span><span class="o">.</span><span class="n">transpose</span><span class="p">())</span>
+                
+            <span class="c1"># Construct a sparse d_e matrix based on neigh_ind and neigh_dist</span>
+            <span class="n">d_e</span> <span class="o">=</span> <span class="n">sparse_matrix</span><span class="p">(</span><span class="n">neigh_ind</span><span class="p">,</span> <span class="n">neigh_dist</span><span class="p">)</span>
+            <span class="n">d_e</span> <span class="o">=</span> <span class="n">d_e</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">d_e</span><span class="o">.</span><span class="n">transpose</span><span class="p">())</span>
+            
+            <span class="n">neigh_ind</span> <span class="o">=</span> <span class="n">neigh_ind</span><span class="p">[:,:</span><span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn&#39;</span><span class="p">]]</span>
+            <span class="n">neigh_dist</span> <span class="o">=</span> <span class="n">neigh_dist</span><span class="p">[:,:</span><span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn&#39;</span><span class="p">]]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">ddX</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;algo&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;LTSA&#39;</span><span class="p">:</span>
+                <span class="n">neigh_dist</span><span class="p">,</span> <span class="n">neigh_ind</span> <span class="o">=</span> <span class="n">nearest_neighbors</span><span class="p">(</span><span class="n">d_e</span><span class="p">,</span>
+                                                          <span class="n">k_nn</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn&#39;</span><span class="p">],</span>
+                                                          <span class="n">metric</span><span class="o">=</span><span class="s1">&#39;precomputed&#39;</span><span class="p">)</span>
         
         <span class="c1"># Construct low dimensional local views</span>
         <span class="n">LocalViews</span> <span class="o">=</span> <span class="n">local_views_</span><span class="o">.</span><span class="n">LocalViews</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exit_at</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">)</span>
@@ -510,10 +519,18 @@
             <span class="n">n</span> <span class="o">=</span> <span class="n">ddX</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
             <span class="n">d_e</span> <span class="o">=</span> <span class="n">d_e</span><span class="p">[:</span><span class="n">n</span><span class="p">,:</span><span class="n">n</span><span class="p">]</span>
         
+        <span class="bp">self</span><span class="o">.</span><span class="n">LocalViews</span> <span class="o">=</span> <span class="n">LocalViews</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">exit_at</span> <span class="o">==</span> <span class="s1">&#39;local_views&#39;</span><span class="p">:</span>
+            <span class="k">return</span>
+        
         <span class="c1"># Construct intermediate views</span>
         <span class="n">IntermedViews</span> <span class="o">=</span> <span class="n">intermed_views_</span><span class="o">.</span><span class="n">IntermedViews</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exit_at</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">)</span>
         <span class="n">IntermedViews</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">,</span> <span class="n">d_e</span><span class="p">,</span> <span class="n">neigh_ind</span><span class="p">[:,:</span><span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">]],</span> <span class="n">LocalViews</span><span class="o">.</span><span class="n">U</span><span class="p">,</span>
                           <span class="n">LocalViews</span><span class="o">.</span><span class="n">local_param_post</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">intermed_opts</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">IntermedViews</span> <span class="o">=</span> <span class="n">IntermedViews</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">exit_at</span> <span class="o">==</span> <span class="s1">&#39;intermed_views&#39;</span><span class="p">:</span>
+            <span class="k">return</span>
         
         <span class="c1"># Construct Global views</span>
         <span class="n">GlobalViews</span> <span class="o">=</span> <span class="n">global_views_</span><span class="o">.</span><span class="n">GlobalViews</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exit_at</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">)</span>
@@ -521,8 +538,6 @@
                         <span class="n">IntermedViews</span><span class="o">.</span><span class="n">n_C</span><span class="p">,</span> <span class="n">IntermedViews</span><span class="o">.</span><span class="n">intermed_param</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">global_opts</span><span class="p">,</span>
                         <span class="bp">self</span><span class="o">.</span><span class="n">vis</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">vis_opts</span><span class="p">)</span>
         
-        <span class="bp">self</span><span class="o">.</span><span class="n">LocalViews</span> <span class="o">=</span> <span class="n">LocalViews</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">IntermedViews</span> <span class="o">=</span> <span class="n">IntermedViews</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">GlobalViews</span> <span class="o">=</span> <span class="n">GlobalViews</span>
         
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>

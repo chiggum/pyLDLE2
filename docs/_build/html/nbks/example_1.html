@@ -47,6 +47,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../modules.html">Modules</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Example 1</a></li>
 <li class="toctree-l1"><a class="reference internal" href="vis_1.html">Example 1 - further visualizations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="example_2.html">Example 2</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vis_2.html">Example 2 - further visualizations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../todo.html">TODO</a></li>
 </ul>
 
         </div>
@@ -353,7 +356,7 @@ div.rendered_html tbody tr:hover {
 </style>
 <section id="Example-1">
 <h1>Example 1<a class="headerlink" href="#Example-1" title="Permalink to this heading"></a></h1>
-<p>Here the local views are constructed using LTSA and the alignment is done using Riemannian gradient descent based retraction algorithm.</p>
+<p>Here the local views are constructed using LDLE and the alignment is done using Riemannian gradient descent based retraction algorithm.</p>
 <div class="nbinput nblast docutils container">
 <div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
 </pre></div>
@@ -363,7 +366,17 @@ div.rendered_html tbody tr:hover {
 </div>
 </div>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[23]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[2]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Not really required</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;../..&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[3]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyLDLE2</span> <span class="kn">import</span> <span class="n">datasets</span>
@@ -371,8 +384,16 @@ div.rendered_html tbody tr:hover {
 </pre></div>
 </div>
 </div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+matplotlib.get_backend() =  module://matplotlib_inline.backend_inline
+</pre></div></div>
+</div>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[24]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[4]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">noise</span> <span class="o">=</span> <span class="mf">0.01</span>
@@ -380,7 +401,7 @@ div.rendered_html tbody tr:hover {
 </div>
 </div>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[14]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">save_dir_root</span> <span class="o">=</span> <span class="s1">&#39;../data/pyLDLE2/noisyswissroll_&#39;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">noise</span><span class="p">)</span><span class="o">+</span><span class="s1">&#39;/&#39;</span>
@@ -388,7 +409,7 @@ div.rendered_html tbody tr:hover {
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[15]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[6]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">X</span><span class="p">,</span> <span class="n">labelsMat</span><span class="p">,</span> <span class="n">ddX</span> <span class="o">=</span> <span class="n">datasets</span><span class="o">.</span><span class="n">Datasets</span><span class="p">()</span><span class="o">.</span><span class="n">noisyswissroll</span><span class="p">(</span><span class="n">noise</span><span class="o">=</span><span class="n">noise</span><span class="p">)</span>
@@ -403,20 +424,32 @@ div.rendered_html tbody tr:hover {
 X.shape =  (10260, 3)
 </pre></div></div>
 </div>
-<div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[16]:
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[7]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># The supplied options would override the default options</span>
-<span class="n">ldle</span> <span class="o">=</span> <span class="n">ldle_</span><span class="o">.</span><span class="n">LDLE</span><span class="p">(</span><span class="n">local_opts</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;algo&#39;</span><span class="p">:</span><span class="s1">&#39;LTSA&#39;</span><span class="p">},</span>
+<span class="n">ldle</span> <span class="o">=</span> <span class="n">ldle_</span><span class="o">.</span><span class="n">LDLE</span><span class="p">(</span><span class="n">local_opts</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;algo&#39;</span><span class="p">:</span><span class="s1">&#39;LDLE&#39;</span><span class="p">},</span>
                   <span class="n">vis_opts</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;c&#39;</span><span class="p">:</span> <span class="n">labelsMat</span><span class="p">[:,</span><span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;save_dir&#39;</span><span class="p">:</span> <span class="n">save_dir_root</span><span class="p">},</span>
-                  <span class="n">intermed_opts</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;eta_min&#39;</span><span class="p">:</span><span class="mi">5</span><span class="p">},</span>
-                  <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                  <span class="n">intermed_opts</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;eta_min&#39;</span><span class="p">:</span> <span class="mi">5</span><span class="p">},</span>
+                  <span class="n">global_opts</span><span class="o">=</span><span class="p">{</span>
+                      <span class="s1">&#39;max_iter&#39;</span><span class="p">:</span> <span class="mi">12</span><span class="p">,</span>
+                      <span class="s1">&#39;init_algo_align_w_parent_only&#39;</span><span class="p">:</span> <span class="kc">False</span> <span class="c1"># Set this True for low noise</span>
+                  <span class="p">},</span>
+                  <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+local_opts[&#39;k_nn0&#39;] = 600 is created.
+</pre></div></div>
+</div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[7]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[8]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">ldle</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="o">=</span><span class="n">X</span><span class="p">)</span>
@@ -428,101 +461,134 @@ X.shape =  (10260, 3)
 </div>
 <div class="output_area docutils container">
 <div class="highlight"><pre>
-Constructing local views using LTSA.
-local_param: 0 points processed...
-local_param: 2565 points processed...
-local_param: 5130 points processed...
-local_param: 7695 points processed...
-local_param: all 10260 points processed...
+Constructing unnorm graph Laplacian + its eigendecomposition.
 Done.
 ##############################
-Time elapsed from last time log: 5.5 seconds
-Total time elapsed: 5.5 seconds
+Time elapsed from last time log: 5.3 seconds
+Total time elapsed: 5.3 seconds
 ##############################
-Max local distortion = 2934.913683389935
+Computing Atilde: Inner Prod of Grad of EigFuncs.
+FEM for Atilde.
+Atilde: 0 points processed...
+Atilde: 2565 points processed...
+Atilde: 5130 points processed...
+Atilde: 7695 points processed...
+Atilde: all points processed...
+Done.
+##############################
+Time elapsed from last time log: 0.7 seconds
+Total time elapsed: 5.9 seconds
+##############################
+Computing LDLE.
+local_param: all 10260 points processed...
+max distortion is 1564.151326
+Done.
+##############################
+Time elapsed from last time log: 1.5 seconds
+Total time elapsed: 7.4 seconds
+##############################
+Posprocessing LDLE.
+Iter 1, Param replaced: 9877, max distortion: 115.561208
+Iter 2, Param replaced: 4923, max distortion: 84.747643
+Iter 3, Param replaced: 1497, max distortion: 82.284299
+Iter 4, Param replaced: 408, max distortion: 82.284299
+Iter 5, Param replaced: 121, max distortion: 82.284299
+Iter 6, Param replaced: 33, max distortion: 82.284299
+Iter 7, Param replaced: 4, max distortion: 82.284299
+Iter 8, Param replaced: 1, max distortion: 82.284299
+Iter 9, Param replaced: 2, max distortion: 82.284299
+Iter 10, Param replaced: 0, max distortion: 82.284299
+Done.
+##############################
+Time elapsed from last time log: 20.2 seconds
+Total time elapsed: 27.7 seconds
+##############################
+Max local distortion = 82.28429865517653
 Constructing intermediate views.
 eta = 2.
 # non-empty views with sz &lt; 2 = 10260
 #nodes in views with sz &lt; 2 = 10260
 Costs computed when eta = 2.
 ##############################
-Time elapsed from last time log: 10.3 seconds
-Total time elapsed: 10.4 seconds
+Time elapsed from last time log: 13.4 seconds
+Total time elapsed: 13.5 seconds
 ##############################
 Remaining #nodes in views with sz &lt; 2 = 0
 Done with eta = 2.
 ##############################
-Time elapsed from last time log: 77.4 seconds
-Total time elapsed: 87.8 seconds
+Time elapsed from last time log: 72.0 seconds
+Total time elapsed: 85.5 seconds
 ##############################
 eta = 3.
-# non-empty views with sz &lt; 3 = 270
-#nodes in views with sz &lt; 3 = 540
+# non-empty views with sz &lt; 3 = 485
+#nodes in views with sz &lt; 3 = 970
 Costs computed when eta = 3.
 ##############################
-Time elapsed from last time log: 0.3 seconds
-Total time elapsed: 88.1 seconds
+Time elapsed from last time log: 0.7 seconds
+Total time elapsed: 86.2 seconds
 ##############################
 Remaining #nodes in views with sz &lt; 3 = 0
 Done with eta = 3.
 ##############################
-Time elapsed from last time log: 1.0 seconds
-Total time elapsed: 89.2 seconds
+Time elapsed from last time log: 2.7 seconds
+Total time elapsed: 88.9 seconds
 ##############################
 eta = 4.
-# non-empty views with sz &lt; 4 = 166
-#nodes in views with sz &lt; 4 = 498
+# non-empty views with sz &lt; 4 = 368
+#nodes in views with sz &lt; 4 = 1104
 Costs computed when eta = 4.
 ##############################
-Time elapsed from last time log: 0.3 seconds
-Total time elapsed: 89.5 seconds
+Time elapsed from last time log: 0.7 seconds
+Total time elapsed: 89.6 seconds
 ##############################
 Remaining #nodes in views with sz &lt; 4 = 0
 Done with eta = 4.
 ##############################
-Time elapsed from last time log: 1.5 seconds
-Total time elapsed: 91.0 seconds
+Time elapsed from last time log: 4.7 seconds
+Total time elapsed: 94.3 seconds
 ##############################
 eta = 5.
-# non-empty views with sz &lt; 5 = 116
-#nodes in views with sz &lt; 5 = 464
+# non-empty views with sz &lt; 5 = 253
+#nodes in views with sz &lt; 5 = 1012
 Costs computed when eta = 5.
 ##############################
-Time elapsed from last time log: 0.2 seconds
-Total time elapsed: 91.2 seconds
+Time elapsed from last time log: 0.7 seconds
+Total time elapsed: 95.0 seconds
 ##############################
 Remaining #nodes in views with sz &lt; 5 = 0
 Done with eta = 5.
 ##############################
-Time elapsed from last time log: 1.8 seconds
-Total time elapsed: 93.1 seconds
+Time elapsed from last time log: 5.4 seconds
+Total time elapsed: 100.4 seconds
 ##############################
 Pruning and cleaning up.
 Done.
 ##############################
-Time elapsed from last time log: 0.3 seconds
-Total time elapsed: 93.4 seconds
+Time elapsed from last time log: 0.5 seconds
+Total time elapsed: 100.9 seconds
 ##############################
-After clustering, max distortion is 13.278407
+After clustering, max distortion is 85.253027
 Ambiguous overlaps checked for 0 intermediate views
-Ambiguous overlaps checked for 232 intermediate views
-Ambiguous overlaps checked for 464 intermediate views
-Ambiguous overlaps checked for 696 intermediate views
-Ambiguous overlaps checked for 928 points
+Ambiguous overlaps checked for 316 intermediate views
+Ambiguous overlaps checked for 632 intermediate views
+Ambiguous overlaps checked for 948 intermediate views
+Ambiguous overlaps checked for 1264 intermediate views
+Ambiguous overlaps checked for 1267 points
 Seq of intermediate views and their predecessors computed.
 No. of connected components = 1
 Computing initial embedding using: sequential algorithm
 ##############################
-Time elapsed from last time log: 4.3 seconds
-Total time elapsed: 4.3 seconds
+Time elapsed from last time log: 6.8 seconds
+Total time elapsed: 6.8 seconds
 ##############################
-Initial alignment of 232 views completed
-Initial alignment of 464 views completed
-Initial alignment of 696 views completed
+Initial alignment of 316 views completed
+Initial alignment of 632 views completed
+Initial alignment of 948 views completed
+Initial alignment of 1264 views completed
 Embedding initialized.
 ##############################
-Time elapsed from last time log: 0.3 seconds
-Total time elapsed: 4.6 seconds
+Time elapsed from last time log: 0.4 seconds
+Total time elapsed: 7.2 seconds
 ##############################
 </pre></div></div>
 </div>
@@ -530,7 +596,7 @@ Total time elapsed: 4.6 seconds
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/nbks_example_1_7_1.png" src="../_images/nbks_example_1_7_1.png" />
+<img alt="../_images/nbks_example_1_8_1.png" src="../_images/nbks_example_1_8_1.png" />
 </div>
 </div>
 <div class="nboutput docutils container">
@@ -542,14 +608,14 @@ Refining with retraction algorithm for 100 iterations.
 Refinement iteration: 0
 ##############################
 Time elapsed from last time log: 0.0 seconds
-Total time elapsed: 14.9 seconds
+Total time elapsed: 23.2 seconds
 ##############################
-Computing Pseudoinverse of a matrix of L of size 11188
+Computing Pseudoinverse of a matrix of L of size 11527
 Descent starts
 Done.
 ##############################
-Time elapsed from last time log: 24.8 seconds
-Total time elapsed: 39.6 seconds
+Time elapsed from last time log: 36.5 seconds
+Total time elapsed: 59.7 seconds
 ##############################
 </pre></div></div>
 </div>
@@ -557,7 +623,7 @@ Total time elapsed: 39.6 seconds
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/nbks_example_1_7_3.png" src="../_images/nbks_example_1_7_3.png" />
+<img alt="../_images/nbks_example_1_8_3.png" src="../_images/nbks_example_1_8_3.png" />
 </div>
 </div>
 <div class="nboutput docutils container">
@@ -569,14 +635,14 @@ Refining with retraction algorithm for 100 iterations.
 Refinement iteration: 1
 ##############################
 Time elapsed from last time log: 0.0 seconds
-Total time elapsed: 44.9 seconds
+Total time elapsed: 67.9 seconds
 ##############################
-Computing Pseudoinverse of a matrix of L of size 11188
+Computing Pseudoinverse of a matrix of L of size 11527
 Descent starts
 Done.
 ##############################
-Time elapsed from last time log: 26.2 seconds
-Total time elapsed: 71.0 seconds
+Time elapsed from last time log: 37.6 seconds
+Total time elapsed: 105.6 seconds
 ##############################
 </pre></div></div>
 </div>
@@ -584,7 +650,7 @@ Total time elapsed: 71.0 seconds
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/nbks_example_1_7_5.png" src="../_images/nbks_example_1_7_5.png" />
+<img alt="../_images/nbks_example_1_8_5.png" src="../_images/nbks_example_1_8_5.png" />
 </div>
 </div>
 <div class="nboutput docutils container">
@@ -596,14 +662,14 @@ Refining with retraction algorithm for 100 iterations.
 Refinement iteration: 2
 ##############################
 Time elapsed from last time log: 0.0 seconds
-Total time elapsed: 76.2 seconds
+Total time elapsed: 113.7 seconds
 ##############################
-Computing Pseudoinverse of a matrix of L of size 11188
+Computing Pseudoinverse of a matrix of L of size 11527
 Descent starts
 Done.
 ##############################
-Time elapsed from last time log: 26.6 seconds
-Total time elapsed: 102.9 seconds
+Time elapsed from last time log: 38.2 seconds
+Total time elapsed: 151.8 seconds
 ##############################
 </pre></div></div>
 </div>
@@ -611,7 +677,7 @@ Total time elapsed: 102.9 seconds
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/nbks_example_1_7_7.png" src="../_images/nbks_example_1_7_7.png" />
+<img alt="../_images/nbks_example_1_8_7.png" src="../_images/nbks_example_1_8_7.png" />
 </div>
 </div>
 <div class="nboutput docutils container">
@@ -623,14 +689,14 @@ Refining with retraction algorithm for 100 iterations.
 Refinement iteration: 3
 ##############################
 Time elapsed from last time log: 0.0 seconds
-Total time elapsed: 108.1 seconds
+Total time elapsed: 160.1 seconds
 ##############################
-Computing Pseudoinverse of a matrix of L of size 11188
+Computing Pseudoinverse of a matrix of L of size 11527
 Descent starts
 Done.
 ##############################
-Time elapsed from last time log: 27.0 seconds
-Total time elapsed: 135.1 seconds
+Time elapsed from last time log: 39.2 seconds
+Total time elapsed: 199.3 seconds
 ##############################
 </pre></div></div>
 </div>
@@ -638,7 +704,7 @@ Total time elapsed: 135.1 seconds
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/nbks_example_1_7_9.png" src="../_images/nbks_example_1_7_9.png" />
+<img alt="../_images/nbks_example_1_8_9.png" src="../_images/nbks_example_1_8_9.png" />
 </div>
 </div>
 <div class="nboutput docutils container">
@@ -650,14 +716,14 @@ Refining with retraction algorithm for 100 iterations.
 Refinement iteration: 4
 ##############################
 Time elapsed from last time log: 0.0 seconds
-Total time elapsed: 140.3 seconds
+Total time elapsed: 207.5 seconds
 ##############################
-Computing Pseudoinverse of a matrix of L of size 11188
+Computing Pseudoinverse of a matrix of L of size 11527
 Descent starts
 Done.
 ##############################
-Time elapsed from last time log: 27.5 seconds
-Total time elapsed: 167.8 seconds
+Time elapsed from last time log: 41.6 seconds
+Total time elapsed: 249.0 seconds
 ##############################
 </pre></div></div>
 </div>
@@ -665,7 +731,7 @@ Total time elapsed: 167.8 seconds
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/nbks_example_1_7_11.png" src="../_images/nbks_example_1_7_11.png" />
+<img alt="../_images/nbks_example_1_8_11.png" src="../_images/nbks_example_1_8_11.png" />
 </div>
 </div>
 <div class="nboutput docutils container">
@@ -677,14 +743,14 @@ Refining with retraction algorithm for 100 iterations.
 Refinement iteration: 5
 ##############################
 Time elapsed from last time log: 0.0 seconds
-Total time elapsed: 173.1 seconds
+Total time elapsed: 257.2 seconds
 ##############################
-Computing Pseudoinverse of a matrix of L of size 11188
+Computing Pseudoinverse of a matrix of L of size 11527
 Descent starts
 Done.
 ##############################
-Time elapsed from last time log: 28.2 seconds
-Total time elapsed: 201.3 seconds
+Time elapsed from last time log: 40.1 seconds
+Total time elapsed: 297.3 seconds
 ##############################
 </pre></div></div>
 </div>
@@ -692,7 +758,7 @@ Total time elapsed: 201.3 seconds
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/nbks_example_1_7_13.png" src="../_images/nbks_example_1_7_13.png" />
+<img alt="../_images/nbks_example_1_8_13.png" src="../_images/nbks_example_1_8_13.png" />
 </div>
 </div>
 <div class="nboutput docutils container">
@@ -704,14 +770,14 @@ Refining with retraction algorithm for 100 iterations.
 Refinement iteration: 6
 ##############################
 Time elapsed from last time log: 0.0 seconds
-Total time elapsed: 206.5 seconds
+Total time elapsed: 305.5 seconds
 ##############################
-Computing Pseudoinverse of a matrix of L of size 11188
+Computing Pseudoinverse of a matrix of L of size 11527
 Descent starts
 Done.
 ##############################
-Time elapsed from last time log: 27.5 seconds
-Total time elapsed: 234.0 seconds
+Time elapsed from last time log: 39.6 seconds
+Total time elapsed: 345.1 seconds
 ##############################
 </pre></div></div>
 </div>
@@ -719,7 +785,7 @@ Total time elapsed: 234.0 seconds
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/nbks_example_1_7_15.png" src="../_images/nbks_example_1_7_15.png" />
+<img alt="../_images/nbks_example_1_8_15.png" src="../_images/nbks_example_1_8_15.png" />
 </div>
 </div>
 <div class="nboutput docutils container">
@@ -731,14 +797,14 @@ Refining with retraction algorithm for 100 iterations.
 Refinement iteration: 7
 ##############################
 Time elapsed from last time log: 0.0 seconds
-Total time elapsed: 239.2 seconds
+Total time elapsed: 353.3 seconds
 ##############################
-Computing Pseudoinverse of a matrix of L of size 11188
+Computing Pseudoinverse of a matrix of L of size 11527
 Descent starts
 Done.
 ##############################
-Time elapsed from last time log: 29.3 seconds
-Total time elapsed: 268.5 seconds
+Time elapsed from last time log: 39.0 seconds
+Total time elapsed: 392.3 seconds
 ##############################
 </pre></div></div>
 </div>
@@ -746,7 +812,7 @@ Total time elapsed: 268.5 seconds
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/nbks_example_1_7_17.png" src="../_images/nbks_example_1_7_17.png" />
+<img alt="../_images/nbks_example_1_8_17.png" src="../_images/nbks_example_1_8_17.png" />
 </div>
 </div>
 <div class="nboutput docutils container">
@@ -758,14 +824,14 @@ Refining with retraction algorithm for 100 iterations.
 Refinement iteration: 8
 ##############################
 Time elapsed from last time log: 0.0 seconds
-Total time elapsed: 273.8 seconds
+Total time elapsed: 400.4 seconds
 ##############################
-Computing Pseudoinverse of a matrix of L of size 11188
+Computing Pseudoinverse of a matrix of L of size 11527
 Descent starts
 Done.
 ##############################
-Time elapsed from last time log: 27.0 seconds
-Total time elapsed: 300.8 seconds
+Time elapsed from last time log: 39.6 seconds
+Total time elapsed: 440.0 seconds
 ##############################
 </pre></div></div>
 </div>
@@ -773,7 +839,7 @@ Total time elapsed: 300.8 seconds
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/nbks_example_1_7_19.png" src="../_images/nbks_example_1_7_19.png" />
+<img alt="../_images/nbks_example_1_8_19.png" src="../_images/nbks_example_1_8_19.png" />
 </div>
 </div>
 <div class="nboutput docutils container">
@@ -785,21 +851,14 @@ Refining with retraction algorithm for 100 iterations.
 Refinement iteration: 9
 ##############################
 Time elapsed from last time log: 0.0 seconds
-Total time elapsed: 306.0 seconds
+Total time elapsed: 448.2 seconds
 ##############################
-Computing Pseudoinverse of a matrix of L of size 11188
+Computing Pseudoinverse of a matrix of L of size 11527
 Descent starts
 Done.
 ##############################
-Time elapsed from last time log: 28.4 seconds
-Total time elapsed: 334.4 seconds
-##############################
-Computing error.
-Computing Pseudoinverse of a matrix of L of size 11188
-Alignment error: 0.237
-##############################
-Time elapsed from last time log: 16.0 seconds
-Total time elapsed: 350.3 seconds
+Time elapsed from last time log: 40.1 seconds
+Total time elapsed: 488.3 seconds
 ##############################
 </pre></div></div>
 </div>
@@ -807,22 +866,83 @@ Total time elapsed: 350.3 seconds
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/nbks_example_1_7_21.png" src="../_images/nbks_example_1_7_21.png" />
+<img alt="../_images/nbks_example_1_8_21.png" src="../_images/nbks_example_1_8_21.png" />
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+Refining with retraction algorithm for 100 iterations.
+Refinement iteration: 10
+##############################
+Time elapsed from last time log: 0.0 seconds
+Total time elapsed: 496.4 seconds
+##############################
+Computing Pseudoinverse of a matrix of L of size 11527
+Descent starts
+Done.
+##############################
+Time elapsed from last time log: 38.9 seconds
+Total time elapsed: 535.3 seconds
+##############################
+</pre></div></div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/nbks_example_1_8_23.png" src="../_images/nbks_example_1_8_23.png" />
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+Refining with retraction algorithm for 100 iterations.
+Refinement iteration: 11
+##############################
+Time elapsed from last time log: 0.0 seconds
+Total time elapsed: 543.7 seconds
+##############################
+Computing Pseudoinverse of a matrix of L of size 11527
+Descent starts
+Done.
+##############################
+Time elapsed from last time log: 38.7 seconds
+Total time elapsed: 582.3 seconds
+##############################
+Computing error.
+Computing Pseudoinverse of a matrix of L of size 11527
+Alignment error: 4.220
+##############################
+Time elapsed from last time log: 23.2 seconds
+Total time elapsed: 605.6 seconds
+##############################
+</pre></div></div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/nbks_example_1_8_25.png" src="../_images/nbks_example_1_8_25.png" />
 </div>
 </div>
 <div class="nboutput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[7]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[8]:
 </pre></div>
 </div>
 <div class="output_area docutils container">
 <div class="highlight"><pre>
-array([[ 0.82410332, -0.38683067],
-       [ 0.81674671, -0.37520528],
-       [ 0.81872421, -0.35516005],
+array([[-0.87473544,  0.38738625],
+       [-0.87163705,  0.39041673],
+       [-0.87135854,  0.40592124],
        ...,
-       [-0.83678387,  0.37806734],
-       [-0.84237746,  0.38536084],
-       [-0.86196219,  0.38233134]])
+       [ 0.90658211, -0.36784952],
+       [ 0.90570885, -0.37088319],
+       [ 0.92705418, -0.36374912]])
 </pre></div></div>
 </div>
 <div class="nbinput docutils container">
@@ -839,11 +959,11 @@ array([[ 0.82410332, -0.38683067],
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/nbks_example_1_8_0.png" src="../_images/nbks_example_1_8_0.png" />
+<img alt="../_images/nbks_example_1_9_0.png" src="../_images/nbks_example_1_9_0.png" />
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[20]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[10]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># save for further visualization</span>

@@ -42,6 +42,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../../modules.html">Modules</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../nbks/example_1.html">Example 1</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../nbks/vis_1.html">Example 1 - further visualizations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../nbks/example_2.html">Example 2</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../nbks/vis_2.html">Example 2 - further visualizations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../todo.html">TODO</a></li>
 </ul>
 
         </div>
@@ -145,7 +148,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">y_init</span> <span class="o">=</span> <span class="n">y_init</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">color_of_pts_on_tear_init</span> <span class="o">=</span> <span class="n">color_of_pts_on_tear_init</span>
             
-            <span class="k">if</span> <span class="n">global_opts</span><span class="p">[</span><span class="s1">&#39;refine_algo&#39;</span><span class="p">][</span><span class="s1">&#39;name&#39;</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">global_opts</span><span class="p">[</span><span class="s1">&#39;refine_algo_name&#39;</span><span class="p">]:</span>
                 <span class="n">y_final</span><span class="p">,</span>\
                 <span class="n">color_of_pts_on_tear_final</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_final_embedding</span><span class="p">(</span><span class="n">y_init</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">Utilde</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">intermed_param</span><span class="p">,</span>
                                                                           <span class="n">n_Utilde_Utilde</span><span class="p">,</span>
@@ -331,7 +334,7 @@
         <span class="c1"># sequential init overrides this if global_opts[&#39;to_tear&#39;] is True</span>
         <span class="n">contrib_of_view</span> <span class="o">=</span> <span class="n">Utilde</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
 
-        <span class="n">init_algo</span> <span class="o">=</span> <span class="n">global_opts</span><span class="p">[</span><span class="s1">&#39;init_algo&#39;</span><span class="p">][</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+        <span class="n">init_algo</span> <span class="o">=</span> <span class="n">global_opts</span><span class="p">[</span><span class="s1">&#39;init_algo_name&#39;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="s1">&#39;Computing initial embedding using: &#39;</span> <span class="o">+</span> <span class="n">init_algo</span> <span class="o">+</span> <span class="s1">&#39; algorithm&#39;</span><span class="p">,</span> <span class="n">log_time</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="k">if</span> <span class="s1">&#39;sequential&#39;</span> <span class="ow">in</span> <span class="n">init_algo</span><span class="p">:</span>
             <span class="c1"># Initialization contribution of view i</span>
@@ -460,8 +463,8 @@
         <span class="n">B</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="n">max_iter0</span> <span class="o">=</span> <span class="n">global_opts</span><span class="p">[</span><span class="s1">&#39;max_iter&#39;</span><span class="p">]</span>
-        <span class="n">max_iter1</span> <span class="o">=</span> <span class="n">global_opts</span><span class="p">[</span><span class="s1">&#39;refine_algo&#39;</span><span class="p">][</span><span class="s1">&#39;max_internal_iter&#39;</span><span class="p">]</span>
-        <span class="n">refine_algo</span> <span class="o">=</span> <span class="n">global_opts</span><span class="p">[</span><span class="s1">&#39;refine_algo&#39;</span><span class="p">][</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+        <span class="n">max_iter1</span> <span class="o">=</span> <span class="n">global_opts</span><span class="p">[</span><span class="s1">&#39;refine_algo_max_internal_iter&#39;</span><span class="p">]</span>
+        <span class="n">refine_algo</span> <span class="o">=</span> <span class="n">global_opts</span><span class="p">[</span><span class="s1">&#39;refine_algo_name&#39;</span><span class="p">]</span>
         
         <span class="bp">self</span><span class="o">.</span><span class="n">tracker</span><span class="p">[</span><span class="s1">&#39;refine_iter_start_at&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">max_iter0</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tracker</span><span class="p">[</span><span class="s1">&#39;refine_iter_done_at&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">max_iter0</span><span class="p">)</span>

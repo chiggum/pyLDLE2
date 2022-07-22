@@ -22,6 +22,7 @@
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Example 2" href="example_2.html" />
     <link rel="prev" title="Example 1" href="example_1.html" /> 
 </head>
 
@@ -46,6 +47,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../modules.html">Modules</a></li>
 <li class="toctree-l1"><a class="reference internal" href="example_1.html">Example 1</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Example 1 - further visualizations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="example_2.html">Example 2</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vis_2.html">Example 2 - further visualizations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../todo.html">TODO</a></li>
 </ul>
 
         </div>
@@ -353,16 +357,17 @@ div.rendered_html tbody tr:hover {
 <section id="Example-1---further-visualizations">
 <h1>Example 1 - further visualizations<a class="headerlink" href="#Example-1---further-visualizations" title="Permalink to this heading"></a></h1>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[33]:
 </pre></div>
 </div>
-<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">sys</span>
-<span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="s1">&#39;..&#39;</span><span class="p">)</span>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Not really required</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;../..&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[66]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[34]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">pickle</span>
@@ -375,10 +380,12 @@ div.rendered_html tbody tr:hover {
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[67]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[35]:
 </pre></div>
 </div>
-<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyLDLE2</span> <span class="kn">import</span> <span class="n">visualize_</span>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># In case visualize_ is modified, load</span>
+<span class="c1"># and use the newer version.</span>
+<span class="kn">from</span> <span class="nn">pyLDLE2</span> <span class="kn">import</span> <span class="n">visualize_</span>
 <span class="kn">import</span> <span class="nn">importlib</span>
 <span class="n">visualize_</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">reload</span><span class="p">(</span><span class="n">visualize_</span><span class="p">)</span>
 <span class="n">ldle</span><span class="o">.</span><span class="n">vis</span> <span class="o">=</span> <span class="n">visualize_</span><span class="o">.</span><span class="n">Visualize</span><span class="p">(</span><span class="n">ldle</span><span class="o">.</span><span class="n">vis_opts</span><span class="p">[</span><span class="s1">&#39;save_dir&#39;</span><span class="p">])</span>
@@ -394,7 +401,7 @@ matplotlib.get_backend() =  module://matplotlib_inline.backend_inline
 </pre></div></div>
 </div>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[36]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1">### Data</span>
@@ -402,7 +409,7 @@ matplotlib.get_backend() =  module://matplotlib_inline.backend_inline
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[68]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[37]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> inline
@@ -418,7 +425,7 @@ matplotlib.get_backend() =  module://matplotlib_inline.backend_inline
 </div>
 </div>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[38]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1">### Eigenvalues</span>
@@ -426,7 +433,7 @@ matplotlib.get_backend() =  module://matplotlib_inline.backend_inline
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[69]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[39]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> inline
@@ -442,12 +449,11 @@ matplotlib.get_backend() =  module://matplotlib_inline.backend_inline
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<div class="highlight"><pre>
-Local views were constructed using LTSA
-</pre></div></div>
+<img alt="../_images/nbks_vis_1_7_0.png" src="../_images/nbks_vis_1_7_0.png" />
+</div>
 </div>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[40]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1">### Eigenvectors</span>
@@ -455,7 +461,7 @@ Local views were constructed using LTSA
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[70]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[41]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> inline
@@ -469,16 +475,29 @@ Local views were constructed using LTSA
 </pre></div>
 </div>
 </div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/nbks_vis_1_9_0.png" src="../_images/nbks_vis_1_9_0.png" />
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/nbks_vis_1_9_1.png" src="../_images/nbks_vis_1_9_1.png" />
+</div>
+</div>
 <div class="nboutput nblast docutils container">
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<div class="highlight"><pre>
-Local views were constructed using LTSA
-</pre></div></div>
+<img alt="../_images/nbks_vis_1_9_2.png" src="../_images/nbks_vis_1_9_2.png" />
+</div>
 </div>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[42]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1">### gamma</span>
@@ -486,7 +505,7 @@ Local views were constructed using LTSA
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[71]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[43]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> inline
@@ -505,24 +524,37 @@ Local views were constructed using LTSA
 </pre></div>
 </div>
 </div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/nbks_vis_1_11_0.png" src="../_images/nbks_vis_1_11_0.png" />
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/nbks_vis_1_11_1.png" src="../_images/nbks_vis_1_11_1.png" />
+</div>
+</div>
 <div class="nboutput nblast docutils container">
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<div class="highlight"><pre>
-Local views were constructed using LTSA
-</pre></div></div>
+<img alt="../_images/nbks_vis_1_11_2.png" src="../_images/nbks_vis_1_11_2.png" />
+</div>
 </div>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[12]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1">### No. of eigenvectors with small gradients at each point - possibly identifies boundary</span>
 </pre></div>
 </div>
 </div>
-<div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[72]:
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[13]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> qt
@@ -537,16 +569,16 @@ Local views were constructed using LTSA
 </pre></div>
 </div>
 </div>
-<div class="nboutput nblast docutils container">
-<div class="prompt empty docutils container">
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+</pre></div>
 </div>
-<div class="output_area docutils container">
-<div class="highlight"><pre>
-Local views were constructed using LTSA
-</pre></div></div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Same visualization as above but plots based on the embedding</span>
+</pre></div>
 </div>
-<div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[73]:
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[14]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> qt
@@ -561,16 +593,8 @@ Local views were constructed using LTSA
 </pre></div>
 </div>
 </div>
-<div class="nboutput nblast docutils container">
-<div class="prompt empty docutils container">
-</div>
-<div class="output_area docutils container">
-<div class="highlight"><pre>
-Local views were constructed using LTSA
-</pre></div></div>
-</div>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[15]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1">### Distortion of local parameterizations without post-processing</span>
@@ -578,7 +602,7 @@ Local views were constructed using LTSA
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[74]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[44]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> inline
@@ -586,7 +610,7 @@ Local views were constructed using LTSA
 <span class="n">local_algo</span> <span class="o">=</span> <span class="n">ldle</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;algo&#39;</span><span class="p">]</span>
 <span class="k">if</span> <span class="n">local_algo</span> <span class="o">==</span> <span class="s1">&#39;LDLE&#39;</span><span class="p">:</span>
     <span class="k">if</span> <span class="n">ldle</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
-        <span class="n">ldle</span><span class="o">.</span><span class="n">vis</span><span class="o">.</span><span class="n">distortion_boxplot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">local_param_pre</span><span class="p">),</span>
+        <span class="n">ldle</span><span class="o">.</span><span class="n">vis</span><span class="o">.</span><span class="n">distortion_boxplot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">local_param_pre</span><span class="o">.</span><span class="n">zeta</span><span class="p">),</span>
                                     <span class="n">title</span><span class="o">=</span><span class="s1">&#39;log(distortion) without postprocessing&#39;</span><span class="p">,</span>
                                     <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">))</span>
     <span class="k">else</span><span class="p">:</span>
@@ -602,22 +626,15 @@ Local views were constructed using LTSA
 </pre></div>
 </div>
 </div>
-<div class="nboutput docutils container">
-<div class="prompt empty docutils container">
-</div>
-<div class="output_area docutils container">
-<img alt="../_images/nbks_vis_1_16_0.png" src="../_images/nbks_vis_1_16_0.png" />
-</div>
-</div>
 <div class="nboutput nblast docutils container">
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/nbks_vis_1_16_1.png" src="../_images/nbks_vis_1_16_1.png" />
+<img alt="../_images/nbks_vis_1_17_0.png" src="../_images/nbks_vis_1_17_0.png" />
 </div>
 </div>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[17]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1">### Distortion of local parameterizations with post-processing</span>
@@ -625,31 +642,37 @@ Local views were constructed using LTSA
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[75]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[45]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> inline
 <span class="n">local_algo</span> <span class="o">=</span> <span class="n">ldle</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;algo&#39;</span><span class="p">]</span>
 <span class="k">if</span> <span class="n">local_algo</span> <span class="o">==</span> <span class="s1">&#39;LDLE&#39;</span><span class="p">:</span>
-    <span class="n">ldle</span><span class="o">.</span><span class="n">vis</span><span class="o">.</span><span class="n">distortion_boxplot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">local_param_post</span><span class="p">),</span>
+    <span class="n">ldle</span><span class="o">.</span><span class="n">vis</span><span class="o">.</span><span class="n">distortion_boxplot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">local_param_post</span><span class="o">.</span><span class="n">zeta</span><span class="p">),</span>
                                 <span class="n">title</span><span class="o">=</span><span class="s1">&#39;log(distortion)&#39;</span><span class="p">,</span>
                                 <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">))</span>
     <span class="k">if</span> <span class="n">ldle</span><span class="o">.</span><span class="n">d</span> <span class="o">&lt;=</span> <span class="mi">3</span><span class="p">:</span>
         <span class="n">ldle</span><span class="o">.</span><span class="n">vis</span><span class="o">.</span><span class="n">distortion</span><span class="p">(</span><span class="n">ldle</span><span class="o">.</span><span class="n">GlobalViews</span><span class="o">.</span><span class="n">y_final</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">local_param_post</span><span class="o">.</span><span class="n">zeta</span><span class="p">,</span>
                             <span class="s1">&#39;Embedding colored by distortion&#39;</span><span class="p">,</span>
-                            <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">),</span> <span class="n">s</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+                            <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span><span class="mi">8</span><span class="p">),</span> <span class="n">s</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
 <span class="k">else</span><span class="p">:</span>
     <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Local views were constructed using&#39;</span><span class="p">,</span> <span class="n">local_algo</span><span class="p">)</span>
 </pre></div>
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/nbks_vis_1_19_0.png" src="../_images/nbks_vis_1_19_0.png" />
 </div>
 </div>
 <div class="nboutput nblast docutils container">
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<div class="highlight"><pre>
-Local views were constructed using LTSA
-</pre></div></div>
+<img alt="../_images/nbks_vis_1_19_1.png" src="../_images/nbks_vis_1_19_1.png" />
+</div>
 </div>
 <div class="nbinput nblast docutils container">
 <div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
@@ -660,7 +683,7 @@ Local views were constructed using LTSA
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[76]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[19]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> qt
@@ -668,9 +691,10 @@ Local views were constructed using LTSA
 <span class="k">if</span> <span class="n">local_algo</span> <span class="o">==</span> <span class="s1">&#39;LDLE&#39;</span><span class="p">:</span>
     <span class="k">if</span> <span class="n">ldle</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
         <span class="n">ldle</span><span class="o">.</span><span class="n">vis</span><span class="o">.</span><span class="n">local_views</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">GL</span><span class="o">.</span><span class="n">phi</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">U</span><span class="o">.</span><span class="n">toarray</span><span class="p">(),</span>
-                             <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">gamma</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">Atilde</span><span class="p">,</span>
-                             <span class="n">ldle</span><span class="o">.</span><span class="n">local_param</span><span class="o">.</span><span class="n">Psi_gamma</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">local_param</span><span class="o">.</span><span class="n">Psi_i</span><span class="p">,</span>
-                             <span class="n">ldle</span><span class="o">.</span><span class="n">local_param</span><span class="o">.</span><span class="n">zeta</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                             <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">gamma</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">IPGE</span><span class="o">.</span><span class="n">Atilde</span><span class="p">,</span>
+                             <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">local_param_post</span><span class="o">.</span><span class="n">Psi_gamma</span><span class="p">,</span>
+                             <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">local_param_post</span><span class="o">.</span><span class="n">Psi_i</span><span class="p">,</span>
+                             <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">local_param_post</span><span class="o">.</span><span class="n">zeta</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;ldle.debug is False, thus intermediary data was not saved.&#39;</span><span class="p">)</span>
 <span class="k">else</span><span class="p">:</span>
@@ -681,9 +705,56 @@ Local views were constructed using LTSA
 <div class="nboutput nblast docutils container">
 <div class="prompt empty docutils container">
 </div>
-<div class="output_area docutils container">
+<div class="output_area stderr docutils container">
 <div class="highlight"><pre>
-Local views were constructed using LTSA
+Traceback (most recent call last):
+  File &#34;/Users/dhkohli/opt/anaconda3/lib/python3.8/site-packages/matplotlib/cbook/__init__.py&#34;, line 287, in process
+    func(*args, **kwargs)
+  File &#34;/Users/dhkohli/codebase/pyLDLE2/nbks/../pyLDLE2/visualize_.py&#34;, line 93, in on_close
+    raise RuntimeError(&#34;Figure closed.&#34;)
+RuntimeError: Figure closed.
+</pre></div></div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Same visualization as above but plots based on the embedding</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[20]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> qt
+<span class="n">local_algo</span> <span class="o">=</span> <span class="n">ldle</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;algo&#39;</span><span class="p">]</span>
+<span class="k">if</span> <span class="n">local_algo</span> <span class="o">==</span> <span class="s1">&#39;LDLE&#39;</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">ldle</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
+        <span class="n">ldle</span><span class="o">.</span><span class="n">vis</span><span class="o">.</span><span class="n">local_views</span><span class="p">(</span><span class="n">ldle</span><span class="o">.</span><span class="n">GlobalViews</span><span class="o">.</span><span class="n">y_final</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">GL</span><span class="o">.</span><span class="n">phi</span><span class="p">,</span>
+                             <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">U</span><span class="o">.</span><span class="n">toarray</span><span class="p">(),</span>
+                             <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">gamma</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">IPGE</span><span class="o">.</span><span class="n">Atilde</span><span class="p">,</span>
+                             <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">local_param_post</span><span class="o">.</span><span class="n">Psi_gamma</span><span class="p">,</span>
+                             <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">local_param_post</span><span class="o">.</span><span class="n">Psi_i</span><span class="p">,</span>
+                             <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">local_param_post</span><span class="o">.</span><span class="n">zeta</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;ldle.debug is False, thus intermediary data was not saved.&#39;</span><span class="p">)</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Local views were constructed using&#39;</span><span class="p">,</span> <span class="n">local_algo</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area stderr docutils container">
+<div class="highlight"><pre>
+Traceback (most recent call last):
+  File &#34;/Users/dhkohli/opt/anaconda3/lib/python3.8/site-packages/matplotlib/cbook/__init__.py&#34;, line 287, in process
+    func(*args, **kwargs)
+  File &#34;/Users/dhkohli/codebase/pyLDLE2/nbks/../pyLDLE2/visualize_.py&#34;, line 93, in on_close
+    raise RuntimeError(&#34;Figure closed.&#34;)
+RuntimeError: Figure closed.
 </pre></div></div>
 </div>
 <div class="nbinput nblast docutils container">
@@ -695,14 +766,15 @@ Local views were constructed using LTSA
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[77]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[46]:
 </pre></div>
 </div>
-<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> qt
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> inline
 <span class="n">local_algo</span> <span class="o">=</span> <span class="n">ldle</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;algo&#39;</span><span class="p">]</span>
 <span class="k">if</span> <span class="n">local_algo</span> <span class="o">==</span> <span class="s1">&#39;LDLE&#39;</span><span class="p">:</span>
     <span class="n">ldle</span><span class="o">.</span><span class="n">vis</span><span class="o">.</span><span class="n">chosen_eigevec_inds_for_local_views</span><span class="p">(</span><span class="n">ldle</span><span class="o">.</span><span class="n">GlobalViews</span><span class="o">.</span><span class="n">y_final</span><span class="p">,</span>
-                                                 <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">local_param_post</span><span class="o">.</span><span class="n">Psi_i</span><span class="p">)</span>
+                                                 <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">local_param_post</span><span class="o">.</span><span class="n">Psi_i</span><span class="p">,</span>
+                                                 <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span><span class="mi">8</span><span class="p">))</span>
 <span class="k">else</span><span class="p">:</span>
     <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Local views were constructed using&#39;</span><span class="p">,</span> <span class="n">local_algo</span><span class="p">)</span>
 </pre></div>
@@ -712,9 +784,8 @@ Local views were constructed using LTSA
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<div class="highlight"><pre>
-Local views were constructed using LTSA
-</pre></div></div>
+<img alt="../_images/nbks_vis_1_25_0.png" src="../_images/nbks_vis_1_25_0.png" />
+</div>
 </div>
 <div class="nbinput nblast docutils container">
 <div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
@@ -725,7 +796,7 @@ Local views were constructed using LTSA
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[82]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[48]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> inline
@@ -743,7 +814,7 @@ Local views were constructed using LTSA
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/nbks_vis_1_24_0.png" src="../_images/nbks_vis_1_24_0.png" />
+<img alt="../_images/nbks_vis_1_27_0.png" src="../_images/nbks_vis_1_27_0.png" />
 </div>
 </div>
 <div class="nbinput nblast docutils container">
@@ -755,7 +826,7 @@ Local views were constructed using LTSA
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[83]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[49]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> inline
@@ -769,11 +840,11 @@ Local views were constructed using LTSA
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/nbks_vis_1_26_0.png" src="../_images/nbks_vis_1_26_0.png" />
+<img alt="../_images/nbks_vis_1_29_0.png" src="../_images/nbks_vis_1_29_0.png" />
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[84]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[50]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> inline
@@ -787,7 +858,7 @@ Local views were constructed using LTSA
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/nbks_vis_1_27_0.png" src="../_images/nbks_vis_1_27_0.png" />
+<img alt="../_images/nbks_vis_1_30_0.png" src="../_images/nbks_vis_1_30_0.png" />
 </div>
 </div>
 <div class="nbinput nblast docutils container">
@@ -799,15 +870,15 @@ Local views were constructed using LTSA
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[85]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[26]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> qt
 <span class="n">local_algo</span> <span class="o">=</span> <span class="n">ldle</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;algo&#39;</span><span class="p">]</span>
 <span class="k">if</span> <span class="n">local_algo</span> <span class="o">==</span> <span class="s1">&#39;LDLE&#39;</span><span class="p">:</span>
     <span class="k">if</span> <span class="n">ldle</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
-        <span class="n">ldle</span><span class="o">.</span><span class="n">vis</span><span class="o">.</span><span class="n">intermediate_views</span><span class="p">(</span><span class="n">ldle</span><span class="o">.</span><span class="n">X</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">GL</span><span class="o">.</span><span class="n">phi</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">IntermedViews</span><span class="o">.</span><span class="n">Utilde</span><span class="p">,</span>
-                                    <span class="n">ldle</span><span class="o">.</span><span class="n">LocaViews</span><span class="o">.</span><span class="n">gamma</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">IPGE</span><span class="o">.</span><span class="n">Atilde</span><span class="p">,</span>
+        <span class="n">ldle</span><span class="o">.</span><span class="n">vis</span><span class="o">.</span><span class="n">intermediate_views</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">GL</span><span class="o">.</span><span class="n">phi</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">IntermedViews</span><span class="o">.</span><span class="n">Utilde</span><span class="p">,</span>
+                                    <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">gamma</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">IPGE</span><span class="o">.</span><span class="n">Atilde</span><span class="p">,</span>
                                     <span class="n">ldle</span><span class="o">.</span><span class="n">IntermedViews</span><span class="o">.</span><span class="n">intermed_param</span><span class="o">.</span><span class="n">Psi_gamma</span><span class="p">,</span>
                                     <span class="n">ldle</span><span class="o">.</span><span class="n">IntermedViews</span><span class="o">.</span><span class="n">intermed_param</span><span class="o">.</span><span class="n">Psi_i</span><span class="p">,</span>
                                     <span class="n">ldle</span><span class="o">.</span><span class="n">IntermedViews</span><span class="o">.</span><span class="n">intermed_param</span><span class="o">.</span><span class="n">zeta</span><span class="p">,</span>
@@ -822,13 +893,61 @@ Local views were constructed using LTSA
 <div class="nboutput nblast docutils container">
 <div class="prompt empty docutils container">
 </div>
-<div class="output_area docutils container">
+<div class="output_area stderr docutils container">
 <div class="highlight"><pre>
-Local views were constructed using LTSA
+Traceback (most recent call last):
+  File &#34;/Users/dhkohli/opt/anaconda3/lib/python3.8/site-packages/matplotlib/cbook/__init__.py&#34;, line 287, in process
+    func(*args, **kwargs)
+  File &#34;/Users/dhkohli/codebase/pyLDLE2/nbks/../pyLDLE2/visualize_.py&#34;, line 93, in on_close
+    raise RuntimeError(&#34;Figure closed.&#34;)
+RuntimeError: Figure closed.
 </pre></div></div>
 </div>
 <div class="nbinput nblast docutils container">
 <div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Same visualization as above but plots based on the embedding</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[27]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> qt
+<span class="n">local_algo</span> <span class="o">=</span> <span class="n">ldle</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;algo&#39;</span><span class="p">]</span>
+<span class="k">if</span> <span class="n">local_algo</span> <span class="o">==</span> <span class="s1">&#39;LDLE&#39;</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">ldle</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
+        <span class="n">ldle</span><span class="o">.</span><span class="n">vis</span><span class="o">.</span><span class="n">intermediate_views</span><span class="p">(</span><span class="n">ldle</span><span class="o">.</span><span class="n">GlobalViews</span><span class="o">.</span><span class="n">y_final</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">GL</span><span class="o">.</span><span class="n">phi</span><span class="p">,</span>
+                                    <span class="n">ldle</span><span class="o">.</span><span class="n">IntermedViews</span><span class="o">.</span><span class="n">Utilde</span><span class="p">,</span>
+                                    <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">gamma</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">LocalViews</span><span class="o">.</span><span class="n">IPGE</span><span class="o">.</span><span class="n">Atilde</span><span class="p">,</span>
+                                    <span class="n">ldle</span><span class="o">.</span><span class="n">IntermedViews</span><span class="o">.</span><span class="n">intermed_param</span><span class="o">.</span><span class="n">Psi_gamma</span><span class="p">,</span>
+                                    <span class="n">ldle</span><span class="o">.</span><span class="n">IntermedViews</span><span class="o">.</span><span class="n">intermed_param</span><span class="o">.</span><span class="n">Psi_i</span><span class="p">,</span>
+                                    <span class="n">ldle</span><span class="o">.</span><span class="n">IntermedViews</span><span class="o">.</span><span class="n">intermed_param</span><span class="o">.</span><span class="n">zeta</span><span class="p">,</span>
+                                    <span class="n">ldle</span><span class="o">.</span><span class="n">IntermedViews</span><span class="o">.</span><span class="n">c</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;ldle.debug is False, thus intermediary data was not saved.&#39;</span><span class="p">)</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Local views were constructed using&#39;</span><span class="p">,</span> <span class="n">local_algo</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area stderr docutils container">
+<div class="highlight"><pre>
+Traceback (most recent call last):
+  File &#34;/Users/dhkohli/opt/anaconda3/lib/python3.8/site-packages/matplotlib/cbook/__init__.py&#34;, line 287, in process
+    func(*args, **kwargs)
+  File &#34;/Users/dhkohli/codebase/pyLDLE2/nbks/../pyLDLE2/visualize_.py&#34;, line 93, in on_close
+    raise RuntimeError(&#34;Figure closed.&#34;)
+RuntimeError: Figure closed.
+</pre></div></div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[139]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1">### Chosen eigenvectors&#39; indices&#39; for intermediate views</span>
@@ -836,7 +955,7 @@ Local views were constructed using LTSA
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[86]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[51]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> inline
@@ -844,7 +963,7 @@ Local views were constructed using LTSA
 <span class="k">if</span> <span class="n">local_algo</span> <span class="o">==</span> <span class="s1">&#39;LDLE&#39;</span><span class="p">:</span>
     <span class="n">ldle</span><span class="o">.</span><span class="n">vis</span><span class="o">.</span><span class="n">chosen_eigevec_inds_for_intermediate_views</span><span class="p">(</span><span class="n">ldle</span><span class="o">.</span><span class="n">GlobalViews</span><span class="o">.</span><span class="n">y_final</span><span class="p">,</span>
                                                         <span class="n">ldle</span><span class="o">.</span><span class="n">IntermedViews</span><span class="o">.</span><span class="n">intermed_param</span><span class="o">.</span><span class="n">Psi_i</span><span class="p">,</span>
-                                                        <span class="n">ldle</span><span class="o">.</span><span class="n">IntermedViews</span><span class="o">.</span><span class="n">c</span><span class="p">)</span>
+                                                        <span class="n">ldle</span><span class="o">.</span><span class="n">IntermedViews</span><span class="o">.</span><span class="n">c</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span><span class="mi">8</span><span class="p">))</span>
 <span class="k">else</span><span class="p">:</span>
     <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Local views were constructed using&#39;</span><span class="p">,</span> <span class="n">local_algo</span><span class="p">)</span>
 </pre></div>
@@ -854,9 +973,8 @@ Local views were constructed using LTSA
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<div class="highlight"><pre>
-Local views were constructed using LTSA
-</pre></div></div>
+<img alt="../_images/nbks_vis_1_36_0.png" src="../_images/nbks_vis_1_36_0.png" />
+</div>
 </div>
 <div class="nbinput nblast docutils container">
 <div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
@@ -867,13 +985,13 @@ Local views were constructed using LTSA
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[87]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[52]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> inline
 <span class="n">ldle</span><span class="o">.</span><span class="n">vis</span><span class="o">.</span><span class="n">global_embedding</span><span class="p">(</span><span class="n">ldle</span><span class="o">.</span><span class="n">GlobalViews</span><span class="o">.</span><span class="n">y_init</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">vis_opts</span><span class="p">[</span><span class="s1">&#39;c&#39;</span><span class="p">],</span> <span class="n">ldle</span><span class="o">.</span><span class="n">vis_opts</span><span class="p">[</span><span class="s1">&#39;cmap_interior&#39;</span><span class="p">],</span>
                           <span class="n">ldle</span><span class="o">.</span><span class="n">GlobalViews</span><span class="o">.</span><span class="n">color_of_pts_on_tear_init</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">vis_opts</span><span class="p">[</span><span class="s1">&#39;cmap_boundary&#39;</span><span class="p">],</span>
-                          <span class="s1">&#39;Initial Embedding&#39;</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+                          <span class="s1">&#39;Initial Embedding&#39;</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">),</span> <span class="n">s</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
@@ -881,7 +999,7 @@ Local views were constructed using LTSA
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/nbks_vis_1_33_0.png" src="../_images/nbks_vis_1_33_0.png" />
+<img alt="../_images/nbks_vis_1_38_0.png" src="../_images/nbks_vis_1_38_0.png" />
 </div>
 </div>
 <div class="nbinput nblast docutils container">
@@ -893,13 +1011,13 @@ Local views were constructed using LTSA
 </div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[88]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[53]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> inline
 <span class="n">ldle</span><span class="o">.</span><span class="n">vis</span><span class="o">.</span><span class="n">global_embedding</span><span class="p">(</span><span class="n">ldle</span><span class="o">.</span><span class="n">GlobalViews</span><span class="o">.</span><span class="n">y_final</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">vis_opts</span><span class="p">[</span><span class="s1">&#39;c&#39;</span><span class="p">],</span> <span class="n">ldle</span><span class="o">.</span><span class="n">vis_opts</span><span class="p">[</span><span class="s1">&#39;cmap_interior&#39;</span><span class="p">],</span>
                           <span class="n">ldle</span><span class="o">.</span><span class="n">GlobalViews</span><span class="o">.</span><span class="n">color_of_pts_on_tear_final</span><span class="p">,</span> <span class="n">ldle</span><span class="o">.</span><span class="n">vis_opts</span><span class="p">[</span><span class="s1">&#39;cmap_boundary&#39;</span><span class="p">],</span>
-                          <span class="s1">&#39;Initial Embedding&#39;</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+                          <span class="s1">&#39;Initial Embedding&#39;</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">),</span> <span class="n">s</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
@@ -907,7 +1025,15 @@ Local views were constructed using LTSA
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/nbks_vis_1_35_0.png" src="../_images/nbks_vis_1_35_0.png" />
+<img alt="../_images/nbks_vis_1_40_0.png" src="../_images/nbks_vis_1_40_0.png" />
+</div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>
+</pre></div>
 </div>
 </div>
 </section>
@@ -917,6 +1043,7 @@ Local views were constructed using LTSA
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="example_1.html" class="btn btn-neutral float-left" title="Example 1" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="example_2.html" class="btn btn-neutral float-right" title="Example 2" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

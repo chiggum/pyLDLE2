@@ -42,6 +42,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../../modules.html">Modules</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../nbks/example_1.html">Example 1</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../nbks/vis_1.html">Example 1 - further visualizations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../nbks/example_2.html">Example 2</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../nbks/vis_2.html">Example 2 - further visualizations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../todo.html">TODO</a></li>
 </ul>
 
         </div>
@@ -72,7 +75,7 @@
 <span></span><span class="kn">import</span> <span class="nn">pdb</span>
 <span class="kn">import</span> <span class="nn">time</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">from</span> <span class="nn">scipy.sparse</span> <span class="kn">import</span> <span class="n">csr_matrix</span>
+<span class="kn">from</span> <span class="nn">scipy.sparse</span> <span class="kn">import</span> <span class="n">csr_matrix</span><span class="p">,</span> <span class="n">issparse</span>
 <span class="kn">from</span> <span class="nn">scipy.spatial.distance</span> <span class="kn">import</span> <span class="n">pdist</span><span class="p">,</span> <span class="n">squareform</span>
 <span class="kn">from</span> <span class="nn">scipy.sparse.csgraph</span> <span class="kn">import</span> <span class="n">floyd_warshall</span>
 <span class="kn">from</span> <span class="nn">sklearn.neighbors</span> <span class="kn">import</span> <span class="n">NearestNeighbors</span>
@@ -135,9 +138,10 @@
 
 
 <span class="c1"># includes self as the first neighbor</span>
-<div class="viewcode-block" id="nearest_neighbors"><a class="viewcode-back" href="../../pyLDLE2.html#pyLDLE2.util_.nearest_neighbors">[docs]</a><span class="k">def</span> <span class="nf">nearest_neighbors</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">k_nn</span><span class="p">,</span> <span class="n">metric</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=-</span><span class="mi">1</span><span class="p">):</span>
+<span class="c1"># data is either X or distance matric d_e</span>
+<div class="viewcode-block" id="nearest_neighbors"><a class="viewcode-back" href="../../pyLDLE2.html#pyLDLE2.util_.nearest_neighbors">[docs]</a><span class="k">def</span> <span class="nf">nearest_neighbors</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">k_nn</span><span class="p">,</span> <span class="n">metric</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=-</span><span class="mi">1</span><span class="p">):</span>
     <span class="n">neigh</span> <span class="o">=</span> <span class="n">NearestNeighbors</span><span class="p">(</span><span class="n">n_neighbors</span><span class="o">=</span><span class="n">k_nn</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">metric</span><span class="o">=</span><span class="n">metric</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=</span><span class="n">n_jobs</span><span class="p">)</span>
-    <span class="n">neigh</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+    <span class="n">neigh</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
     <span class="n">neigh_dist</span><span class="p">,</span> <span class="n">neigh_ind</span> <span class="o">=</span> <span class="n">neigh</span><span class="o">.</span><span class="n">kneighbors</span><span class="p">()</span>
     <span class="n">n</span> <span class="o">=</span> <span class="n">neigh_dist</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">neigh_dist</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">neigh_dist</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
@@ -149,11 +153,18 @@
     <span class="n">col_inds</span> <span class="o">=</span> <span class="n">neigh_ind</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
     <span class="k">return</span> <span class="n">csr_matrix</span><span class="p">((</span><span class="n">neigh_dist</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="p">(</span><span class="n">row_inds</span><span class="p">,</span> <span class="n">col_inds</span><span class="p">)))</span></div>
 
-<div class="viewcode-block" id="compute_zeta"><a class="viewcode-back" href="../../pyLDLE2.html#pyLDLE2.util_.compute_zeta">[docs]</a><span class="k">def</span> <span class="nf">compute_zeta</span><span class="p">(</span><span class="n">d_e_mask</span><span class="p">,</span> <span class="n">Psi_k_mask</span><span class="p">):</span>
+<div class="viewcode-block" id="to_dense"><a class="viewcode-back" href="../../pyLDLE2.html#pyLDLE2.util_.to_dense">[docs]</a><span class="k">def</span> <span class="nf">to_dense</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">issparse</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="n">toarray</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">x</span></div>
+
+<div class="viewcode-block" id="compute_zeta"><a class="viewcode-back" href="../../pyLDLE2.html#pyLDLE2.util_.compute_zeta">[docs]</a><span class="k">def</span> <span class="nf">compute_zeta</span><span class="p">(</span><span class="n">d_e_mask0</span><span class="p">,</span> <span class="n">Psi_k_mask</span><span class="p">):</span>
+    <span class="n">d_e_mask</span> <span class="o">=</span> <span class="n">to_dense</span><span class="p">(</span><span class="n">d_e_mask0</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">d_e_mask</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
         <span class="k">return</span> <span class="mi">1</span>
     <span class="n">d_e_mask_</span> <span class="o">=</span> <span class="n">squareform</span><span class="p">(</span><span class="n">d_e_mask</span><span class="p">)</span>
-    <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">d_e_mask_</span><span class="o">!=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">d_e_mask_</span><span class="o">!=</span><span class="mi">0</span>
     <span class="n">d_e_mask_</span> <span class="o">=</span> <span class="n">d_e_mask_</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
     <span class="n">disc_lip_const</span> <span class="o">=</span> <span class="n">pdist</span><span class="p">(</span><span class="n">Psi_k_mask</span><span class="p">)[</span><span class="n">mask</span><span class="p">]</span><span class="o">/</span><span class="n">d_e_mask_</span>
     <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">disc_lip_const</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">disc_lip_const</span><span class="p">)</span> <span class="o">+</span> <span class="mf">1e-12</span><span class="p">)</span></div>
