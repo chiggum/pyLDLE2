@@ -207,7 +207,7 @@ def get_default_local_opts(algo='LDLE', k_nn=48, k_tune=6, k=24, gl_type='unnorm
            'gl_type': gl_type, 'N': N, 'no_gamma': no_gamma,
            'Atilde_method': Atilde_method, 'p': p, 'tau': tau,
            'delta': delta, 'to_postprocess': to_postprocess, 'algo': algo,
-           'n_proc': n_proc, 'pp_n_thresh': pp_n_thresh}
+           'pp_n_thresh': pp_n_thresh}
 
 def get_default_intermed_opts(eta_min=5, eta_max=100, len_S_thresh=256):
     """Sets and returns a dictionary of default_intermed_opts.
@@ -308,7 +308,7 @@ class LDLE:
     Parameters
     ----------
     d : int
-       Embedding dimension.
+       Intrinsic dimension of the manifold.
     local_opts : dict
                 Options for local views construction. The key-value pairs
                 provided override the ones in default_local_opts.
@@ -395,6 +395,25 @@ class LDLE:
                                               self.global_start_time)
     
     def fit(self, X = None, d_e = None, ddX = None):
+        """Run the algorithm. Either X or d_e must be supplied.
+        
+        Parameters
+        ---------
+        X : array shape (n_samples, n_features)
+            A 2d array containing data representing a manifold.
+        d_e : array shape (n_samples, n_samples)
+            A square numpy matrix representing the geodesic distance
+            between each pair of points on the manifold.
+        ddX : array shape (n_samples)
+            Optional. A 1d array representing the distance of the
+            points from the boundary OR a 1d array such that 
+            ddX[i] = 0 if the point i i.e. X[i,:] is on the boundary.
+            
+        Returns
+        -------
+        y : array shape (n_samples, d)
+            The embedding of the data in lower dimension.
+        """
         assert X is not None or d_e is not None, "Either X or d_e should be provided."
         
         if d_e is None:
@@ -439,3 +458,5 @@ class LDLE:
             self.d_e = d_e
             self.neigh_ind = neigh_ind
             self.neigh_dist = neigh_dist
+        
+        return GlobalViews.y_final
