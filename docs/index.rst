@@ -9,7 +9,7 @@ Welcome to pyLDLE2's documentation!
 Installation
 ============
 
-``pip install pyLDLE2==0.0.3``
+``pip install pyLDLE2``
 
 
 API
