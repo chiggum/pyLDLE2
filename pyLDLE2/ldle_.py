@@ -147,7 +147,7 @@ def double_manifold_k_nn(X, ddX, k_nn):
     return neigh_dist, neigh_ind
     
 
-def get_default_local_opts(algo='LDLE', k_nn=48, k_tune=6, k=24, gl_type='unnorm',
+def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=24, gl_type='unnorm',
                            N=100, no_gamma=False, Atilde_method='LDLE_1',
                            p=0.99, tau=50, delta=0.9, to_postprocess= True,
                            pp_n_thresh=32):
@@ -209,7 +209,7 @@ def get_default_local_opts(algo='LDLE', k_nn=48, k_tune=6, k=24, gl_type='unnorm
            'delta': delta, 'to_postprocess': to_postprocess, 'algo': algo,
            'pp_n_thresh': pp_n_thresh}
 
-def get_default_intermed_opts(eta_min=5, eta_max=100, len_S_thresh=256):
+def get_default_intermed_opts(eta_min=5, eta_max=25, len_S_thresh=256):
     """Sets and returns a dictionary of default_intermed_opts.
     
     Parameters
@@ -285,15 +285,11 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=10,
                'vis_before_init': vis_before_init,
                'compute_error': compute_error,
                'main_algo': main_algo, # ['LDLE', 'LTSA']
-               'init_algo': {
-                   'name': init_algo_name, # ['sequential', 'spectral', 'sequential+spectral'], spectral ignores to_tear
-                   'align_w_parent_only': init_algo_align_w_parent_only
-                },
-               'refine_algo': {
-                   'name': refine_algo_name, # ['sequential', 'retraction', 'spectral']
-                   'max_internal_iter': refine_algo_max_internal_iter, # 10 for sequential and 100 for retraction
-                   'alpha': refine_algo_alpha, # step size for retraction
-                }
+               'init_algo_name': init_algo_name, # ['sequential', 'spectral', 'sequential+spectral'], spectral ignores to_tear
+               'init_algo_align_w_parent_only': init_algo_align_w_parent_only,
+               'refine_algo_name': refine_algo_name, # ['sequential', 'retraction', 'spectral']
+               'refine_algo_max_internal_iter': refine_algo_max_internal_iter, # 10 for sequential and 100 for retraction
+               'refine_algo_alpha': refine_algo_alpha, # step size for retraction
               }
 def get_default_vis_opts(save_dir='', cmap_interior='summer', cmap_boundary='jet', c=None):
     return {'save_dir': save_dir,
@@ -349,14 +345,16 @@ class LDLE:
         for i in local_opts:
             default_local_opts[i] = local_opts[i]
         self.local_opts = default_local_opts
-        self.local_opts['k_nn'] = max(self.local_opts['k_nn'],
-                                      self.local_opts['k'])
         #############################################
         intermed_opts['algo'] = self.local_opts['algo']
         intermed_opts['n_proc'] = n_proc
         for i in intermed_opts:
             default_intermed_opts[i] = intermed_opts[i]
         self.intermed_opts = default_intermed_opts
+        # Update k_nn 
+        self.local_opts['k_nn0'] = max(self.local_opts['k_nn'],
+                                       self.intermed_opts['eta_max']*self.local_opts['k'])
+        print("local_opts['k_nn0'] =", self.local_opts['k_nn0'], "is created.")
         #############################################
         global_opts['k'] = self.local_opts['k']
         global_opts['n_proc'] = n_proc
@@ -419,16 +417,24 @@ class LDLE:
         if d_e is None:
             if ddX is None or self.local_opts['algo'] == 'LTSA':
                 neigh_dist, neigh_ind = nearest_neighbors(X,
-                                                          k_nn=self.local_opts['k_nn'],
+                                                          k_nn=self.local_opts['k_nn0'],
                                                           metric='euclidean')
             else:
                 self.log('Doubling manifold.')
-                neigh_dist, neigh_ind = double_manifold_k_nn(X, ddX, self.local_opts['k_nn'])
+                neigh_dist, neigh_ind = double_manifold_k_nn(X, ddX, self.local_opts['k_nn0'])
                 self.log('Done.', log_time=True)
-        
-        # Construct a sparse d_e matrix based on neigh_ind and neigh_dist
-        d_e = sparse_matrix(neigh_ind, neigh_dist)
-        d_e = d_e.maximum(d_e.transpose())
+                
+            # Construct a sparse d_e matrix based on neigh_ind and neigh_dist
+            d_e = sparse_matrix(neigh_ind, neigh_dist)
+            d_e = d_e.maximum(d_e.transpose())
+            
+            neigh_ind = neigh_ind[:,:self.local_opts['k_nn']]
+            neigh_dist = neigh_dist[:,:self.local_opts['k_nn']]
+        else:
+            if ddX is None or self.local_opts['algo'] == 'LTSA':
+                neigh_dist, neigh_ind = nearest_neighbors(d_e,
+                                                          k_nn=self.local_opts['k_nn'],
+                                                          metric='precomputed')
         
         # Construct low dimensional local views
         LocalViews = local_views_.LocalViews(self.exit_at, self.verbose, self.debug)
@@ -439,10 +445,18 @@ class LDLE:
             n = ddX.shape[0]
             d_e = d_e[:n,:n]
         
+        self.LocalViews = LocalViews
+        if self.exit_at == 'local_views':
+            return
+        
         # Construct intermediate views
         IntermedViews = intermed_views_.IntermedViews(self.exit_at, self.verbose, self.debug)
         IntermedViews.fit(self.d, d_e, neigh_ind[:,:self.local_opts['k']], LocalViews.U,
                           LocalViews.local_param_post, self.intermed_opts)
+        
+        self.IntermedViews = IntermedViews
+        if self.exit_at == 'intermed_views':
+            return
         
         # Construct Global views
         GlobalViews = global_views_.GlobalViews(self.exit_at, self.verbose, self.debug)
@@ -450,8 +464,6 @@ class LDLE:
                         IntermedViews.n_C, IntermedViews.intermed_param, self.global_opts,
                         self.vis, self.vis_opts)
         
-        self.LocalViews = LocalViews
-        self.IntermedViews = IntermedViews
         self.GlobalViews = GlobalViews
         
         if self.debug:

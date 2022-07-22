@@ -37,7 +37,7 @@ def graph_laplacian(neigh_dist, neigh_ind, k_nn, k_tune, gl_type,
         K = np.exp(-neigh_dist**2/(autotune+eps))
     
     # Convert to sparse matrices
-    source_ind = np.repeat(np.arange(n),k_nn)
+    source_ind = np.repeat(np.arange(n),neigh_ind.shape[1])
     K = coo_matrix((K.flatten(),(source_ind, neigh_ind.flatten())),shape=(n,n))
     autotune = coo_matrix((autotune.flatten(),(source_ind, neigh_ind.flatten())),shape=(n,n))
     ones_K_like = coo_matrix((np.ones(neigh_dist.shape).flatten(),(source_ind, neigh_ind.flatten())),shape=(n,n))
@@ -90,7 +90,9 @@ class GL:
         if gl_type in ['unnorm', 'symnorm']:
             autotune, L = graph_laplacian(neigh_dist, neigh_ind, local_opts['k_nn'],
                                            local_opts['k_tune'], gl_type)
-            lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, sigma=0.0)
+            lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, which='SM')
+            # TODO: Why the following doesn't give correct eigenvalues
+            # lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, sigma=0.0)
         else:
             if gl_type == 'random_walk':
                 gl_type = 'symnorm'
@@ -99,7 +101,9 @@ class GL:
                                             return_diag = True)
             L, D = LD
             sqrt_D = np.sqrt(D)
-            lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, sigma=0.0)
+            lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, which='SM')
+            # TODO: Why the following doesn't give correct eigenvalues
+            # lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, sigma=0.0)
             
             L = L.multiply(1/sqrt_D[:,np.newaxis]).multiply(sqrt_D[np.newaxis,:])
             phi = phi/sqrt_D[:,np.newaxis]

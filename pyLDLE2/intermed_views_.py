@@ -51,7 +51,7 @@ def cost_of_moving(k, d_e, neigh_ind_k, U_k, local_param, c, n_C,
             U_k_U_Utilde_m = list(U_k.union(Utilde[m]))
             # Compute the cost of moving x_k to mth cluster,
             # that is cost_{x_k \rightarrow m}
-            cost_x_k_to[m] = compute_zeta(d_e[np.ix_(U_k_U_Utilde_m,U_k_U_Utilde_m)].toarray(),
+            cost_x_k_to[m] = compute_zeta(d_e[np.ix_(U_k_U_Utilde_m,U_k_U_Utilde_m)],
                                   local_param.eval_({'view_index': m,
                                                      'data_mask': U_k_U_Utilde_m}))
         
@@ -250,7 +250,7 @@ class IntermedViews:
         intermed_param.zeta = np.ones(M);
         for m in range(M):
             Utilde_m = Utilde[m,:]
-            d_e_Utilde_m = d_e[np.ix_(Utilde_m,Utilde_m)].toarray()
+            d_e_Utilde_m = d_e[np.ix_(Utilde_m,Utilde_m)]
             intermed_param.zeta[m] = compute_zeta(d_e_Utilde_m,
                                                   intermed_param.eval_({'view_index': m,
                                                                         'data_mask': Utilde_m}))

@@ -1,7 +1,7 @@
 import pdb
 import time
 import numpy as np
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, issparse
 from scipy.spatial.distance import pdist, squareform
 from scipy.sparse.csgraph import floyd_warshall
 from sklearn.neighbors import NearestNeighbors
@@ -64,9 +64,10 @@ class Param:
 
 
 # includes self as the first neighbor
-def nearest_neighbors(X, k_nn, metric, n_jobs=-1):
+# data is either X or distance matric d_e
+def nearest_neighbors(data, k_nn, metric, n_jobs=-1):
     neigh = NearestNeighbors(n_neighbors=k_nn-1, metric=metric, n_jobs=n_jobs)
-    neigh.fit(X)
+    neigh.fit(data)
     neigh_dist, neigh_ind = neigh.kneighbors()
     n = neigh_dist.shape[0]
     neigh_dist = np.insert(neigh_dist, 0, np.zeros(n), axis=1)
@@ -78,11 +79,18 @@ def sparse_matrix(neigh_ind, neigh_dist):
     col_inds = neigh_ind.flatten()
     return csr_matrix((neigh_dist.flatten(), (row_inds, col_inds)))
 
-def compute_zeta(d_e_mask, Psi_k_mask):
+def to_dense(x):
+    if issparse(x):
+        return x.toarray()
+    else:
+        return x
+
+def compute_zeta(d_e_mask0, Psi_k_mask):
+    d_e_mask = to_dense(d_e_mask0)
     if d_e_mask.shape[0]==1:
         return 1
     d_e_mask_ = squareform(d_e_mask)
-    mask = np.where(d_e_mask_!=0)
+    mask = d_e_mask_!=0
     d_e_mask_ = d_e_mask_[mask]
     disc_lip_const = pdist(Psi_k_mask)[mask]/d_e_mask_
     return np.max(disc_lip_const)/(np.min(disc_lip_const) + 1e-12)

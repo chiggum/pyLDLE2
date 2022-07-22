@@ -74,7 +74,7 @@ class GlobalViews:
             self.y_init = y_init
             self.color_of_pts_on_tear_init = color_of_pts_on_tear_init
             
-            if global_opts['refine_algo']['name']:
+            if global_opts['refine_algo_name']:
                 y_final,\
                 color_of_pts_on_tear_final = self.compute_final_embedding(y_init, d, Utilde, C, intermed_param,
                                                                           n_Utilde_Utilde,
@@ -260,7 +260,7 @@ class GlobalViews:
         # sequential init overrides this if global_opts['to_tear'] is True
         contrib_of_view = Utilde.copy()
 
-        init_algo = global_opts['init_algo']['name']
+        init_algo = global_opts['init_algo_name']
         self.log('Computing initial embedding using: ' + init_algo + ' algorithm', log_time=True)
         if 'sequential' in init_algo:
             # Initialization contribution of view i
@@ -389,8 +389,8 @@ class GlobalViews:
         B = None
 
         max_iter0 = global_opts['max_iter']
-        max_iter1 = global_opts['refine_algo']['max_internal_iter']
-        refine_algo = global_opts['refine_algo']['name']
+        max_iter1 = global_opts['refine_algo_max_internal_iter']
+        refine_algo = global_opts['refine_algo_name']
         
         self.tracker['refine_iter_start_at'] = np.zeros(max_iter0)
         self.tracker['refine_iter_done_at'] = np.zeros(max_iter0)

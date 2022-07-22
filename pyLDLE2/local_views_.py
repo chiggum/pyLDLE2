@@ -5,7 +5,7 @@ import copy
 
 from . import gl_
 from . import ipge_
-from .util_ import print_log, compute_zeta
+from .util_ import print_log, compute_zeta, to_dense
 from .util_ import Param, sparse_matrix
 
 from scipy.linalg import inv, svd
@@ -46,7 +46,7 @@ class LocalViews:
     def fit(self, d, X, d_e, neigh_dist, neigh_ind, ddX, local_opts):
         if local_opts['algo'] == 'LDLE':
             self.log('Constructing ' + local_opts['gl_type'] + ' graph Laplacian + its eigendecomposition.')
-            GL = gl_.GL()
+            GL = gl_.GL(debug=self.debug)
             GL.fit(neigh_dist, neigh_ind, local_opts)
             self.log('Done.', log_time=True)
             #############################################
@@ -97,9 +97,9 @@ class LocalViews:
                 local_param_post = local_param_pre
             #############################################
             # set b
-            local_param_post.b = np.ones(X.shape[0])
-            for k in range(X.shape[0]):
-                d_e_k = d_e[np.ix_(neigh_ind[k,:],neigh_ind[k,:])].toarray()
+            local_param_post.b = np.ones(neigh_ind.shape[0])
+            for k in range(neigh_ind.shape[0]):
+                d_e_k = to_dense(d_e[np.ix_(neigh_ind[k,:],neigh_ind[k,:])])
                 Psi_k = local_param_post.eval_({'view_index': k, 'data_mask': neigh_ind[k,:]})
                 local_param_post.b[k] = np.median(squareform(d_e_k))/np.median(pdist(Psi_k))
             
@@ -107,7 +107,7 @@ class LocalViews:
             
             if ddX is not None:
                 self.log('Halving objects.')
-                n = X.shape[0]
+                n = ddX.shape[0]
                 U = U[:n,:n]
                 GL.phi = GL.phi[:n,:]
                 IPGE.Atilde = IPGE.Atilde[:n,:,:]
@@ -230,7 +230,7 @@ class LocalViews:
                 local_param.Psi_i[k,:] = i
 
                 # Compute zeta_{kk}
-                d_e_k = d_e[np.ix_(neigh_ind[k,:],neigh_ind[k,:])].toarray()
+                d_e_k = d_e[np.ix_(neigh_ind[k,:],neigh_ind[k,:])]
                 local_param.zeta[k] = compute_zeta(d_e_k,
                                                    local_param.eval_({'view_index': k,
                                                                       'data_mask': neigh_ind[k,:]}))
@@ -295,7 +295,7 @@ class LocalViews:
             local_param.mu[k,:] = xbar_k
             
             # Compute zeta_{kk}
-            d_e_k = d_e[np.ix_(neigh_ind_k, neigh_ind_k)].toarray()
+            d_e_k = d_e[np.ix_(neigh_ind_k, neigh_ind_k)]
             local_param.zeta[k] = compute_zeta(d_e_k,
                                                local_param.eval_({'view_index': k,
                                                                   'data_mask': neigh_ind_k}))
@@ -336,7 +336,7 @@ class LocalViews:
                         else:
                             cand_k = param_changed_old.intersection(U_k)
                         neigh_ind_k = neigh_ind[k,:]
-                        d_e_k = d_e[np.ix_(neigh_ind_k,neigh_ind_k)].toarray()
+                        d_e_k = d_e[np.ix_(neigh_ind_k,neigh_ind_k)]
                         for kp in cand_k:
                             Psi_kp_on_U_k = local_param.eval_({'view_index': kp,
                                                                'data_mask': neigh_ind_k})
@@ -394,7 +394,7 @@ class LocalViews:
                         ind += 1
 
                     neigh_ind_k = neigh_ind[k,:]
-                    d_e_k = d_e[np.ix_(neigh_ind_k,neigh_ind_k)].toarray()
+                    d_e_k = d_e[np.ix_(neigh_ind_k,neigh_ind_k)]
                     for kp in cand_k:
                         Psi_kp_on_U_k = local_param.eval_({'view_index': kp,
                                                            'data_mask': neigh_ind_k})

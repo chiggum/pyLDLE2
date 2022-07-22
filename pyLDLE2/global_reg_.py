@@ -65,7 +65,7 @@ def sequential_init(seq, rho, y, is_visited_view, d, Utilde, n_Utilde_Utilde,
         
         # If to tear apart closed manifolds
         if global_opts['to_tear']:
-            if global_opts['init_algo']['align_w_parent_only']:
+            if global_opts['init_algo_align_w_parent_only']:
                 Z_s = [p]
             else:
                 # Compute T_s and v_s by aligning
@@ -256,7 +256,7 @@ def spectral_init(y, is_visited_view, d, Utilde,
     for i in range(M):
         U_,S_,VT_ = scipy.linalg.svd(Wstar[:,d*i:d*(i+1)])
         temp_ = np.matmul(U_,VT_)
-        if (global_opts['init_algo']['name'] != 'spectral') and (np.linalg.det(temp_) < 0):
+        if (global_opts['init_algo_name'] != 'spectral') and (np.linalg.det(temp_) < 0):
             VT_[-1,:] *= -1
             Tstar[:,i*d:(i+1)*d] = np.matmul(U_, VT_)
         else:
@@ -284,7 +284,7 @@ def sequential_final(y, d, Utilde, C, intermed_param, n_Utilde_Utilde, n_Utildeg
     seq = np.random.permutation(M)
 
     # For a given seq, refine the global embedding
-    for it1 in range(global_opts['refine_algo']['max_internal_iter']):
+    for it1 in range(global_opts['refine_algo_max_internal_iter']):
         for s in seq.tolist():
             # Never refine s_0th intermediate view
             if s in first_intermed_view_in_cluster:
@@ -409,8 +409,8 @@ def retraction_final(y, d, Utilde, C, intermed_param,
         
         return O
 
-    alpha = global_opts['refine_algo']['alpha']
-    max_iter = global_opts['refine_algo']['max_internal_iter']
+    alpha = global_opts['refine_algo_alpha']
+    max_iter = global_opts['refine_algo_max_internal_iter']
     Tstar = np.zeros((d,M*d))
     for s in range(M):
         Tstar[:,s*d:(s+1)*d] = np.eye(d)
