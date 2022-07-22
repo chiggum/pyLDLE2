@@ -8,9 +8,8 @@ version: 2
 # Set the version of Python and other tools you might need
 build:
   image: latest
-
-python:
-  version: 3.8
+  tools:
+    python: "3.8"
 
 # Build documentation in the docs/ directory with Sphinx
 sphinx:
