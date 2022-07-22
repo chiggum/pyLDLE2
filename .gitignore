@@ -3,3 +3,4 @@ __pycache__*
 data/*
 old_notebooks*
 nbks/.ipynb_checkpoints*
+*trash*
