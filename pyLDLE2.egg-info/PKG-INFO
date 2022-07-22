@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: pyLDLE2
-Version: 0.0.3
+Version: 0.0.4
 Summary: Low Distortion Local Eigenmaps and its variations.
 Author: Dhruv Kohli, Alex Cloninger, Gal Mishne
 License: MIT License
@@ -29,7 +29,7 @@ Project-URL: Bug Tracker, https://github.com/chiggum/pyLDLE2/issues
 Classifier: Programming Language :: Python :: 3
 Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
-Requires-Python: >=3.7
+Requires-Python: >=3.8
 Description-Content-Type: text/markdown
 License-File: LICENSE
 

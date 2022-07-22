@@ -15,14 +15,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyLDLE2"
-version = "0.0.3"
+version = "0.0.4"
 authors = [
   { name="Dhruv Kohli, Alex Cloninger, Gal Mishne" },
 ]
 description = "Low Distortion Local Eigenmaps and its variations."
 readme = "README.md"
 license = { file="LICENSE" }
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
