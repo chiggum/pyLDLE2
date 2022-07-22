@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API &mdash; pyLDLE2  documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Modules" href="modules.html" />
+    <link rel="prev" title="Welcome to pyLDLE2’s documentation!" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="index.html" class="icon icon-home"> pyLDLE2
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules.html">Modules</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nbks/example_1.html">Example 1</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nbks/vis_1.html">Example 1 - further visualizations</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">pyLDLE2</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+      <li>API</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/api.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  
+<style>
+/* CSS overrides for sphinx_rtd_theme */
+
+/* 24px margin */
+.nbinput.nblast.container,
+.nboutput.nblast.container {
+    margin-bottom: 19px;  /* padding has already 5px */
+}
+
+/* ... except between code cells! */
+.nblast.container + .nbinput.container {
+    margin-top: -19px;
+}
+
+.admonition > p:before {
+    margin-right: 4px;  /* make room for the exclamation icon */
+}
+
+/* Fix math alignment, see https://github.com/rtfd/sphinx_rtd_theme/pull/686 */
+.math {
+    text-align: unset;
+}
+</style>
+<section id="api">
+<h1>API<a class="headerlink" href="#api" title="Permalink to this heading"></a></h1>
+<p>The main LDLE class is as follows.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="pyLDLE2.ldle_.LDLE">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyLDLE2.ldle_.</span></span><span class="sig-name descname"><span class="pre">LDLE</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">d</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">local_opts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">intermed_opts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">global_opts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vis_opts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_proc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">6</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exit_at</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">debug</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyLDLE2/ldle_.html#LDLE"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyLDLE2.ldle_.LDLE" title="Permalink to this definition"></a></dt>
+<dd><p>Low Dimensional Local Eigenmaps and its variations.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>d</strong> (<em>int</em>) – Intrinsic dimension of the manifold.</p></li>
+<li><p><strong>local_opts</strong> (<em>dict</em>) – Options for local views construction. The key-value pairs
+provided override the ones in default_local_opts.</p></li>
+<li><p><strong>intermed_opts</strong> (<em>dict</em>) – Options for intermediate views construction. The key-value pairs
+provided override the ones in default_intermed_opts.</p></li>
+<li><p><strong>global_opts</strong> (<em>dict</em>) – Options for global views construction. The key-value pairs
+provided override the ones in default_global_opts.</p></li>
+<li><p><strong>vis_opts</strong> (<em>dict</em>) – Options for visualization. The key-value pairs
+provided override the ones in default_vis_opts.</p></li>
+<li><p><strong>n_proc</strong> (<em>int</em>) – The number of processors to use. Defaults to approximately
+3/4th of the available processors.</p></li>
+<li><p><strong>verbose</strong> (<em>bool</em>) – print logs if True.</p></li>
+<li><p><strong>debug</strong> (<em>bool</em>) – saves intermediary objects/data for debugging.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyLDLE2.ldle_.LDLE.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">d_e</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ddX</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyLDLE2/ldle_.html#LDLE.fit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyLDLE2.ldle_.LDLE.fit" title="Permalink to this definition"></a></dt>
+<dd><p>Run the algorithm. Either X or d_e must be supplied.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X</strong> (<em>array shape</em><em> (</em><em>n_samples</em><em>, </em><em>n_features</em><em>)</em>) – A 2d array containing data representing a manifold.</p></li>
+<li><p><strong>d_e</strong> (<em>array shape</em><em> (</em><em>n_samples</em><em>, </em><em>n_samples</em><em>)</em>) – A square numpy matrix representing the geodesic distance
+between each pair of points on the manifold.</p></li>
+<li><p><strong>ddX</strong> (<em>array shape</em><em> (</em><em>n_samples</em><em>)</em>) – Optional. A 1d array representing the distance of the
+points from the boundary OR a 1d array such that
+ddX[i] = 0 if the point i i.e. X[i,:] is on the boundary.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>y</strong> – The embedding of the data in lower dimension.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>array shape (n_samples, d)</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<p><strong>Hyperparameters</strong>: A description of all the available hyperparameters and their default values are provided below.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="pyLDLE2.ldle_.get_default_local_opts">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyLDLE2.ldle_.</span></span><span class="sig-name descname"><span class="pre">get_default_local_opts</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">algo</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'LDLE'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k_nn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">48</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k_tune</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">6</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">24</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gl_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'unnorm'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">N</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">no_gamma</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Atilde_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'LDLE_1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.99</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.9</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">to_postprocess</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pp_n_thresh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">32</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyLDLE2/ldle_.html#get_default_local_opts"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyLDLE2.ldle_.get_default_local_opts" title="Permalink to this definition"></a></dt>
+<dd><p>Sets and returns a dictionary of default_local_opts.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>algo</strong> (<em>str</em>) – The algorithm to use for the construction of
+local views. Options are ‘LDLE’ and ‘LTSA’.
+LTSA uses the hyperparameter k only and is
+not affected by the value of the others.</p></li>
+<li><p><strong>k_nn</strong> (<em>int</em>) – For k-nearest neighbor graph construction.</p></li>
+<li><p><strong>k_tune</strong> (<em>int</em>) – Distance to k_tune-th nearest neighbor is
+used as the local scaling factor. This must
+be less than k_nn.</p></li>
+<li><p><strong>k</strong> (<em>int</em>) – The size of local view per point.</p></li>
+<li><p><strong>gl_type</strong> (<em>str</em>) – The type of graph Laplacian to construct.
+Options are ‘unnorm’ for unnormalized,
+‘symnorm’ for symmetric normalized,
+‘diffusion’ for density-corrected normalized.</p></li>
+<li><p><strong>N</strong> (<em>int</em>) – Number of smallest non-trivial eigenvectors of the
+graph Laplacian to be used for the construction of
+local views.</p></li>
+<li><p><strong>no_gamma</strong> (<em>bool</em>) – If True, the parameterization of local views
+are not normalized.</p></li>
+<li><p><strong>Atilde_method</strong> (<em>str</em>) – Method to use for conmputing Atilde.
+Options are ‘LDLE_1’ for finite element method,
+‘LLR’ for local linear regression. Currently,
+only ‘LDLE_1’ works.</p></li>
+<li><p><strong>p</strong> (<em>float</em>) – A hyperparameter used in computing Atilde. The value
+must be in (0,1).</p></li>
+<li><p><strong>tau</strong> (<em>int</em>) – A hyperparameter used in computing parameterizations
+of local views. The value must be in (0,100).</p></li>
+<li><p><strong>delta</strong> (<em>float</em>) – A hyperparameter used in computing parameterizations
+of local views. The value must be in (0,1).</p></li>
+<li><p><strong>to_postprocess</strong> (<em>bool</em>) – If True the local parameterizations are postprocessed
+to fix anamolous parameterizations leading to high
+distortion of the local views.</p></li>
+<li><p><strong>pp_n_thresh</strong> (<em>int</em>) – Threshold to use multiple processors or a single processor
+while postprocessing the local parameterizations. A small
+value such as 32 leads to faster postprocessing.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pyLDLE2.ldle_.get_default_intermed_opts">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyLDLE2.ldle_.</span></span><span class="sig-name descname"><span class="pre">get_default_intermed_opts</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">eta_min</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eta_max</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">len_S_thresh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">256</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyLDLE2/ldle_.html#get_default_intermed_opts"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyLDLE2.ldle_.get_default_intermed_opts" title="Permalink to this definition"></a></dt>
+<dd><p>Sets and returns a dictionary of default_intermed_opts.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>eta_min</strong> (<em>int</em>) – Minimum allowed size of the clusters underlying
+the intermediate views. The values must be &gt;= 1.</p></li>
+<li><p><strong>eta_max</strong> (<em>int</em>) – Maximum allowed size of the clusters underlying
+the intermediate views. The value must be &gt; eta_min.</p></li>
+<li><p><strong>len_S_thresh</strong> (<em>int</em>) – Threshold on the number of points for which
+the costs are to be updated, to invoke
+multiple processors.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pyLDLE2.ldle_.get_default_global_opts">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyLDLE2.ldle_.</span></span><span class="sig-name descname"><span class="pre">get_default_global_opts</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">main_algo</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'LDLE'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">to_tear</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nu</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vis_before_init</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compute_error</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init_algo_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'sequential'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init_algo_align_w_parent_only</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">refine_algo_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'retraction'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">refine_algo_max_internal_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">refine_algo_alpha</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.3</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyLDLE2/ldle_.html#get_default_global_opts"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyLDLE2.ldle_.get_default_global_opts" title="Permalink to this definition"></a></dt>
+<dd><p>Sets and returns a dictionary of default_global_opts.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>main_algo</strong> (<em>str</em>) – The algorithm to use for the alignment of intermediate
+views. Options are ‘LDLE’ and ‘LTSA’. If ‘LTSA’ is
+chosen then none of the following hypermateters are used.</p></li>
+<li><p><strong>to_tear</strong> (<em>bool</em>) – If True the tearing of the manifold is allowed.</p></li>
+<li><p><strong>nu</strong> (<em>int</em>) – A hyperparameter used to compute neighboring intermediate
+views in the embedding space.</p></li>
+<li><p><strong>max_iter</strong> (<em>int</em>) – Number of iterations to refine the global embedding for.</p></li>
+<li><p><strong>vis_before_init</strong> (<em>bool</em>) – If True, plots the global embedding before
+alignment begins. This is same as just plotting
+all the intermediate views without alignment.</p></li>
+<li><p><strong>compute_error</strong> (<em>bool</em>) – If True the alignment error is computed at each
+iteration of the refinement, otherwise only at
+the last iteration.</p></li>
+<li><p><strong>init_algo_name</strong> (<em>str</em>) – The algorithm used to compute initial global embedding
+by aligning the intermediate views.
+Options are ‘sequential’ for tree-based-procrustes alignment,
+‘spectral’ for spectral alignment (ignores to_tear),
+‘sequential+spectral’ for tree-based-procrustes alignment
+followed by spectral alignment.</p></li>
+<li><p><strong>init_algo_align_w_parent_only</strong> (<em>bool</em>) – If True only the parents of the intermediate
+views are used in the tree-based-procrustes
+alignment.</p></li>
+<li><p><strong>refine_algo_name</strong> (<em>str</em>) – The algorithm used to refine the initial global embedding
+by refining the alignment between intermediate views.
+Options are ‘sequential’ for Generalized Procustes Analysis
+(GPA) based alignment, ‘retraction’ for Riemannian optimization
+based alignment, ‘spectral’ for spectral alignment.</p></li>
+<li><p><strong>refine_algo_max_internal_iter</strong> (<em>int</em>) – The number of internal iterations used by
+the refinement algorithm. This is ignored
+by ‘spectral’ refinement.</p></li>
+<li><p><strong>refine_algo_alpha</strong> (<em>int</em>) – The step size used in the Riemannian gradient descent
+when the refinement algorithm is ‘retraction’.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pyLDLE2.ldle_.get_default_vis_opts">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyLDLE2.ldle_.</span></span><span class="sig-name descname"><span class="pre">get_default_vis_opts</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">save_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmap_interior</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'summer'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmap_boundary</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'jet'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyLDLE2/ldle_.html#get_default_vis_opts"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyLDLE2.ldle_.get_default_vis_opts" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Welcome to pyLDLE2’s documentation!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="modules.html" class="btn btn-neutral float-right" title="Modules" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, Dhruv Kohli, Alex Cloninger, Gal Mishne.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

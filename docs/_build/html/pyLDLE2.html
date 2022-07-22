@@ -16,6 +16,7 @@
         <script src="_static/underscore.js"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" /> 
@@ -36,26 +37,14 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <!-- Local TOC -->
-              <div class="local-toc"><ul>
-<li><a class="reference internal" href="#">pyLDLE2 package</a><ul>
-<li><a class="reference internal" href="#submodules">Submodules</a></li>
-<li><a class="reference internal" href="#module-pyLDLE2.datasets">pyLDLE2.datasets module</a></li>
-<li><a class="reference internal" href="#module-pyLDLE2.gl_">pyLDLE2.gl_ module</a></li>
-<li><a class="reference internal" href="#module-pyLDLE2.global_reg_">pyLDLE2.global_reg_ module</a></li>
-<li><a class="reference internal" href="#module-pyLDLE2.global_views_">pyLDLE2.global_views_ module</a></li>
-<li><a class="reference internal" href="#module-pyLDLE2.intermed_views_">pyLDLE2.intermed_views_ module</a></li>
-<li><a class="reference internal" href="#module-pyLDLE2.ipge_">pyLDLE2.ipge_ module</a></li>
-<li><a class="reference internal" href="#module-pyLDLE2.ldle_">pyLDLE2.ldle_ module</a></li>
-<li><a class="reference internal" href="#module-pyLDLE2.local_views_">pyLDLE2.local_views_ module</a></li>
-<li><a class="reference internal" href="#module-pyLDLE2.util_">pyLDLE2.util_ module</a></li>
-<li><a class="reference internal" href="#pyldle2-visualize-module">pyLDLE2.visualize module</a></li>
-<li><a class="reference internal" href="#module-pyLDLE2.visualize_">pyLDLE2.visualize_ module</a></li>
-<li><a class="reference internal" href="#module-pyLDLE2">Module contents</a></li>
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules.html">Modules</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nbks/example_1.html">Example 1</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nbks/vis_1.html">Example 1 - further visualizations</a></li>
 </ul>
-</li>
-</ul>
-</div>
+
         </div>
       </div>
     </nav>
@@ -80,7 +69,31 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="pyldle2-package">
+  
+<style>
+/* CSS overrides for sphinx_rtd_theme */
+
+/* 24px margin */
+.nbinput.nblast.container,
+.nboutput.nblast.container {
+    margin-bottom: 19px;  /* padding has already 5px */
+}
+
+/* ... except between code cells! */
+.nblast.container + .nbinput.container {
+    margin-top: -19px;
+}
+
+.admonition > p:before {
+    margin-right: 4px;  /* make room for the exclamation icon */
+}
+
+/* Fix math alignment, see https://github.com/rtfd/sphinx_rtd_theme/pull/686 */
+.math {
+    text-align: unset;
+}
+</style>
+<section id="pyldle2-package">
 <h1>pyLDLE2 package<a class="headerlink" href="#pyldle2-package" title="Permalink to this heading"></a></h1>
 <section id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading"></a></h2>
@@ -691,11 +704,8 @@ value such as 32 leads to faster postprocessing.</p></li>
 <dd></dd></dl>
 
 </section>
-<section id="pyldle2-visualize-module">
-<h2>pyLDLE2.visualize module<a class="headerlink" href="#pyldle2-visualize-module" title="Permalink to this heading"></a></h2>
-</section>
 <section id="module-pyLDLE2.visualize_">
-<span id="id1"></span><h2>pyLDLE2.visualize_ module<a class="headerlink" href="#module-pyLDLE2.visualize_" title="Permalink to this heading"></a></h2>
+<span id="pyldle2-visualize-module"></span><h2>pyLDLE2.visualize_ module<a class="headerlink" href="#module-pyLDLE2.visualize_" title="Permalink to this heading"></a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="pyLDLE2.visualize_.Visualize">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyLDLE2.visualize_.</span></span><span class="sig-name descname"><span class="pre">Visualize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">save_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyLDLE2/visualize_.html#Visualize"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyLDLE2.visualize_.Visualize" title="Permalink to this definition"></a></dt>

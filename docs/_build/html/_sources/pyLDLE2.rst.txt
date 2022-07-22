@@ -76,14 +76,6 @@ pyLDLE2.util\_ module
    :undoc-members:
    :show-inheritance:
 
-pyLDLE2.visualize module
-------------------------
-
-.. automodule:: pyLDLE2.visualize
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 pyLDLE2.visualize\_ module
 --------------------------
 
