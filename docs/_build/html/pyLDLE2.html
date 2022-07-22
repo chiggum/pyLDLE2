@@ -18,8 +18,7 @@
         <script src="_static/doctools.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" />
-    <link rel="prev" title="pyLDLE2" href="modules.html" /> 
+    <link rel="search" title="Search" href="search.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -37,29 +36,26 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul class="current">
-<li class="toctree-l1 current"><a class="reference internal" href="modules.html">pyLDLE2</a><ul class="current">
-<li class="toctree-l2 current"><a class="current reference internal" href="#">pyLDLE2 package</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-pyLDLE2.datasets">pyLDLE2.datasets module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-pyLDLE2.gl_">pyLDLE2.gl_ module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-pyLDLE2.global_reg_">pyLDLE2.global_reg_ module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-pyLDLE2.global_views_">pyLDLE2.global_views_ module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-pyLDLE2.intermed_views_">pyLDLE2.intermed_views_ module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-pyLDLE2.ipge_">pyLDLE2.ipge_ module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-pyLDLE2.ldle_">pyLDLE2.ldle_ module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-pyLDLE2.local_views_">pyLDLE2.local_views_ module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-pyLDLE2.util_">pyLDLE2.util_ module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-pyLDLE2.visualize">pyLDLE2.visualize module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-pyLDLE2.visualize_">pyLDLE2.visualize_ module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-pyLDLE2">Module contents</a></li>
+              <!-- Local TOC -->
+              <div class="local-toc"><ul>
+<li><a class="reference internal" href="#">pyLDLE2 package</a><ul>
+<li><a class="reference internal" href="#submodules">Submodules</a></li>
+<li><a class="reference internal" href="#module-pyLDLE2.datasets">pyLDLE2.datasets module</a></li>
+<li><a class="reference internal" href="#module-pyLDLE2.gl_">pyLDLE2.gl_ module</a></li>
+<li><a class="reference internal" href="#module-pyLDLE2.global_reg_">pyLDLE2.global_reg_ module</a></li>
+<li><a class="reference internal" href="#module-pyLDLE2.global_views_">pyLDLE2.global_views_ module</a></li>
+<li><a class="reference internal" href="#module-pyLDLE2.intermed_views_">pyLDLE2.intermed_views_ module</a></li>
+<li><a class="reference internal" href="#module-pyLDLE2.ipge_">pyLDLE2.ipge_ module</a></li>
+<li><a class="reference internal" href="#module-pyLDLE2.ldle_">pyLDLE2.ldle_ module</a></li>
+<li><a class="reference internal" href="#module-pyLDLE2.local_views_">pyLDLE2.local_views_ module</a></li>
+<li><a class="reference internal" href="#module-pyLDLE2.util_">pyLDLE2.util_ module</a></li>
+<li><a class="reference internal" href="#module-pyLDLE2.visualize">pyLDLE2.visualize module</a></li>
+<li><a class="reference internal" href="#module-pyLDLE2.visualize_">pyLDLE2.visualize_ module</a></li>
+<li><a class="reference internal" href="#module-pyLDLE2">Module contents</a></li>
 </ul>
 </li>
 </ul>
-</li>
-</ul>
-
+</div>
         </div>
       </div>
     </nav>
@@ -74,7 +70,6 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="modules.html">pyLDLE2</a> &raquo;</li>
       <li>pyLDLE2 package</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/pyLDLE2.rst.txt" rel="nofollow"> View page source</a>
@@ -428,7 +423,7 @@
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>d</strong> (<em>int</em>) – Embedding dimension.</p></li>
+<li><p><strong>d</strong> (<em>int</em>) – Intrinsic dimension of the manifold.</p></li>
 <li><p><strong>local_opts</strong> (<em>dict</em>) – Options for local views construction. The key-value pairs
 provided override the ones in default_local_opts.</p></li>
 <li><p><strong>intermed_opts</strong> (<em>dict</em>) – Options for intermediate views construction. The key-value pairs
@@ -447,7 +442,26 @@ provided override the ones in default_vis_opts.</p></li>
 <dl class="py method">
 <dt class="sig sig-object py" id="pyLDLE2.ldle_.LDLE.fit">
 <span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">d_e</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ddX</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyLDLE2/ldle_.html#LDLE.fit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyLDLE2.ldle_.LDLE.fit" title="Permalink to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Run the algorithm. Either X or d_e must be supplied.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X</strong> (<em>array shape</em><em> (</em><em>n_samples</em><em>, </em><em>n_features</em><em>)</em>) – A 2d array containing data representing a manifold.</p></li>
+<li><p><strong>d_e</strong> (<em>array shape</em><em> (</em><em>n_samples</em><em>, </em><em>n_samples</em><em>)</em>) – A square numpy matrix representing the geodesic distance
+between each pair of points on the manifold.</p></li>
+<li><p><strong>ddX</strong> (<em>array shape</em><em> (</em><em>n_samples</em><em>)</em>) – Optional. A 1d array representing the distance of the
+points from the boundary OR a 1d array such that
+ddX[i] = 0 if the point i i.e. X[i,:] is on the boundary.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>y</strong> – The embedding of the data in lower dimension.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>array shape (n_samples, d)</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="pyLDLE2.ldle_.LDLE.log">
@@ -997,9 +1011,7 @@ ax.set_aspect(‘equal’) and ax.axis(‘equal’) not working for 3D.</p>
 
            </div>
           </div>
-          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="modules.html" class="btn btn-neutral float-left" title="pyLDLE2" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-    </div>
+          <footer>
 
   <hr/>
 

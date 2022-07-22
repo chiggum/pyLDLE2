@@ -35,11 +35,8 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../../modules.html">pyLDLE2</a></li>
-</ul>
-
+              <!-- Local TOC -->
+              <div class="local-toc"></div>
         </div>
       </div>
     </nav>
@@ -274,7 +271,7 @@
            <span class="s1">&#39;gl_type&#39;</span><span class="p">:</span> <span class="n">gl_type</span><span class="p">,</span> <span class="s1">&#39;N&#39;</span><span class="p">:</span> <span class="n">N</span><span class="p">,</span> <span class="s1">&#39;no_gamma&#39;</span><span class="p">:</span> <span class="n">no_gamma</span><span class="p">,</span>
            <span class="s1">&#39;Atilde_method&#39;</span><span class="p">:</span> <span class="n">Atilde_method</span><span class="p">,</span> <span class="s1">&#39;p&#39;</span><span class="p">:</span> <span class="n">p</span><span class="p">,</span> <span class="s1">&#39;tau&#39;</span><span class="p">:</span> <span class="n">tau</span><span class="p">,</span>
            <span class="s1">&#39;delta&#39;</span><span class="p">:</span> <span class="n">delta</span><span class="p">,</span> <span class="s1">&#39;to_postprocess&#39;</span><span class="p">:</span> <span class="n">to_postprocess</span><span class="p">,</span> <span class="s1">&#39;algo&#39;</span><span class="p">:</span> <span class="n">algo</span><span class="p">,</span>
-           <span class="s1">&#39;n_proc&#39;</span><span class="p">:</span> <span class="n">n_proc</span><span class="p">,</span> <span class="s1">&#39;pp_n_thresh&#39;</span><span class="p">:</span> <span class="n">pp_n_thresh</span><span class="p">}</span></div>
+           <span class="s1">&#39;pp_n_thresh&#39;</span><span class="p">:</span> <span class="n">pp_n_thresh</span><span class="p">}</span></div>
 
 <div class="viewcode-block" id="get_default_intermed_opts"><a class="viewcode-back" href="../../pyLDLE2.html#pyLDLE2.ldle_.get_default_intermed_opts">[docs]</a><span class="k">def</span> <span class="nf">get_default_intermed_opts</span><span class="p">(</span><span class="n">eta_min</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">eta_max</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">len_S_thresh</span><span class="o">=</span><span class="mi">256</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Sets and returns a dictionary of default_intermed_opts.</span>
@@ -375,7 +372,7 @@
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    d : int</span>
-<span class="sd">       Embedding dimension.</span>
+<span class="sd">       Intrinsic dimension of the manifold.</span>
 <span class="sd">    local_opts : dict</span>
 <span class="sd">                Options for local views construction. The key-value pairs</span>
 <span class="sd">                provided override the ones in default_local_opts.</span>
@@ -462,6 +459,25 @@
                                               <span class="bp">self</span><span class="o">.</span><span class="n">global_start_time</span><span class="p">)</span></div>
     
 <div class="viewcode-block" id="LDLE.fit"><a class="viewcode-back" href="../../pyLDLE2.html#pyLDLE2.ldle_.LDLE.fit">[docs]</a>    <span class="k">def</span> <span class="nf">fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">d_e</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">ddX</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Run the algorithm. Either X or d_e must be supplied.</span>
+<span class="sd">        </span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ---------</span>
+<span class="sd">        X : array shape (n_samples, n_features)</span>
+<span class="sd">            A 2d array containing data representing a manifold.</span>
+<span class="sd">        d_e : array shape (n_samples, n_samples)</span>
+<span class="sd">            A square numpy matrix representing the geodesic distance</span>
+<span class="sd">            between each pair of points on the manifold.</span>
+<span class="sd">        ddX : array shape (n_samples)</span>
+<span class="sd">            Optional. A 1d array representing the distance of the</span>
+<span class="sd">            points from the boundary OR a 1d array such that </span>
+<span class="sd">            ddX[i] = 0 if the point i i.e. X[i,:] is on the boundary.</span>
+<span class="sd">            </span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        y : array shape (n_samples, d)</span>
+<span class="sd">            The embedding of the data in lower dimension.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">assert</span> <span class="n">X</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">d_e</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;Either X or d_e should be provided.&quot;</span>
         
         <span class="k">if</span> <span class="n">d_e</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -505,7 +521,9 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">d_e</span> <span class="o">=</span> <span class="n">d_e</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">neigh_ind</span> <span class="o">=</span> <span class="n">neigh_ind</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">neigh_dist</span> <span class="o">=</span> <span class="n">neigh_dist</span></div></div>
+            <span class="bp">self</span><span class="o">.</span><span class="n">neigh_dist</span> <span class="o">=</span> <span class="n">neigh_dist</span>
+        
+        <span class="k">return</span> <span class="n">GlobalViews</span><span class="o">.</span><span class="n">y_final</span></div></div>
 </pre></div>
 
            </div>
