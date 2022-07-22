@@ -292,6 +292,19 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=10,
                'refine_algo_alpha': refine_algo_alpha, # step size for retraction
               }
 def get_default_vis_opts(save_dir='', cmap_interior='summer', cmap_boundary='jet', c=None):
+    """Sets and returns a dictionary of default_vis_opts.
+    
+    Parameters
+    ----------
+    save_dir : str
+               The directory to save the plots in.
+    cmap_interior : str
+                    The colormap to use for the interior of the manifold.
+    cmap_boundary : str
+                    The colormap to use for the boundary of the manifold.
+    c : array shape (n_samples)
+        The labels for each point to be used to color them.
+    """
     return {'save_dir': save_dir,
              'cmap_interior': cmap_interior,
              'cmap_boundary': cmap_boundary,
