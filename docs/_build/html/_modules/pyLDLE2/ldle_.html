@@ -366,6 +366,19 @@
                <span class="s1">&#39;refine_algo_alpha&#39;</span><span class="p">:</span> <span class="n">refine_algo_alpha</span><span class="p">,</span> <span class="c1"># step size for retraction</span>
               <span class="p">}</span></div>
 <div class="viewcode-block" id="get_default_vis_opts"><a class="viewcode-back" href="../../pyLDLE2.html#pyLDLE2.ldle_.get_default_vis_opts">[docs]</a><span class="k">def</span> <span class="nf">get_default_vis_opts</span><span class="p">(</span><span class="n">save_dir</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">cmap_interior</span><span class="o">=</span><span class="s1">&#39;summer&#39;</span><span class="p">,</span> <span class="n">cmap_boundary</span><span class="o">=</span><span class="s1">&#39;jet&#39;</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Sets and returns a dictionary of default_vis_opts.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    save_dir : str</span>
+<span class="sd">               The directory to save the plots in.</span>
+<span class="sd">    cmap_interior : str</span>
+<span class="sd">                    The colormap to use for the interior of the manifold.</span>
+<span class="sd">    cmap_boundary : str</span>
+<span class="sd">                    The colormap to use for the boundary of the manifold.</span>
+<span class="sd">    c : array shape (n_samples)</span>
+<span class="sd">        The labels for each point to be used to color them.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;save_dir&#39;</span><span class="p">:</span> <span class="n">save_dir</span><span class="p">,</span>
              <span class="s1">&#39;cmap_interior&#39;</span><span class="p">:</span> <span class="n">cmap_interior</span><span class="p">,</span>
              <span class="s1">&#39;cmap_boundary&#39;</span><span class="p">:</span> <span class="n">cmap_boundary</span><span class="p">,</span>
