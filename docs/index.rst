@@ -12,7 +12,7 @@ Installation
 ``pip install pyLDLE2``
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 4
    :caption: Contents:
    
    api

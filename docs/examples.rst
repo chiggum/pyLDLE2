@@ -1,8 +1,8 @@
-More Examples
+Examples
 ================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
 
    manifolds_with_boundary
    doubled_manifolds

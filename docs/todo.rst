@@ -9,9 +9,6 @@ TODO
     - computation of CC
 - Improve docs
     - More examples
-        - Doubled manifolds
-        - Closed manifolds
-        - Non orientable manifolds
         - Real world datasets
         - Noisy data
         - sparse data

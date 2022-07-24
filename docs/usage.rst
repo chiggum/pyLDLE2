@@ -6,7 +6,7 @@ The following examples demonstrate the api usage. The local views are constructe
 .. toctree::
    :maxdepth: 2
    
-   ldle_nbks/noisy_manifold/noisy_swissroll_1
-   ldle_nbks/noisy_manifold/noisy_swissroll_1_vis
-   ltsa_nbks/noisy_manifold/noisy_swissroll_1
-   ltsa_nbks/noisy_manifold/noisy_swissroll_1_vis
+   ldle_nbks/noisy_manifolds/noisy_swissroll_1
+   ldle_nbks/noisy_manifolds/noisy_swissroll_1_vis
+   ltsa_nbks/noisy_manifolds/noisy_swissroll_1
+   ltsa_nbks/noisy_manifolds/noisy_swissroll_1_vis
