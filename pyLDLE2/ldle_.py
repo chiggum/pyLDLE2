@@ -375,7 +375,7 @@ class LDLE:
                  intermed_opts = {},
                  global_opts = {},
                  vis_opts = {},
-                 n_proc = max(1,int(mp.cpu_count()*0.75)),
+                 n_proc = min(8,max(1,int(mp.cpu_count()*0.75))),
                  exit_at = None,
                  verbose = False,
                  debug = False):
