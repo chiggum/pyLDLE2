@@ -12,6 +12,7 @@ pyLDLE2/ldle_.py
 pyLDLE2/local_views_.py
 pyLDLE2/util_.py
 pyLDLE2/visualize_.py
+pyLDLE2/visualize_all.py
 pyLDLE2.egg-info/PKG-INFO
 pyLDLE2.egg-info/SOURCES.txt
 pyLDLE2.egg-info/dependency_links.txt
