@@ -17,9 +17,6 @@ Installation
    
    api
    modules
-   nbks/example_1
-   nbks/vis_1
-   nbks/example_2
-   nbks/vis_2
+   usage
    more_examples
    todo
