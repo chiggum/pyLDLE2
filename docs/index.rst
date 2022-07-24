@@ -17,6 +17,5 @@ Installation
    
    api
    modules
-   usage
    examples
    todo
