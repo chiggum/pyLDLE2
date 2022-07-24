@@ -12,7 +12,7 @@ Installation
 ``pip install pyLDLE2``
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Contents:
    
    api
@@ -21,4 +21,5 @@ Installation
    nbks/vis_1
    nbks/example_2
    nbks/vis_2
+   more_examples
    todo

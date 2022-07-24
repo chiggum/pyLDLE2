@@ -44,6 +44,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../nbks/vis_1.html">Example 1 - further visualizations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../nbks/example_2.html">Example 2</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../nbks/vis_2.html">Example 2 - further visualizations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../more_examples.html">More Examples</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../todo.html">TODO</a></li>
 </ul>
 
@@ -86,24 +87,26 @@
 <span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">global_views_</span>
 <span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">visualize_</span>
 <span class="kn">from</span> <span class="nn">.util_</span> <span class="kn">import</span> <span class="n">print_log</span><span class="p">,</span> <span class="n">sparse_matrix</span><span class="p">,</span> <span class="n">nearest_neighbors</span>
-<span class="kn">import</span> <span class="nn">multiprocessing</span>
+<span class="kn">import</span> <span class="nn">multiprocess</span> <span class="k">as</span> <span class="nn">mp</span>
+<span class="kn">from</span> <span class="nn">pandas</span> <span class="kn">import</span> <span class="n">DataFrame</span>
     
-<div class="viewcode-block" id="double_manifold_k_nn"><a class="viewcode-back" href="../../pyLDLE2.html#pyLDLE2.ldle_.double_manifold_k_nn">[docs]</a><span class="k">def</span> <span class="nf">double_manifold_k_nn</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">ddX</span><span class="p">,</span> <span class="n">k_nn</span><span class="p">):</span>
+<div class="viewcode-block" id="double_manifold_k_nn"><a class="viewcode-back" href="../../pyLDLE2.html#pyLDLE2.ldle_.double_manifold_k_nn">[docs]</a><span class="k">def</span> <span class="nf">double_manifold_k_nn</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">ddX</span><span class="p">,</span> <span class="n">k_nn</span><span class="p">,</span> <span class="n">metric</span><span class="p">,</span> <span class="n">n_proc</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Doubles the manifold represented by X and computes</span>
 <span class="sd">    k-nearest neighbors of each point on the double.</span>
 <span class="sd">    </span>
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    X : array shape (n_samples, n_features)</span>
-<span class="sd">        2d np.array of shape (n,p)</span>
-<span class="sd">        where each row represents a point.</span>
+<span class="sd">    data : {array} of shape (n_samples, n_features) or {array} of shape (n_samples, n_samples)</span>
+<span class="sd">           A 2d array where each row represents a data point or</span>
+<span class="sd">           distance of a point to all other points.</span>
 <span class="sd">    ddX : array shape (n_samples,)</span>
 <span class="sd">          A 1d np.array of shape (n,) where ddX[i] = 0 iff the</span>
 <span class="sd">          i-th point X[i,:] represents a point on the boundary</span>
 <span class="sd">          of the manifold. Note that n_boundary = np.sum(ddX==0).</span>
 <span class="sd">    k_nn : int</span>
 <span class="sd">           Number of nearest neighbors to compute on the double.</span>
-<span class="sd">    </span>
+<span class="sd">    n_proc : int</span>
+<span class="sd">             Number of processors to use.</span>
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    neigh_dist : array shape (2*n_samples-n_boundary, k_nn)</span>
@@ -113,111 +116,140 @@
 <span class="sd">                indices of k-nearest neighbors from each point</span>
 <span class="sd">                on the double.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">k_nn_</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">k_nn</span>
-    <span class="n">neigh</span> <span class="o">=</span> <span class="n">KNeighborsTransformer</span><span class="p">(</span><span class="n">n_neighbors</span><span class="o">=</span><span class="n">k_nn_</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="c1">#start with 2 x k_nn</span>
-    <span class="n">X_dist_graph</span> <span class="o">=</span> <span class="n">neigh</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
-    
-    <span class="c1"># Compute mask of points on the boundary</span>
-    <span class="n">n</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-    <span class="n">dX</span> <span class="o">=</span> <span class="n">ddX</span><span class="o">==</span><span class="mi">0</span>
-    <span class="n">n_dX</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dX</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="c1"># no. of points on the original manifold</span>
+    <span class="n">dX</span> <span class="o">=</span> <span class="n">ddX</span><span class="o">==</span><span class="mi">0</span> <span class="c1"># a boolean array s.t. dX[i] == 1 iff i-th pt is on boundary</span>
+    <span class="n">n_dX</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dX</span><span class="p">)</span> <span class="c1"># no. of points on the boundary</span>
     <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;No. of points on the boundary =&#39;</span><span class="p">,</span> <span class="n">n_dX</span><span class="p">)</span>
+    <span class="n">n_interior</span> <span class="o">=</span> <span class="n">n</span><span class="o">-</span><span class="n">n_dX</span> <span class="c1"># no. of points in the interior</span>
 
-    <span class="c1"># For points not on the boundary, a duplicate point</span>
-    <span class="c1"># with index offset-ed by n is created</span>
+    <span class="c1"># For points in the interior, a duplicate point</span>
+    <span class="c1"># with index offset-ed by n is created.</span>
+    <span class="c1"># The i-th point in the interior of the original</span>
+    <span class="c1"># manifold is duplicated. The index of the duplicate</span>
+    <span class="c1"># is n + i.</span>
     <span class="n">ind_mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
-    <span class="n">ind_mask</span><span class="p">[</span><span class="o">~</span><span class="n">dX</span><span class="p">]</span> <span class="o">=</span> <span class="n">n</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n</span><span class="o">-</span><span class="n">n_dX</span><span class="p">)</span>
+    <span class="n">ind_mask</span><span class="p">[</span><span class="o">~</span><span class="n">dX</span><span class="p">]</span> <span class="o">=</span> <span class="n">n</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n_interior</span><span class="p">)</span>
     
-    <span class="c1"># eliminate the zeros in the original nearest neighbor graph</span>
-    <span class="c1"># this basically removes the diagonal entries</span>
-    <span class="n">X_dist_graph</span><span class="o">.</span><span class="n">eliminate_zeros</span><span class="p">()</span>
+    <span class="n">k_nn_</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">k_nn</span>
+    <span class="n">neigh_dist</span><span class="p">,</span> <span class="n">neigh_ind</span> <span class="o">=</span> <span class="n">nearest_neighbors</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">k_nn_</span><span class="p">,</span> <span class="n">metric</span><span class="p">)</span>
     
-    <span class="c1"># find row and col indices of non-zero entries</span>
-    <span class="n">row_inds</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">col_inds</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">row</span><span class="p">,</span> <span class="n">col</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">X_dist_graph</span><span class="o">.</span><span class="n">nonzero</span><span class="p">()):</span>
-        <span class="n">row_inds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
-        <span class="n">col_inds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
-        
-    <span class="n">row_inds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">row_inds</span><span class="p">)</span>
-    <span class="n">col_inds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">col_inds</span><span class="p">)</span>
-    <span class="n">dist_data</span> <span class="o">=</span> <span class="n">X_dist_graph</span><span class="o">.</span><span class="n">data</span>
+    <span class="c1"># Now we construct a sparse distance matrix corresp</span>
+    <span class="c1"># to the doubled manifold. The block structure is</span>
+    <span class="c1"># A11 A12 A13</span>
+    <span class="c1"># A21 A22 A23</span>
+    <span class="c1"># A31 A32 A33</span>
+    <span class="c1"># 1: interior of original manifold</span>
+    <span class="c1"># 2: boundary</span>
+    <span class="c1"># 3: duplicated interior</span>
+    <span class="c1"># So, A11 = distance matrix between pairs of</span>
+    <span class="c1"># points in the interior of original manifold.</span>
+    <span class="c1"># Overall, A11, A12, A21, A22, A32, A33 </span>
+    <span class="c1"># are known or trivially computable. A13 = A31.T</span>
+    <span class="c1"># is to be computed.</span>
     
-    <span class="c1"># a mask of row_inds. True means</span>
-    <span class="c1"># the row index corresponds to point on the boundary</span>
-    <span class="n">dX_inds_mask</span> <span class="o">=</span> <span class="n">dX</span><span class="p">[</span><span class="n">row_inds</span><span class="p">]</span>
+    <span class="c1"># A22, A23</span>
+    <span class="c1"># A32 A33</span>
+    <span class="n">neigh_ind_</span> <span class="o">=</span> <span class="n">ind_mask</span><span class="p">[</span><span class="n">neigh_ind</span><span class="p">]</span>
+    <span class="n">neigh_dist_</span> <span class="o">=</span> <span class="n">neigh_dist</span>
     
-    <span class="c1"># the row indices of points not on the boundary</span>
-    <span class="c1"># in the duplicated manifold. col indices are computed</span>
-    <span class="c1"># using ind_mask.</span>
-    <span class="n">row_inds2</span> <span class="o">=</span> <span class="n">ind_mask</span><span class="p">[</span><span class="n">row_inds</span><span class="p">[</span><span class="o">~</span><span class="n">dX_inds_mask</span><span class="p">]]</span>
-    <span class="n">col_inds2</span> <span class="o">=</span> <span class="n">ind_mask</span><span class="p">[</span><span class="n">col_inds</span><span class="p">[</span><span class="o">~</span><span class="n">dX_inds_mask</span><span class="p">]]</span>
-    <span class="n">dist_data2</span> <span class="o">=</span> <span class="n">dist_data</span><span class="p">[</span><span class="o">~</span><span class="n">dX_inds_mask</span><span class="p">]</span>
+    <span class="n">dX_of_neigh_ind</span> <span class="o">=</span> <span class="n">dX</span><span class="p">[</span><span class="n">neigh_ind</span><span class="p">]</span>
+    <span class="n">pts_near_dX</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">dX_of_neigh_ind</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">int_pts_near_dX</span> <span class="o">=</span> <span class="n">pts_near_dX</span> <span class="o">&amp;</span> <span class="p">(</span><span class="o">~</span><span class="n">dX</span><span class="p">)</span>
+    <span class="n">int_pts_near_dX_inds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">int_pts_near_dX</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
     
-    <span class="c1"># Initialize the doubled graph</span>
-    <span class="n">row_inds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">row_inds</span><span class="p">,</span> <span class="n">row_inds2</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">n</span><span class="o">-</span><span class="n">n_dX</span><span class="p">)])</span>
-    <span class="n">col_inds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">col_inds</span><span class="p">,</span> <span class="n">col_inds2</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">n</span><span class="o">-</span><span class="n">n_dX</span><span class="p">)])</span>
-    <span class="n">dist_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">dist_data</span><span class="p">,</span> <span class="n">dist_data2</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">n</span><span class="o">-</span><span class="n">n_dX</span><span class="p">)])</span>
+    <span class="c1"># Compute sparse representation of A13</span>
+    <span class="n">row_inds13</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">col_inds13</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">vals13</span> <span class="o">=</span> <span class="p">[]</span>
     
-    <span class="c1"># free up memory</span>
-    <span class="k">del</span> <span class="n">row_inds2</span><span class="p">,</span> <span class="n">col_inds2</span><span class="p">,</span> <span class="n">dist_data2</span><span class="p">,</span> <span class="n">X_dist_graph</span>
-    
-    <span class="n">X_dist_graph2</span> <span class="o">=</span> <span class="n">csr_matrix</span><span class="p">((</span><span class="n">dist_data</span><span class="p">,</span> <span class="p">(</span><span class="n">row_inds</span><span class="p">,</span> <span class="n">col_inds</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">n</span><span class="o">-</span><span class="n">n_dX</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">n</span><span class="o">-</span><span class="n">n_dX</span><span class="p">))</span>
-    
-    <span class="c1"># connect points near the boundary on the original</span>
-    <span class="c1"># and the duplicated manifold</span>
-    <span class="n">dX_inds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">dX</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-    <span class="n">is_visited</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">n</span><span class="o">-</span><span class="n">n_dX</span><span class="p">,</span><span class="mi">2</span><span class="o">*</span><span class="n">n</span><span class="o">-</span><span class="n">n_dX</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
-    <span class="n">edges</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_dX</span><span class="p">):</span>
-        <span class="n">k</span> <span class="o">=</span> <span class="n">dX_inds</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
-        <span class="n">col_k</span> <span class="o">=</span> <span class="n">X_dist_graph2</span><span class="o">.</span><span class="n">getcol</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
-        <span class="n">nbrs</span> <span class="o">=</span> <span class="n">col_k</span><span class="o">.</span><span class="n">indices</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
-        <span class="n">dists</span> <span class="o">=</span> <span class="n">col_k</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
-        <span class="n">n_nbrs</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">nbrs</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">i_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_nbrs</span><span class="p">):</span>
-            <span class="n">nbr_i</span> <span class="o">=</span> <span class="n">nbrs</span><span class="p">[</span><span class="n">i_</span><span class="p">]</span>
-            <span class="k">for</span> <span class="n">j_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i_</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_nbrs</span><span class="p">):</span>
-                <span class="n">nbr_j</span> <span class="o">=</span> <span class="n">nbrs</span><span class="p">[</span><span class="n">j_</span><span class="p">]</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="n">is_visited</span><span class="p">[</span><span class="n">nbr_i</span><span class="p">,</span><span class="n">nbr_j</span><span class="p">]:</span>
-                    <span class="n">edges</span><span class="p">[(</span><span class="n">nbr_i</span><span class="p">,</span><span class="n">nbr_j</span><span class="p">)]</span> <span class="o">=</span> <span class="n">dists</span><span class="p">[</span><span class="n">i_</span><span class="p">]</span><span class="o">+</span><span class="n">dists</span><span class="p">[</span><span class="n">j_</span><span class="p">]</span>
-                    <span class="n">edges</span><span class="p">[(</span><span class="n">nbr_j</span><span class="p">,</span><span class="n">nbr_i</span><span class="p">)]</span> <span class="o">=</span> <span class="n">edges</span><span class="p">[(</span><span class="n">nbr_i</span><span class="p">,</span><span class="n">nbr_j</span><span class="p">)]</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">edges</span><span class="p">[(</span><span class="n">nbr_i</span><span class="p">,</span><span class="n">nbr_j</span><span class="p">)]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">([</span><span class="n">edges</span><span class="p">[(</span><span class="n">nbr_i</span><span class="p">,</span><span class="n">nbr_j</span><span class="p">)],</span> <span class="n">dists</span><span class="p">[</span><span class="n">i_</span><span class="p">]</span><span class="o">+</span><span class="n">dists</span><span class="p">[</span><span class="n">j_</span><span class="p">]])</span>
-                    <span class="n">edges</span><span class="p">[(</span><span class="n">nbr_j</span><span class="p">,</span><span class="n">nbr_i</span><span class="p">)]</span> <span class="o">=</span> <span class="n">edges</span><span class="p">[(</span><span class="n">nbr_i</span><span class="p">,</span><span class="n">nbr_j</span><span class="p">)]</span>
-                    <span class="n">is_visited</span><span class="p">[</span><span class="n">nbr_i</span><span class="p">,</span><span class="n">nbr_j</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
-                    <span class="n">is_visited</span><span class="p">[</span><span class="n">nbr_j</span><span class="p">,</span><span class="n">nbr_i</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
-            
-    
-    <span class="k">del</span> <span class="n">is_visited</span>
-    
-    <span class="n">row_inds3</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">col_inds3</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">dist_data3</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">edge</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">edges</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">row_inds3</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">edge</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-        <span class="n">col_inds3</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">edge</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
-        <span class="n">dist_data3</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
-    
-    <span class="c1"># add self connections with approx zero weight</span>
-    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">n</span><span class="o">-</span><span class="n">n_dX</span><span class="p">):</span>
-        <span class="n">row_inds3</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
-        <span class="n">col_inds3</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
-        <span class="n">dist_data3</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mf">1e-12</span><span class="p">)</span>
-        
-    <span class="c1"># Build dinal graph of doubled manifold</span>
-    <span class="n">row_inds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">row_inds</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">row_inds3</span><span class="p">)])</span>
-    <span class="n">col_inds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">col_inds</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">col_inds3</span><span class="p">)])</span>
-    <span class="n">dist_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">dist_data</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">dist_data3</span><span class="p">)])</span>
-    
-    <span class="c1"># free up memory</span>
-    <span class="k">del</span> <span class="n">edges</span><span class="p">,</span> <span class="n">row_inds3</span><span class="p">,</span> <span class="n">col_inds3</span><span class="p">,</span> <span class="n">dist_data3</span>
-    
-    <span class="n">X_dist_graph3</span> <span class="o">=</span> <span class="n">csr_matrix</span><span class="p">((</span><span class="n">dist_data</span><span class="p">,</span> <span class="p">(</span><span class="n">row_inds</span><span class="p">,</span> <span class="n">col_inds</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">n</span><span class="o">-</span><span class="n">n_dX</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">n</span><span class="o">-</span><span class="n">n_dX</span><span class="p">))</span>
-    
-    <span class="n">pdb</span><span class="o">.</span><span class="n">set_trace</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">target_proc</span><span class="p">(</span><span class="n">p_num</span><span class="p">,</span> <span class="n">chunk_sz</span><span class="p">,</span> <span class="n">q_</span><span class="p">):</span>
+        <span class="n">start_ind</span> <span class="o">=</span> <span class="n">p_num</span><span class="o">*</span><span class="n">chunk_sz</span>
+        <span class="k">if</span> <span class="n">p_num</span> <span class="o">==</span> <span class="p">(</span><span class="n">n_proc</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">end_ind</span> <span class="o">=</span> <span class="n">int_pts_near_dX_inds</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">end_ind</span> <span class="o">=</span> <span class="p">(</span><span class="n">p_num</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">chunk_sz</span>
 
-    <span class="n">neigh_dist</span><span class="p">,</span> <span class="n">neigh_ind</span> <span class="o">=</span> <span class="n">nearest_neighbors</span><span class="p">(</span><span class="n">X_dist_graph3</span><span class="p">,</span> <span class="n">k_nn</span><span class="o">=</span><span class="n">k_nn</span><span class="p">,</span> <span class="n">metric</span><span class="o">=</span><span class="s1">&#39;precomputed&#39;</span><span class="p">)</span>
+        <span class="n">row_inds13_</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">col_inds13_</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">vals13_</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">start_ind</span><span class="p">,</span> <span class="n">end_ind</span><span class="p">):</span>
+            <span class="c1"># index of an interior point which has</span>
+            <span class="c1"># a boundary point as nbr</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">int_pts_near_dX_inds</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+            <span class="c1"># nbrs of k which are on the boundary</span>
+            <span class="c1"># and the distance of k to these points.</span>
+            <span class="n">nbrs_on_dX_mask</span> <span class="o">=</span> <span class="n">dX_of_neigh_ind</span><span class="p">[</span><span class="n">k</span><span class="p">,:]</span>
+            <span class="n">nbrs_on_dX</span> <span class="o">=</span> <span class="n">neigh_ind</span><span class="p">[</span><span class="n">k</span><span class="p">,</span><span class="n">nbrs_on_dX_mask</span><span class="p">]</span>
+            <span class="n">dist_of_nbrs_on_dX</span> <span class="o">=</span> <span class="n">neigh_dist</span><span class="p">[</span><span class="n">k</span><span class="p">,</span><span class="n">nbrs_on_dX_mask</span><span class="p">][:,</span><span class="kc">None</span><span class="p">]</span>
+
+            <span class="c1"># Let S_k be the the nbrs of k which are</span>
+            <span class="c1"># on the boundary. The nbrs of S_k in the</span>
+            <span class="c1"># duplicated manifold are</span>
+            <span class="n">nbrs_of_S_k</span> <span class="o">=</span> <span class="n">neigh_ind_</span><span class="p">[</span><span class="n">nbrs_on_dX</span><span class="p">,:]</span>
+            <span class="c1"># Distance of nbrs of S_k to the corresponding</span>
+            <span class="c1"># point in S_k.</span>
+            <span class="n">dist_of_nbrs_of_S_k</span> <span class="o">=</span> <span class="n">neigh_dist_</span><span class="p">[</span><span class="n">nbrs_on_dX</span><span class="p">,:]</span>
+
+            <span class="c1"># Distance b/w k and the nbrs of S_k</span>
+            <span class="n">dist_of_k_from_nbrs_of_S_k</span> <span class="o">=</span> <span class="n">dist_of_nbrs_of_S_k</span> <span class="o">+</span> <span class="n">dist_of_nbrs_on_dX</span>
+
+            <span class="c1"># nbrs of S_k on the duplicated mainfold</span>
+            <span class="c1"># which are in the interior of it and</span>
+            <span class="c1"># distanace of k to these points.</span>
+            <span class="n">int_nbrs_of_S_k_mask</span> <span class="o">=</span> <span class="o">~</span><span class="n">dX_of_neigh_ind</span><span class="p">[</span><span class="n">nbrs_on_dX</span><span class="p">,:]</span>
+            <span class="n">int_nbrs_of_S_k</span> <span class="o">=</span> <span class="n">nbrs_of_S_k</span><span class="p">[</span><span class="n">int_nbrs_of_S_k_mask</span><span class="p">]</span>
+            <span class="n">dist_of_k_from_int_nbrs_of_S_k</span> <span class="o">=</span> <span class="n">dist_of_k_from_nbrs_of_S_k</span><span class="p">[</span><span class="n">int_nbrs_of_S_k_mask</span><span class="p">]</span>
+
+            <span class="c1"># Groupby interior point ids and min-aggregate their distances</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">DataFrame</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">ind</span><span class="o">=</span><span class="n">int_nbrs_of_S_k</span><span class="p">,</span>
+                               <span class="n">dist</span><span class="o">=</span><span class="n">dist_of_k_from_int_nbrs_of_S_k</span><span class="p">))</span>
+            <span class="n">gp</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;ind&#39;</span><span class="p">)[</span><span class="s1">&#39;dist&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">to_frame</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+            <span class="n">col_inds_</span> <span class="o">=</span> <span class="n">gp</span><span class="p">[</span><span class="s1">&#39;ind&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_list</span><span class="p">()</span>
+            <span class="n">vals_</span> <span class="o">=</span> <span class="n">gp</span><span class="p">[</span><span class="s1">&#39;dist&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_list</span><span class="p">()</span>
+            <span class="n">row_inds_</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">col_inds_</span><span class="p">)</span>
+            
+            <span class="n">row_inds13_</span> <span class="o">+=</span> <span class="n">row_inds_</span>
+            <span class="n">col_inds13_</span> <span class="o">+=</span> <span class="n">col_inds_</span>
+            <span class="n">vals13_</span> <span class="o">+=</span> <span class="n">vals_</span>
+
+        <span class="n">q_</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">row_inds13_</span><span class="p">,</span> <span class="n">col_inds13_</span><span class="p">,</span> <span class="n">vals13_</span><span class="p">))</span>
+
+    <span class="n">q_</span> <span class="o">=</span> <span class="n">mp</span><span class="o">.</span><span class="n">Queue</span><span class="p">()</span>
+    <span class="n">chunk_sz</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">int_pts_near_dX_inds</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="n">n_proc</span><span class="p">)</span>
+    <span class="n">proc</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">p_num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_proc</span><span class="p">):</span>
+        <span class="n">proc</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mp</span><span class="o">.</span><span class="n">Process</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">target_proc</span><span class="p">,</span>
+                               <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">p_num</span><span class="p">,</span><span class="n">chunk_sz</span><span class="p">,</span><span class="n">q_</span><span class="p">),</span>
+                               <span class="n">daemon</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+        <span class="n">proc</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">p_num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_proc</span><span class="p">):</span>
+        <span class="n">row_inds_</span><span class="p">,</span> <span class="n">col_inds_</span><span class="p">,</span> <span class="n">vals_</span> <span class="o">=</span> <span class="n">q_</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+        <span class="n">row_inds13</span> <span class="o">+=</span> <span class="n">row_inds_</span>
+        <span class="n">col_inds13</span> <span class="o">+=</span> <span class="n">col_inds_</span>
+        <span class="n">vals13</span> <span class="o">+=</span> <span class="n">vals_</span>
+
+    <span class="n">q_</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">p_num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_proc</span><span class="p">):</span>
+        <span class="n">proc</span><span class="p">[</span><span class="n">p_num</span><span class="p">]</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
+    
+    <span class="n">row_inds22_23_32_33</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">ind_mask</span><span class="p">,</span> <span class="n">neigh_ind</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    <span class="n">col_inds22_23_32_33</span> <span class="o">=</span> <span class="n">ind_mask</span><span class="p">[</span><span class="n">neigh_ind</span><span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    <span class="n">vals_22_23_32_33</span> <span class="o">=</span> <span class="n">neigh_dist</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    
+    <span class="n">row_inds11_12</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n</span><span class="p">)[</span><span class="o">~</span><span class="n">dX</span><span class="p">],</span> <span class="n">neigh_ind</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    <span class="n">col_inds11_12</span> <span class="o">=</span> <span class="n">neigh_ind</span><span class="p">[</span><span class="o">~</span><span class="n">dX</span><span class="p">,:]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    <span class="n">vals11_12</span> <span class="o">=</span> <span class="n">neigh_dist</span><span class="p">[</span><span class="o">~</span><span class="n">dX</span><span class="p">,:]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    
+    <span class="n">cs_graph</span> <span class="o">=</span> <span class="n">csr_matrix</span><span class="p">((</span><span class="n">vals11_12</span><span class="o">+</span><span class="n">vals13</span><span class="o">+</span><span class="n">vals_22_23_32_33</span><span class="p">,</span>
+                           <span class="p">(</span><span class="n">row_inds11_12</span><span class="o">+</span><span class="n">row_inds13</span><span class="o">+</span><span class="n">row_inds22_23_32_33</span><span class="p">,</span>
+                            <span class="n">col_inds11_12</span><span class="o">+</span><span class="n">col_inds13</span><span class="o">+</span><span class="n">col_inds22_23_32_33</span><span class="p">)),</span>
+                          <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">n_interior</span><span class="o">+</span><span class="n">n</span><span class="p">,</span> <span class="n">n_interior</span><span class="o">+</span><span class="n">n</span><span class="p">))</span>
+    <span class="n">cs_graph</span> <span class="o">=</span> <span class="n">cs_graph</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">cs_graph</span><span class="o">.</span><span class="n">transpose</span><span class="p">())</span>
+    
+    <span class="n">neigh_dist</span><span class="p">,</span> <span class="n">neigh_ind</span> <span class="o">=</span> <span class="n">nearest_neighbors</span><span class="p">(</span><span class="n">cs_graph</span><span class="p">,</span> <span class="n">k_nn</span><span class="o">=</span><span class="n">k_nn</span><span class="p">,</span> <span class="n">metric</span><span class="o">=</span><span class="s1">&#39;precomputed&#39;</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">neigh_dist</span><span class="p">,</span> <span class="n">neigh_ind</span></div>
     
 
@@ -418,7 +450,7 @@
                  <span class="n">intermed_opts</span> <span class="o">=</span> <span class="p">{},</span>
                  <span class="n">global_opts</span> <span class="o">=</span> <span class="p">{},</span>
                  <span class="n">vis_opts</span> <span class="o">=</span> <span class="p">{},</span>
-                 <span class="n">n_proc</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="nb">int</span><span class="p">(</span><span class="n">multiprocessing</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()</span><span class="o">*</span><span class="mf">0.75</span><span class="p">)),</span>
+                 <span class="n">n_proc</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="nb">int</span><span class="p">(</span><span class="n">mp</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()</span><span class="o">*</span><span class="mf">0.75</span><span class="p">)),</span>
                  <span class="n">exit_at</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">verbose</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
                  <span class="n">debug</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
@@ -502,26 +534,28 @@
         <span class="k">assert</span> <span class="n">X</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">d_e</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;Either X or d_e should be provided.&quot;</span>
         
         <span class="k">if</span> <span class="n">d_e</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">ddX</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;algo&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;LTSA&#39;</span><span class="p">:</span>
-                <span class="n">neigh_dist</span><span class="p">,</span> <span class="n">neigh_ind</span> <span class="o">=</span> <span class="n">nearest_neighbors</span><span class="p">(</span><span class="n">X</span><span class="p">,</span>
-                                                          <span class="n">k_nn</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn0&#39;</span><span class="p">],</span>
-                                                          <span class="n">metric</span><span class="o">=</span><span class="s1">&#39;euclidean&#39;</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="s1">&#39;Doubling manifold.&#39;</span><span class="p">)</span>
-                <span class="n">neigh_dist</span><span class="p">,</span> <span class="n">neigh_ind</span> <span class="o">=</span> <span class="n">double_manifold_k_nn</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">ddX</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn0&#39;</span><span class="p">])</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="s1">&#39;Done.&#39;</span><span class="p">,</span> <span class="n">log_time</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                
-            <span class="c1"># Construct a sparse d_e matrix based on neigh_ind and neigh_dist</span>
-            <span class="n">d_e</span> <span class="o">=</span> <span class="n">sparse_matrix</span><span class="p">(</span><span class="n">neigh_ind</span><span class="p">,</span> <span class="n">neigh_dist</span><span class="p">)</span>
-            <span class="n">d_e</span> <span class="o">=</span> <span class="n">d_e</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">d_e</span><span class="o">.</span><span class="n">transpose</span><span class="p">())</span>
-            
-            <span class="n">neigh_ind</span> <span class="o">=</span> <span class="n">neigh_ind</span><span class="p">[:,:</span><span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn&#39;</span><span class="p">]]</span>
-            <span class="n">neigh_dist</span> <span class="o">=</span> <span class="n">neigh_dist</span><span class="p">[:,:</span><span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn&#39;</span><span class="p">]]</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">X</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">ddX</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;algo&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;LTSA&#39;</span><span class="p">:</span>
-                <span class="n">neigh_dist</span><span class="p">,</span> <span class="n">neigh_ind</span> <span class="o">=</span> <span class="n">nearest_neighbors</span><span class="p">(</span><span class="n">d_e</span><span class="p">,</span>
-                                                          <span class="n">k_nn</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn&#39;</span><span class="p">],</span>
-                                                          <span class="n">metric</span><span class="o">=</span><span class="s1">&#39;precomputed&#39;</span><span class="p">)</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">d_e</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        
+        <span class="k">if</span> <span class="n">ddX</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;algo&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;LTSA&#39;</span><span class="p">:</span>
+            <span class="n">neigh_dist</span><span class="p">,</span> <span class="n">neigh_ind</span> <span class="o">=</span> <span class="n">nearest_neighbors</span><span class="p">(</span><span class="n">data</span><span class="p">,</span>
+                                                      <span class="n">k_nn</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn0&#39;</span><span class="p">],</span>
+                                                      <span class="n">metric</span><span class="o">=</span><span class="s1">&#39;euclidean&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="s1">&#39;Doubling manifold.&#39;</span><span class="p">)</span>
+            <span class="n">neigh_dist</span><span class="p">,</span> <span class="n">neigh_ind</span> <span class="o">=</span> <span class="n">double_manifold_k_nn</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">ddX</span><span class="p">,</span>
+                                                         <span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn0&#39;</span><span class="p">],</span>
+                                                         <span class="s1">&#39;euclidean&#39;</span><span class="p">,</span>
+                                                         <span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;n_proc&#39;</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="s1">&#39;Done.&#39;</span><span class="p">,</span> <span class="n">log_time</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        
+        <span class="c1"># Construct a sparse d_e matrix based on neigh_ind and neigh_dist</span>
+        <span class="n">d_e</span> <span class="o">=</span> <span class="n">sparse_matrix</span><span class="p">(</span><span class="n">neigh_ind</span><span class="p">,</span> <span class="n">neigh_dist</span><span class="p">)</span>
+        <span class="n">d_e</span> <span class="o">=</span> <span class="n">d_e</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">d_e</span><span class="o">.</span><span class="n">transpose</span><span class="p">())</span>
+
+        <span class="n">neigh_ind</span> <span class="o">=</span> <span class="n">neigh_ind</span><span class="p">[:,:</span><span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn&#39;</span><span class="p">]]</span>
+        <span class="n">neigh_dist</span> <span class="o">=</span> <span class="n">neigh_dist</span><span class="p">[:,:</span><span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k_nn&#39;</span><span class="p">]]</span>
         
         <span class="c1"># Construct low dimensional local views</span>
         <span class="n">LocalViews</span> <span class="o">=</span> <span class="n">local_views_</span><span class="o">.</span><span class="n">LocalViews</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exit_at</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">)</span>
@@ -538,7 +572,7 @@
         
         <span class="c1"># Construct intermediate views</span>
         <span class="n">IntermedViews</span> <span class="o">=</span> <span class="n">intermed_views_</span><span class="o">.</span><span class="n">IntermedViews</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exit_at</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">)</span>
-        <span class="n">IntermedViews</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">,</span> <span class="n">d_e</span><span class="p">,</span> <span class="n">neigh_ind</span><span class="p">[:,:</span><span class="bp">self</span><span class="o">.</span><span class="n">local_opts</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">]],</span> <span class="n">LocalViews</span><span class="o">.</span><span class="n">U</span><span class="p">,</span>
+        <span class="n">IntermedViews</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">,</span> <span class="n">d_e</span><span class="p">,</span> <span class="n">LocalViews</span><span class="o">.</span><span class="n">U</span><span class="p">,</span>
                           <span class="n">LocalViews</span><span class="o">.</span><span class="n">local_param_post</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">intermed_opts</span><span class="p">)</span>
         
         <span class="bp">self</span><span class="o">.</span><span class="n">IntermedViews</span> <span class="o">=</span> <span class="n">IntermedViews</span>

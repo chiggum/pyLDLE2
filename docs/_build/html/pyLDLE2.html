@@ -45,6 +45,7 @@
 <li class="toctree-l1"><a class="reference internal" href="nbks/vis_1.html">Example 1 - further visualizations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nbks/example_2.html">Example 2</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nbks/vis_2.html">Example 2 - further visualizations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="more_examples.html">More Examples</a></li>
 <li class="toctree-l1"><a class="reference internal" href="todo.html">TODO</a></li>
 </ul>
 
@@ -379,7 +380,7 @@
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <dl class="py method">
 <dt class="sig sig-object py" id="pyLDLE2.intermed_views_.IntermedViews.fit">
-<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">d</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">d_e</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">neigh_ind</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">U</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">local_param</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">intermed_opts</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyLDLE2/intermed_views_.html#IntermedViews.fit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyLDLE2.intermed_views_.IntermedViews.fit" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">d</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">d_e</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">U</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">local_param</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">intermed_opts</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyLDLE2/intermed_views_.html#IntermedViews.fit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyLDLE2.intermed_views_.IntermedViews.fit" title="Permalink to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
@@ -488,18 +489,19 @@ ddX[i] = 0 if the point i i.e. X[i,:] is on the boundary.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="pyLDLE2.ldle_.double_manifold_k_nn">
-<span class="sig-prename descclassname"><span class="pre">pyLDLE2.ldle_.</span></span><span class="sig-name descname"><span class="pre">double_manifold_k_nn</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ddX</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k_nn</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyLDLE2/ldle_.html#double_manifold_k_nn"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyLDLE2.ldle_.double_manifold_k_nn" title="Permalink to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">pyLDLE2.ldle_.</span></span><span class="sig-name descname"><span class="pre">double_manifold_k_nn</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ddX</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k_nn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metric</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_proc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyLDLE2/ldle_.html#double_manifold_k_nn"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pyLDLE2.ldle_.double_manifold_k_nn" title="Permalink to this definition"></a></dt>
 <dd><p>Doubles the manifold represented by X and computes
 k-nearest neighbors of each point on the double.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>X</strong> (<em>array shape</em><em> (</em><em>n_samples</em><em>, </em><em>n_features</em><em>)</em>) – 2d np.array of shape (n,p)
-where each row represents a point.</p></li>
+<li><p><strong>data</strong> (<em>{array} of shape</em><em> (</em><em>n_samples</em><em>, </em><em>n_features</em><em>) or </em><em>{array} of shape</em><em> (</em><em>n_samples</em><em>, </em><em>n_samples</em><em>)</em>) – A 2d array where each row represents a data point or
+distance of a point to all other points.</p></li>
 <li><p><strong>ddX</strong> (<em>array shape</em><em> (</em><em>n_samples</em><em>,</em><em>)</em>) – A 1d np.array of shape (n,) where ddX[i] = 0 iff the
 i-th point X[i,:] represents a point on the boundary
 of the manifold. Note that n_boundary = np.sum(ddX==0).</p></li>
 <li><p><strong>k_nn</strong> (<em>int</em>) – Number of nearest neighbors to compute on the double.</p></li>
+<li><p><strong>n_proc</strong> (<em>int</em>) – Number of processors to use.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>

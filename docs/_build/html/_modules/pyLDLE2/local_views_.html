@@ -44,6 +44,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../nbks/vis_1.html">Example 1 - further visualizations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../nbks/example_2.html">Example 2</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../nbks/vis_2.html">Example 2 - further visualizations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../more_examples.html">More Examples</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../todo.html">TODO</a></li>
 </ul>
 
@@ -199,7 +200,7 @@
                 <span class="n">d_e_</span> <span class="o">=</span> <span class="n">d_e</span><span class="p">[:</span><span class="n">n</span><span class="p">,:</span><span class="n">n</span><span class="p">]</span>
                 
                 <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
-                    <span class="n">U_k</span> <span class="o">=</span> <span class="n">U</span><span class="p">[</span><span class="n">k</span><span class="p">,:]</span>
+                    <span class="n">U_k</span> <span class="o">=</span> <span class="n">U</span><span class="p">[</span><span class="n">k</span><span class="p">,:]</span><span class="o">.</span><span class="n">toarray</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
                     <span class="n">local_param_pre</span><span class="o">.</span><span class="n">zeta</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">compute_zeta</span><span class="p">(</span><span class="n">d_e_</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ix_</span><span class="p">(</span><span class="n">U_k</span><span class="p">,</span><span class="n">U_k</span><span class="p">)],</span>
                                                            <span class="n">local_param_pre</span><span class="o">.</span><span class="n">eval_</span><span class="p">({</span><span class="s1">&#39;view_index&#39;</span><span class="p">:</span> <span class="n">k</span><span class="p">,</span>
                                                                                   <span class="s1">&#39;data_mask&#39;</span><span class="p">:</span> <span class="n">U_k</span><span class="p">}))</span>
