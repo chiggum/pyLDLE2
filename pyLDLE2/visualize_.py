@@ -169,6 +169,7 @@ class Visualize:
         plt.title(title)
         plt.tight_layout()
         plt.axis('off')
+        plt.show()
         if self.save_dir:
             plt.savefig(self.save_dir+'/' + title + '.png') 
         
@@ -181,6 +182,7 @@ class Visualize:
         plt.ylabel('$\lambda_i$')
         plt.xlabel('i')
         plt.title('Eigenvalues')
+        plt.show()
         if self.save_dir:
             plt.savefig(self.save_dir+'/eigenvalues.png') 
         
@@ -200,6 +202,7 @@ class Visualize:
             set_axes_equal(ax)
             fig.colorbar(p)
         plt.title('$\gamma_{%d}$'%i)
+        plt.show()
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/gamma'):
                 os.makedirs(self.save_dir+'/gamma')
@@ -221,6 +224,7 @@ class Visualize:
             set_axes_equal(ax)
             fig.colorbar(p)
         plt.title('$\phi_{%d}$'%i)
+        plt.show()
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/eigvecs'):
                 os.makedirs(self.save_dir+'/eigvecs')
@@ -259,7 +263,7 @@ class Visualize:
             p = ax.quiver(X[mask,0], X[mask,1], X[mask,2], grad_phi[mask,i,0], grad_phi[mask,i,1], grad_phi[mask,i,2])
             set_axes_equal(ax)
             plt.title('$\\nabla\phi_{%d}$'%i)
-        
+        plt.show()
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/grad_phi'):
                 os.makedirs(self.save_dir+'/grad_phi')
@@ -304,13 +308,13 @@ class Visualize:
             set_axes_equal(ax)
             fig.colorbar(p, ax=ax)
             plt.title('$\widetilde{A}_{:%d%d}$'%(i,j))
-        
+        plt.show()
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/Atilde'):
                 os.makedirs(self.save_dir+'/Atilde')
             plt.savefig(self.save_dir+'/Atilde/'+str(i)+'_'+str(j)+'.png') 
     
-    def n_eigvecs_w_grad_lt(self, X, Atilde, figsize=None, s=20):
+    def n_eigvecs_w_grad_lt(self, X, Atilde, thresh_prctile=None, figsize=(16,8), s=20):
         assert X.shape[1] <= 3, 'X.shape[1] must be either 2 or 3.'
         fig = plt.figure(figsize=figsize)
         if matplotlib.get_backend().startswith('Qt'):
@@ -336,17 +340,21 @@ class Visualize:
         while True:
             plt.subplot(121)
             
-            to_exit = plt.waitforbuttonpress(timeout=20)
-            if to_exit is None:
-                print('Timed out')
-                break
-                
-            if to_exit:
-                plt.close()
-                return
+            if thresh_prctile is None:
+                to_exit = plt.waitforbuttonpress(timeout=20)
+                if to_exit is None:
+                    print('Timed out')
+                    break
+
+                if to_exit:
+                    plt.close()
+                    return
             
-            thresh = plt.ginput(1)
-            thresh = thresh[0][1]
+            
+                thresh = plt.ginput(1)
+                thresh = thresh[0][1]
+            else:
+                thresh = np.percentile(Atilde_diag.flatten(), thresh_prctile)
             
             plt.cla()
             
@@ -376,11 +384,14 @@ class Visualize:
                     cb.remove()
                 cb = fig.colorbar(p, ax=ax)
                 ax.set_title('$n_k = \sum_{i}\widetilde{A}_{kii} < %f$'% thresh)
-                
+            plt.show()    
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/n_eigvecs_w_grad_lt'):
                     os.makedirs(self.save_dir+'/n_eigvecs_w_grad_lt')
-                plt.savefig(self.save_dir+'/n_eigvecs_w_grad_lt/'+str(thresh)+'.png') 
+                plt.savefig(self.save_dir+'/n_eigvecs_w_grad_lt/'+str(thresh)+'.png')
+            
+            if thresh_prctile is not None:
+                break
     
     def distortion(self, X, zeta, title, figsize=None, s=20):
         assert X.shape[1] <= 3, 'X.shape[1] must be either 2 or 3.'
@@ -402,12 +413,14 @@ class Visualize:
             set_axes_equal(ax)
             fig.colorbar(p)
         plt.title(title)
+        plt.show()
         if self.save_dir:
             plt.savefig(self.save_dir+'/'+title+'.png') 
     
     def distortion_boxplot(self, zeta, title, figsize=None):
         fig = plt.figure(figsize=figsize)
         plt.boxplot([zeta],labels=[title], notch=True, patch_artist=True)
+        plt.show()
         if self.save_dir:
             plt.savefig(self.save_dir+'/box_'+title+'.png') 
     
@@ -437,7 +450,7 @@ class Visualize:
             set_axes_equal(ax)
             fig.colorbar(p, ax=ax)
             ax.set_title('dX')
-            
+        plt.show()    
         if self.save_dir:
             plt.savefig(self.save_dir+'/'+title+'.png') 
     
@@ -454,14 +467,16 @@ class Visualize:
             set_axes_equal(ax)
             fig.colorbar(p)
         plt.title('\chi')
+        plt.show()
     
-    def chosen_eigevec_inds_for_local_views(self, X, Psi_i, figsize=None, s=20):
+    def chosen_eigevec_inds_for_local_views(self, X, Psi_i, figsize=(16,8), s=20):
         assert X.shape[1] <= 3, 'X.shape[1] must be either 2 or 3.'
-        fig = plt.figure(1, figsize=figsize)
-        fig.tight_layout()
+        fig = plt.figure(figsize=figsize)
+        
         if matplotlib.get_backend().startswith('Qt'):
             figManager = plt.get_current_fig_manager()
             figManager.window.showMaximized()
+            
         if X.shape[1] == 2:
             plt.subplot(121)
             plt.scatter(X[:,0], X[:,1], s=s, c=Psi_i[:,0], cmap='jet')
@@ -484,17 +499,23 @@ class Visualize:
             set_axes_equal(ax)
             fig.colorbar(p)
             ax.set_title('$\\phi_{i_2}$')
-        
+        fig.tight_layout()
+        plt.show()
         if self.save_dir:
             plt.savefig(self.save_dir+'/chosen_eigvecs_for_local_views.png') 
     
-    def chosen_eigevec_inds_for_intermediate_views(self, X, Psitilde_i, c, figsize=None, s=20):
+    def chosen_eigevec_inds_for_intermediate_views(self, X, Psitilde_i, c, figsize=(16,8), s=20):
         assert X.shape[1] <= 3, 'X.shape[1] must be either 2 or 3.'
-        fig = plt.figure(1, figsize=figsize)
-        fig.tight_layout()
+        fig = plt.figure(figsize=figsize)
+        
         if matplotlib.get_backend().startswith('Qt'):
             figManager = plt.get_current_fig_manager()
             figManager.window.showMaximized()
+        
+        if X.shape[1] == 3:
+            ax = fig.add_subplot(122,projection='3d')
+        elif X.shape[1] == 2:
+            ax = fig.add_subplot(122)
         if X.shape[1] == 2:
             plt.subplot(121)
             plt.scatter(X[:,0], X[:,1], s=s, c=Psitilde_i[c,0], cmap='jet')
@@ -517,17 +538,17 @@ class Visualize:
             set_axes_equal(ax)
             fig.colorbar(p)
             ax.set_title('$\\phi_{i_2}$')
-        
+        fig.tight_layout()
+        plt.show()
         if self.save_dir:
             plt.savefig(self.save_dir+'/chosen_eigvecs_for_intermediate_views.png') 
     
-    def local_views(self, X, phi, U, gamma, Atilde, Psi_gamma, Psi_i, zeta, k=None, save_subdir='', figsize=(8,15), s=20):
+    def local_views(self, X, phi, U, gamma, Atilde, Psi_gamma, Psi_i, zeta, k=None, save_subdir='', figsize=(15,10), s=20):
         assert X.shape[1] <= 3, 'X.shape[1] must be either 2 or 3.'
         is_3d_data = X.shape[1] == 3
         n,N = phi.shape
         
-        fig = plt.figure(1, figsize=figsize)
-        fig.tight_layout()
+        fig = plt.figure(figsize=figsize)
         fig.canvas.mpl_connect('close_event', on_close)
         if matplotlib.get_backend().startswith('Qt'):
             figManager = plt.get_current_fig_manager()
@@ -540,35 +561,37 @@ class Visualize:
                 ax.append(fig.add_subplot(231+i, projection='3d'))
             for i in range(3,6):
                 ax.append(fig.add_subplot(231+i))
-                                        
-            p = ax[0].scatter(X[:,0], X[:,1], X[:,2], s=s, c=zeta, cmap='jet')
-            set_axes_equal(ax[0])
         else:
             for i in range(6):
                 ax.append(fig.add_subplot(231+i))
-            
+        
+        
+        ax[0]
+        ax[0].cla()
+        if is_3d_data:
+            p = ax[0].scatter(X[:,0], X[:,1], X[:,2], s=s, c=zeta, cmap='jet')
+            set_axes_equal(ax[0])
+        else:
             p = ax[0].scatter(X[:,0], X[:,1], s=s, c=zeta, cmap='jet')
             ax[0].axis('image')
-        
-        ax[0].set_title('Double click = select a local view.\nPress button = exit.')
             
         cb[0] = plt.colorbar(p, ax=ax[0])
-        cb[1] = plt.colorbar(p, ax=ax[1])
-        cb[2] = plt.colorbar(p, ax=ax[2])
+        ax[0].set_title('Double click = select a local view.\nPress button = exit.')
         
         k_not_available = k is None
+        first_plot = True
         
         while True:
-            fig = plt.figure(1, figsize=figsize)
-            fig.tight_layout()
             if k_not_available:
                 to_exit = plt.waitforbuttonpress(timeout=20)
                 if to_exit:
                     plt.close()
                     return
+                
                 # Plot data with distortion colormap and the
                 # selected local view in the ambient space
-                ax[0]
+            ax[0]
+            if k_not_available:
                 if is_3d_data:
                     plt.ginput(1)
                     k = np.random.randint(n)
@@ -578,7 +601,7 @@ class Visualize:
                     k = np.argmin(np.sum((X-X_k)**2,1))
                 
             U_k = U[k,:]==1
-            
+
             ax[0].cla()
             cb[0].remove()
             if is_3d_data:
@@ -600,9 +623,9 @@ class Visualize:
             ax[3].scatter(y[:,0], y[:,1], s=s, c='r')
             ax[3].scatter(y[U_k,0], y[U_k,1], s=s, c='k')
             ax[3].axis('image')
-            ax[3].set_title('$\\zeta_{%d%d}=%.3f$\n'\
+            ax[3].set_title('Distortion=%.3f\n'\
                               '$\\Phi_{%d}(\\mathcal{M})$ in red\n$\\Phi_{%d}(U_{%d})$ in black'\
-                              % (k, k, zeta[k], k, k, k))
+                              % (zeta[k], k, k, k))
             
             # Plot the chosen eigenvectors and scaled eigenvectors
             subplots = [232, 233]
@@ -610,7 +633,8 @@ class Visualize:
                 i_s = Psi_i[k,j]
                 ax[j+1]
                 ax[j+1].cla()
-                cb[j+1].remove()
+                if not first_plot:
+                    cb[j+1].remove()
                 if is_3d_data:
                     p = ax[j+1].scatter(X[:,0], X[:,1], X[:,2], s=s*(1-U_k), c=phi[:,i_s], cmap='jet')
                     ax[j+1].scatter(X[U_k,0], X[U_k,1], X[U_k,2], s=s, c='k')
@@ -619,7 +643,7 @@ class Visualize:
                     p = ax[j+1].scatter(X[:,0], X[:,1], s=s*(1-U_k), c=phi[:,i_s], cmap='jet')
                     ax[j+1].scatter(X[U_k,0], X[U_k,1], s=s, c='k')
                     ax[j+1].axis('image')
-                                        
+                
                 cb[j+1] = plt.colorbar(p, ax=ax[j+1])
                 ax[j+1].set_title('$\\phi_{%d}$' % i_s)
             
@@ -649,15 +673,16 @@ class Visualize:
             ax[5].set_xlabel('percentiles')
             ax[5].set_title('$\\log(\\gamma_{i_1}\\left\\|\\nabla\\phi_{i_1}\\right\\|_2 / \
                       \\gamma_{i_2}\\left\\|\\nabla\\phi_{i_2}\\right\\|_2+1)$')
-                
+            fig.tight_layout()    
             fig.canvas.draw()
             fig.canvas.flush_events()
-            
+            plt.show()
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/local_views/'+save_subdir):
                     os.makedirs(self.save_dir+'/local_views/'+save_subdir)
                 plt.savefig(self.save_dir+'/local_views/'+save_subdir+'/'+str(k)+'.png')
             
+            first_plot = False
             if not k_not_available:
                 break
     
@@ -666,7 +691,7 @@ class Visualize:
         is_3d_data = X.shape[1] == 3
         n,N = phi.shape
         
-        fig = plt.figure(1, figsize=figsize)
+        fig = plt.figure(figsize=figsize)
         fig.canvas.mpl_connect('close_event', on_close)
         if matplotlib.get_backend().startswith('Qt'):
             figManager = plt.get_current_fig_manager()
@@ -787,21 +812,21 @@ class Visualize:
                 
             fig.canvas.draw()
             fig.canvas.flush_events()
-            
+            plt.show()
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/local_views/'+save_subdir):
                     os.makedirs(self.save_dir+'/local_views/'+save_subdir)
                 plt.savefig(self.save_dir+'/local_views/'+save_subdir+'/'+str(k)+'.png')
     
     def intermediate_views(self, X, phi, Utilde, gamma, Atilde, Psitilde_gamma,
-              Psitilde_i, zetatilde, c, figsize=None, s=20):
+              Psitilde_i, zetatilde, c, k=None, figsize=(15,10), s=20):
         assert X.shape[1] <= 3, 'X.shape[1] must be either 2 or 3.'
         is_3d_data = X.shape[1] == 3
         n,N = phi.shape
 
         zeta = zetatilde[c]
         
-        fig = plt.figure(1, figsize=figsize)
+        fig = plt.figure(figsize=figsize)
         fig.canvas.mpl_connect('close_event', on_close)
         if matplotlib.get_backend().startswith('Qt'):
             figManager = plt.get_current_fig_manager()
@@ -814,42 +839,47 @@ class Visualize:
                 ax.append(fig.add_subplot(231+i, projection='3d'))
             for i in range(3,6):
                 ax.append(fig.add_subplot(231+i))
-            p = ax[0].scatter(X[:,0], X[:,1], X[:,2], s=s, c=zeta, cmap='jet')
-            set_axes_equal(ax[0])
         else:
             for i in range(6):
                 ax.append(fig.add_subplot(231+i))
-            
+        
+        ax[0]
+        ax[0].cla()
+        if is_3d_data:
+            p = ax[0].scatter(X[:,0], X[:,1], X[:,2], s=s, c=zeta, cmap='jet')
+            set_axes_equal(ax[0])
+        else:
             p = ax[0].scatter(X[:,0], X[:,1], s=s, c=zeta, cmap='jet')
             ax[0].axis('image')
         
         ax[0].set_title('Double click = select an intermediate view.\n Press button = exit.')
-        
         cb[0] = plt.colorbar(p, ax=ax[0])
-        cb[1] = plt.colorbar(p, ax=ax[1])
-        cb[2] = plt.colorbar(p, ax=ax[2])
+        
+        k_not_available = k is None
+        first_plot = True
         
         while True:
-            plt.figure(1, figsize=figsize)
-            to_exit = plt.waitforbuttonpress(timeout=20)
-            if to_exit is None:
-                print('Timed out')
-                break
-                
-            if to_exit:
-                plt.close()
-                return
+            if k_not_available:
+                to_exit = plt.waitforbuttonpress(timeout=20)
+                if to_exit is None:
+                    print('Timed out')
+                    break
+
+                if to_exit:
+                    plt.close()
+                    return
             
             # Plot data with distortion colormap and the
             # selected local view in the ambient space
             ax[0]
-            if is_3d_data:
-                plt.ginput(1)
-                k = np.random.randint(n)
-            else:
-                X_k = plt.ginput(1)
-                X_k = np.array(X_k[0])[np.newaxis,:]
-                k = np.argmin(np.sum((X-X_k)**2,1))
+            if k_not_available:
+                if is_3d_data:
+                    plt.ginput(1)
+                    k = np.random.randint(n)
+                else:
+                    X_k = plt.ginput(1)
+                    X_k = np.array(X_k[0])[np.newaxis,:]
+                    k = np.argmin(np.sum((X-X_k)**2,1))
 
             m = c[k]
             Utilde_m = Utilde[m,:]
@@ -875,17 +905,18 @@ class Visualize:
             ax[3].scatter(y[:,0], y[:,1], s=s, c='r')
             ax[3].scatter(y[Utilde_m,0], y[Utilde_m,1], s=s, c='k')
             ax[3].axis('image')
-            ax[3].set_title('$\\widetilde{\\zeta}_{%d%d}=%.3f\\'\
-                          ' \\widetilde{\\Phi}_{%d}(\\mathcal{M})$ in red'\
+            ax[3].set_title('Distortion=%.3f\n'\
+                          ' $\\widetilde{\\Phi}_{%d}(\\mathcal{M})$ in red\n'\
                           ' and $\\widetilde{\\Phi}_{%d}(\\widetilde{U}_{%d})$ in black'\
-                          % (m, m, zetatilde[m], m, m, m)) # zetatilde[m] == zeta[k]
+                          % (zetatilde[m], m, m, m)) # zetatilde[m] == zeta[k]
             
             # Plot the chosen eigenvectors and scaled eigenvectors
             subplots = [232, 233]
             for j in range(len(subplots)):
                 i_s = Psitilde_i[m,j]
                 ax[j+1].cla()
-                cb[j+1].remove()
+                if not first_plot:
+                    cb[j+1].remove()
                 if is_3d_data:
                     p = ax[j+1].scatter(X[:,0], X[:,1], X[:,2], s=s*(1-Utilde_m), c=phi[:,i_s], cmap='jet')
                     ax[j+1].scatter(X[Utilde_m,0], X[Utilde_m,1], X[Utilde_m,2], s=s, c='k')
@@ -927,10 +958,15 @@ class Visualize:
                 
             fig.canvas.draw()
             fig.canvas.flush_events()
+            plt.show()
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/intermediate_views'):
                     os.makedirs(self.save_dir+'/intermediate_views')
                 plt.savefig(self.save_dir+'/intermediate_views/'+str(m)+'.png') 
+            
+            first_plot = False
+            if not k_not_available:
+                break
         
     def compare_local_high_low_distortion(self, X, Atilde, Psi_gamma, Psi_i, zeta, save_subdir='', figsize=None, s=20):
         assert X.shape[1] <= 3, 'X.shape[1] must be either 2 or 3.'
@@ -1036,6 +1072,7 @@ class Visualize:
                       \\gamma_{ki_2}\\sqrt{\\widetilde{A}_{ki_2i_2}}+1)$')
             fig.canvas.draw()
             fig.canvas.flush_events()
+            plt.show()
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/local_high_low_distortion/'):
                     os.makedirs(self.save_dir+'/local_high_low_distortion/')
@@ -1153,6 +1190,7 @@ class Visualize:
                       \\gamma_{ki_2}\\sqrt{\\widetilde{A}_{ki_2i_2}}+1)$')
             fig.canvas.draw()
             fig.canvas.flush_events()
+            plt.show()
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/intermediate_high_low_distortion'):
                     os.makedirs(self.save_dir+'/intermediate_high_low_distortion')
@@ -1198,6 +1236,7 @@ class Visualize:
             set_axes_equal(ax)
             fig.colorbar(p)
         plt.title('Views colored in the sequence they are visited')
+        plt.show()
         if self.save_dir:
             plt.savefig(self.save_dir+'/seq_in_which_views_are_visited.png') 
     
@@ -1264,7 +1303,7 @@ class Visualize:
         plt.margins(0)
         plt.gca().xaxis.set_major_locator(plt.NullLocator())
         plt.gca().yaxis.set_major_locator(plt.NullLocator())
-        
+        plt.show()
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/ge'):
                 os.makedirs(self.save_dir+'/ge')
@@ -1367,6 +1406,7 @@ class Visualize:
             ax.set_title('Duble click to choose a point. Press button to exit')
             fig.canvas.draw()
             fig.canvas.flush_events()
+            plt.show()
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/ge_img'):
                     os.makedirs(self.save_dir+'/ge_img')
