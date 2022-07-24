@@ -18,5 +18,5 @@ Installation
    api
    modules
    usage
-   more_examples
+   examples
    todo
