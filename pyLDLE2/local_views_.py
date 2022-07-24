@@ -125,7 +125,7 @@ class LocalViews:
                 d_e_ = d_e[:n,:n]
                 
                 for k in range(n):
-                    U_k = U[k,:]
+                    U_k = U[k,:].toarray().flatten()
                     local_param_pre.zeta[k] = compute_zeta(d_e_[np.ix_(U_k,U_k)],
                                                            local_param_pre.eval_({'view_index': k,
                                                                                   'data_mask': U_k}))

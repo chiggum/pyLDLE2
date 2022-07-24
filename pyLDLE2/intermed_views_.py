@@ -9,6 +9,7 @@ from .util_ import Param
 from scipy.spatial.distance import pdist, squareform
 
 import multiprocess as mp
+import itertools
 
 # Computes cost_k, d_k (dest_k)
 def cost_of_moving(k, d_e, neigh_ind_k, U_k, local_param, c, n_C,
@@ -86,14 +87,23 @@ class IntermedViews:
                                               self.local_start_time, 
                                               self.global_start_time)
     
-    def fit(self, d, d_e, neigh_ind, U, local_param, intermed_opts):
+    def fit(self, d, d_e, U, local_param, intermed_opts):
         n = d_e.shape[0]
         c = np.arange(n)
         n_C = np.zeros(n) + 1
         Clstr = list(map(set, np.arange(n).reshape((n,1)).tolist()))
-        Utilde = list(map(set, neigh_ind.tolist()))
-        U_ = list(map(set, neigh_ind.tolist()))
+        indices = U.indices
+        indptr = U.indptr
+        Utilde = []
+        U_ = []
+        neigh_ind = []
+        for i in range(n):
+            col_inds = indices[indptr[i]:indptr[i+1]]
+            Utilde.append(set(col_inds))
+            U_.append(set(col_inds))
+            neigh_ind.append(col_inds)
         
+        neigh_ind = np.array(neigh_ind, dtype=object)
         eta_max = intermed_opts['eta_max']
         n_proc = intermed_opts['n_proc']
         
@@ -125,7 +135,7 @@ class IntermedViews:
                         k1 = k
                     else:
                         k1 = S[k]
-                    cost_[k0], dest_[k0] = cost_of_moving(k1, d_e, neigh_ind[k1,:], U_[k1], local_param,
+                    cost_[k0], dest_[k0] = cost_of_moving(k1, d_e, neigh_ind[k1], U_[k1], local_param,
                                                       c, n_C, Utilde, eta, eta_max)
                 q_.put((start_ind, end_ind, cost_, dest_))
             
@@ -173,7 +183,7 @@ class IntermedViews:
                 Clstr[s].remove(k)
                 Clstr[dest_k].add(k)
                 Utilde[dest_k] = U_[k].union(Utilde[dest_k])
-                Utilde[s] = set(neigh_ind[list(Clstr[s]),:].flatten())
+                Utilde[s] = set(itertools.chain.from_iterable(neigh_ind[list(Clstr[s])]))
                 
                 # Compute the set of points S for which 
                 # cost of moving needs to be recomputed
@@ -203,7 +213,7 @@ class IntermedViews:
                     ###########################################
                 else: # sequential update
                     for k in S:
-                        cost[k], dest[k] = cost_of_moving(k, d_e, neigh_ind[k,:], U_[k], local_param,
+                        cost[k], dest[k] = cost_of_moving(k, d_e, neigh_ind[k], U_[k], local_param,
                                                       c, n_C, Utilde, eta, eta_max)
                 ###########################################
                 ###########################################

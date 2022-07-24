@@ -12,24 +12,26 @@ from . import intermed_views_
 from . import global_views_
 from . import visualize_
 from .util_ import print_log, sparse_matrix, nearest_neighbors
-import multiprocessing
+import multiprocess as mp
+from pandas import DataFrame
     
-def double_manifold_k_nn(X, ddX, k_nn):
+def double_manifold_k_nn(data, ddX, k_nn, metric, n_proc=1):
     """Doubles the manifold represented by X and computes
     k-nearest neighbors of each point on the double.
     
     Parameters
     ----------
-    X : array shape (n_samples, n_features)
-        2d np.array of shape (n,p)
-        where each row represents a point.
+    data : {array} of shape (n_samples, n_features) or {array} of shape (n_samples, n_samples)
+           A 2d array where each row represents a data point or
+           distance of a point to all other points.
     ddX : array shape (n_samples,)
           A 1d np.array of shape (n,) where ddX[i] = 0 iff the
           i-th point X[i,:] represents a point on the boundary
           of the manifold. Note that n_boundary = np.sum(ddX==0).
     k_nn : int
            Number of nearest neighbors to compute on the double.
-    
+    n_proc : int
+             Number of processors to use.
     Returns
     -------
     neigh_dist : array shape (2*n_samples-n_boundary, k_nn)
@@ -39,111 +41,140 @@ def double_manifold_k_nn(X, ddX, k_nn):
                 indices of k-nearest neighbors from each point
                 on the double.
     """
-    k_nn_ = 2*k_nn
-    neigh = KNeighborsTransformer(n_neighbors=k_nn_, n_jobs=-1) #start with 2 x k_nn
-    X_dist_graph = neigh.fit_transform(X)
-    
-    # Compute mask of points on the boundary
-    n = X.shape[0]
-    dX = ddX==0
-    n_dX = np.sum(dX)
+    n = data.shape[0] # no. of points on the original manifold
+    dX = ddX==0 # a boolean array s.t. dX[i] == 1 iff i-th pt is on boundary
+    n_dX = np.sum(dX) # no. of points on the boundary
     print('No. of points on the boundary =', n_dX)
+    n_interior = n-n_dX # no. of points in the interior
 
-    # For points not on the boundary, a duplicate point
-    # with index offset-ed by n is created
+    # For points in the interior, a duplicate point
+    # with index offset-ed by n is created.
+    # The i-th point in the interior of the original
+    # manifold is duplicated. The index of the duplicate
+    # is n + i.
     ind_mask = np.arange(n)
-    ind_mask[~dX] = n+np.arange(n-n_dX)
+    ind_mask[~dX] = n+np.arange(n_interior)
     
-    # eliminate the zeros in the original nearest neighbor graph
-    # this basically removes the diagonal entries
-    X_dist_graph.eliminate_zeros()
+    k_nn_ = 2*k_nn
+    neigh_dist, neigh_ind = nearest_neighbors(data, k_nn_, metric)
     
-    # find row and col indices of non-zero entries
-    row_inds = []
-    col_inds = []
-    for row, col in zip(*X_dist_graph.nonzero()):
-        row_inds.append(row)
-        col_inds.append(col)
-        
-    row_inds = np.array(row_inds)
-    col_inds = np.array(col_inds)
-    dist_data = X_dist_graph.data
+    # Now we construct a sparse distance matrix corresp
+    # to the doubled manifold. The block structure is
+    # A11 A12 A13
+    # A21 A22 A23
+    # A31 A32 A33
+    # 1: interior of original manifold
+    # 2: boundary
+    # 3: duplicated interior
+    # So, A11 = distance matrix between pairs of
+    # points in the interior of original manifold.
+    # Overall, A11, A12, A21, A22, A32, A33 
+    # are known or trivially computable. A13 = A31.T
+    # is to be computed.
     
-    # a mask of row_inds. True means
-    # the row index corresponds to point on the boundary
-    dX_inds_mask = dX[row_inds]
+    # A22, A23
+    # A32 A33
+    neigh_ind_ = ind_mask[neigh_ind]
+    neigh_dist_ = neigh_dist
     
-    # the row indices of points not on the boundary
-    # in the duplicated manifold. col indices are computed
-    # using ind_mask.
-    row_inds2 = ind_mask[row_inds[~dX_inds_mask]]
-    col_inds2 = ind_mask[col_inds[~dX_inds_mask]]
-    dist_data2 = dist_data[~dX_inds_mask]
+    dX_of_neigh_ind = dX[neigh_ind]
+    pts_near_dX = np.any(dX_of_neigh_ind, 1)
+    int_pts_near_dX = pts_near_dX & (~dX)
+    int_pts_near_dX_inds = np.where(int_pts_near_dX)[0]
     
-    # Initialize the doubled graph
-    row_inds = np.concatenate([row_inds, row_inds2, np.arange(2*n-n_dX)])
-    col_inds = np.concatenate([col_inds, col_inds2, np.arange(2*n-n_dX)])
-    dist_data = np.concatenate([dist_data, dist_data2, np.zeros(2*n-n_dX)])
+    # Compute sparse representation of A13
+    row_inds13 = []
+    col_inds13 = []
+    vals13 = []
     
-    # free up memory
-    del row_inds2, col_inds2, dist_data2, X_dist_graph
-    
-    X_dist_graph2 = csr_matrix((dist_data, (row_inds, col_inds)), shape=(2*n-n_dX, 2*n-n_dX))
-    
-    # connect points near the boundary on the original
-    # and the duplicated manifold
-    dX_inds = np.where(dX)[0]
-    is_visited = np.zeros((2*n-n_dX,2*n-n_dX), dtype=bool)
-    edges = {}
-    for i in range(n_dX):
-        k = dX_inds[i]
-        col_k = X_dist_graph2.getcol(k)
-        nbrs = col_k.indices.tolist()
-        dists = col_k.data.tolist()
-        n_nbrs = len(nbrs)
-        for i_ in range(n_nbrs):
-            nbr_i = nbrs[i_]
-            for j_ in range(i_+1, n_nbrs):
-                nbr_j = nbrs[j_]
-                if not is_visited[nbr_i,nbr_j]:
-                    edges[(nbr_i,nbr_j)] = dists[i_]+dists[j_]
-                    edges[(nbr_j,nbr_i)] = edges[(nbr_i,nbr_j)]
-                else:
-                    edges[(nbr_i,nbr_j)] = np.min([edges[(nbr_i,nbr_j)], dists[i_]+dists[j_]])
-                    edges[(nbr_j,nbr_i)] = edges[(nbr_i,nbr_j)]
-                    is_visited[nbr_i,nbr_j] = True
-                    is_visited[nbr_j,nbr_i] = True
-            
-    
-    del is_visited
-    
-    row_inds3 = []
-    col_inds3 = []
-    dist_data3 = []
-    for edge, val in edges.items():
-        row_inds3.append(edge[0])
-        col_inds3.append(edge[1])
-        dist_data3.append(val)
-    
-    # add self connections with approx zero weight
-    for i in range(2*n-n_dX):
-        row_inds3.append(i)
-        col_inds3.append(i)
-        dist_data3.append(1e-12)
-        
-    # Build dinal graph of doubled manifold
-    row_inds = np.concatenate([row_inds, np.array(row_inds3)])
-    col_inds = np.concatenate([col_inds, np.array(col_inds3)])
-    dist_data = np.concatenate([dist_data, np.array(dist_data3)])
-    
-    # free up memory
-    del edges, row_inds3, col_inds3, dist_data3
-    
-    X_dist_graph3 = csr_matrix((dist_data, (row_inds, col_inds)), shape=(2*n-n_dX, 2*n-n_dX))
-    
-    pdb.set_trace()
+    def target_proc(p_num, chunk_sz, q_):
+        start_ind = p_num*chunk_sz
+        if p_num == (n_proc-1):
+            end_ind = int_pts_near_dX_inds.shape[0]
+        else:
+            end_ind = (p_num+1)*chunk_sz
 
-    neigh_dist, neigh_ind = nearest_neighbors(X_dist_graph3, k_nn=k_nn, metric='precomputed')
+        row_inds13_ = []
+        col_inds13_ = []
+        vals13_ = []
+        for i in range(start_ind, end_ind):
+            # index of an interior point which has
+            # a boundary point as nbr
+            k = int_pts_near_dX_inds[i]
+
+            # nbrs of k which are on the boundary
+            # and the distance of k to these points.
+            nbrs_on_dX_mask = dX_of_neigh_ind[k,:]
+            nbrs_on_dX = neigh_ind[k,nbrs_on_dX_mask]
+            dist_of_nbrs_on_dX = neigh_dist[k,nbrs_on_dX_mask][:,None]
+
+            # Let S_k be the the nbrs of k which are
+            # on the boundary. The nbrs of S_k in the
+            # duplicated manifold are
+            nbrs_of_S_k = neigh_ind_[nbrs_on_dX,:]
+            # Distance of nbrs of S_k to the corresponding
+            # point in S_k.
+            dist_of_nbrs_of_S_k = neigh_dist_[nbrs_on_dX,:]
+
+            # Distance b/w k and the nbrs of S_k
+            dist_of_k_from_nbrs_of_S_k = dist_of_nbrs_of_S_k + dist_of_nbrs_on_dX
+
+            # nbrs of S_k on the duplicated mainfold
+            # which are in the interior of it and
+            # distanace of k to these points.
+            int_nbrs_of_S_k_mask = ~dX_of_neigh_ind[nbrs_on_dX,:]
+            int_nbrs_of_S_k = nbrs_of_S_k[int_nbrs_of_S_k_mask]
+            dist_of_k_from_int_nbrs_of_S_k = dist_of_k_from_nbrs_of_S_k[int_nbrs_of_S_k_mask]
+
+            # Groupby interior point ids and min-aggregate their distances
+            df = DataFrame(dict(ind=int_nbrs_of_S_k,
+                               dist=dist_of_k_from_int_nbrs_of_S_k))
+            gp = df.groupby('ind')['dist'].min().to_frame().reset_index()
+            col_inds_ = gp['ind'].to_list()
+            vals_ = gp['dist'].to_list()
+            row_inds_ = [k]*len(col_inds_)
+            
+            row_inds13_ += row_inds_
+            col_inds13_ += col_inds_
+            vals13_ += vals_
+
+        q_.put((row_inds13_, col_inds13_, vals13_))
+
+    q_ = mp.Queue()
+    chunk_sz = int(int_pts_near_dX_inds.shape[0]/n_proc)
+    proc = []
+    for p_num in range(n_proc):
+        proc.append(mp.Process(target=target_proc,
+                               args=(p_num,chunk_sz,q_),
+                               daemon=True))
+        proc[-1].start()
+
+    for p_num in range(n_proc):
+        row_inds_, col_inds_, vals_ = q_.get()
+        row_inds13 += row_inds_
+        col_inds13 += col_inds_
+        vals13 += vals_
+
+    q_.close()
+
+    for p_num in range(n_proc):
+        proc[p_num].join()
+    
+    row_inds22_23_32_33 = np.repeat(ind_mask, neigh_ind.shape[1]).tolist()
+    col_inds22_23_32_33 = ind_mask[neigh_ind].flatten().tolist()
+    vals_22_23_32_33 = neigh_dist.flatten().tolist()
+    
+    row_inds11_12 = np.repeat(np.arange(n)[~dX], neigh_ind.shape[1]).tolist()
+    col_inds11_12 = neigh_ind[~dX,:].flatten().tolist()
+    vals11_12 = neigh_dist[~dX,:].flatten().tolist()
+    
+    cs_graph = csr_matrix((vals11_12+vals13+vals_22_23_32_33,
+                           (row_inds11_12+row_inds13+row_inds22_23_32_33,
+                            col_inds11_12+col_inds13+col_inds22_23_32_33)),
+                          shape=(n_interior+n, n_interior+n))
+    cs_graph = cs_graph.maximum(cs_graph.transpose())
+    
+    neigh_dist, neigh_ind = nearest_neighbors(cs_graph, k_nn=k_nn, metric='precomputed')
     return neigh_dist, neigh_ind
     
 
@@ -344,7 +375,7 @@ class LDLE:
                  intermed_opts = {},
                  global_opts = {},
                  vis_opts = {},
-                 n_proc = max(1,int(multiprocessing.cpu_count()*0.75)),
+                 n_proc = max(1,int(mp.cpu_count()*0.75)),
                  exit_at = None,
                  verbose = False,
                  debug = False):
@@ -428,26 +459,28 @@ class LDLE:
         assert X is not None or d_e is not None, "Either X or d_e should be provided."
         
         if d_e is None:
-            if ddX is None or self.local_opts['algo'] == 'LTSA':
-                neigh_dist, neigh_ind = nearest_neighbors(X,
-                                                          k_nn=self.local_opts['k_nn0'],
-                                                          metric='euclidean')
-            else:
-                self.log('Doubling manifold.')
-                neigh_dist, neigh_ind = double_manifold_k_nn(X, ddX, self.local_opts['k_nn0'])
-                self.log('Done.', log_time=True)
-                
-            # Construct a sparse d_e matrix based on neigh_ind and neigh_dist
-            d_e = sparse_matrix(neigh_ind, neigh_dist)
-            d_e = d_e.maximum(d_e.transpose())
-            
-            neigh_ind = neigh_ind[:,:self.local_opts['k_nn']]
-            neigh_dist = neigh_dist[:,:self.local_opts['k_nn']]
+            data = X
         else:
-            if ddX is None or self.local_opts['algo'] == 'LTSA':
-                neigh_dist, neigh_ind = nearest_neighbors(d_e,
-                                                          k_nn=self.local_opts['k_nn'],
-                                                          metric='precomputed')
+            data = d_e.copy()
+        
+        if ddX is None or self.local_opts['algo'] == 'LTSA':
+            neigh_dist, neigh_ind = nearest_neighbors(data,
+                                                      k_nn=self.local_opts['k_nn0'],
+                                                      metric='euclidean')
+        else:
+            self.log('Doubling manifold.')
+            neigh_dist, neigh_ind = double_manifold_k_nn(data, ddX,
+                                                         self.local_opts['k_nn0'],
+                                                         'euclidean',
+                                                         self.local_opts['n_proc'])
+            self.log('Done.', log_time=True)
+        
+        # Construct a sparse d_e matrix based on neigh_ind and neigh_dist
+        d_e = sparse_matrix(neigh_ind, neigh_dist)
+        d_e = d_e.maximum(d_e.transpose())
+
+        neigh_ind = neigh_ind[:,:self.local_opts['k_nn']]
+        neigh_dist = neigh_dist[:,:self.local_opts['k_nn']]
         
         # Construct low dimensional local views
         LocalViews = local_views_.LocalViews(self.exit_at, self.verbose, self.debug)
@@ -464,7 +497,7 @@ class LDLE:
         
         # Construct intermediate views
         IntermedViews = intermed_views_.IntermedViews(self.exit_at, self.verbose, self.debug)
-        IntermedViews.fit(self.d, d_e, neigh_ind[:,:self.local_opts['k']], LocalViews.U,
+        IntermedViews.fit(self.d, d_e, LocalViews.U,
                           LocalViews.local_param_post, self.intermed_opts)
         
         self.IntermedViews = IntermedViews
