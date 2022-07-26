@@ -9,3 +9,4 @@ Examples
    closed_manifolds
    non_orientable_manifolds
    noisy_manifolds
+   real_world_examples
