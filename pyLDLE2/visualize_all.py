@@ -2,7 +2,8 @@ import pickle
 import numpy as np
 from . import visualize_
 
-def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8), figsize2=(16,8), figsize3=(15,10), s1=30):
+def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
+              figsize2=(16,8), figsize3=(15,10), s1=30, puppets_data=False):
     with open(fpath, "rb") as f:
         all_data = pickle.load(f)
     X, labelsMat, ldle = all_data[:3]
@@ -363,3 +364,11 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8), figsize2=(16,
                                   'Initial Embedding', figsize=figsize1, s=50)
     else:
         print('Cannot plot because embedding dim > 3')
+    
+    if 'puppets' in fpath:
+        X, labelsMat, ldle, img, img_shape = all_data[:5]
+        ldle.vis.global_embedding_images_v2(img, img_shape[::-1], ldle.GlobalViews.y_final, labelsMat[:,0]*0,
+                                    ldle.vis_opts['cmap_interior'], ldle.GlobalViews.color_of_pts_on_tear_final,
+                                    ldle.vis_opts['cmap_boundary'], 'images',
+                                    offset_ratio=0.2, zoom=0.4, nx=8, ny=10, v_ratio=0.65, w_ratio=0.005,
+                                    figsize=(10,12), s=80, to_remove=False, k_to_avoid=[], to_T=True)

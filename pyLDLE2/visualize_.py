@@ -1458,19 +1458,20 @@ class Visualize:
         ax.set_title('Duble click to choose center. Press button to exit')
         fig.canvas.draw()
         fig.canvas.flush_events()
-        to_exit = plt.waitforbuttonpress(timeout=20)
-        if to_exit is None:
-            print('Timed out')
-            return
+        #to_exit = plt.waitforbuttonpress(timeout=20)
+        #if to_exit is None:
+        #    print('Timed out')
+        #    return
 
-        if to_exit:
-            plt.close()
-            return
+        #if to_exit:
+        #    plt.close()
+        #    return
         
-        y_bar = plt.ginput(1)
-        if len(y_bar)==0:
-            return
-        y_bar = np.array(y_bar[0])[np.newaxis,:]
+        #y_bar = plt.ginput(1)
+        #if len(y_bar)==0:
+        #    return
+        #y_bar = np.array(y_bar[0])[np.newaxis,:]
+        y_bar = np.mean(y, axis=0, keepdims=True)
         
         ax.set_title(title)
         fig.canvas.draw()

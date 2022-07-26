@@ -217,15 +217,18 @@ class GlobalViews:
             C_s = C[s,:]
             y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
 
-        if (color_of_pts_on_tear is None) and global_opts['to_tear']:
-            color_of_pts_on_tear = self.compute_color_of_pts_on_tear(y, Utilde, C, global_opts,
-                                                                     n_Utilde_Utilde)
+        if global_opts['color_tear']:
+            if (color_of_pts_on_tear is None) and global_opts['to_tear']:
+                color_of_pts_on_tear = self.compute_color_of_pts_on_tear(y, Utilde, C, global_opts,
+                                                                         n_Utilde_Utilde)
+        else:
+            color_of_pts_on_tear = None
             
         vis.global_embedding(y, vis_opts['c'], vis_opts['cmap_interior'],
                               color_of_pts_on_tear, vis_opts['cmap_boundary'],
                               title)
         plt.show()
-        return color_of_pts_on_tear
+        return color_of_pts_on_tear, y
     
     def vis_embedding(self, y, vis, vis_opts, color_of_pts_on_tear=None, title=''):
         vis.global_embedding(y, vis_opts['c'], vis_opts['cmap_interior'],
@@ -233,6 +236,40 @@ class GlobalViews:
                               title)
         plt.show()
         
+    def add_spacing_bw_clusters(self, d, seq_of_intermed_views_in_cluster,
+                                intermed_param, C):
+        n_clusters = len(seq_of_intermed_views_in_cluster)
+        if n_clusters == 1:
+            return
+        
+        M,n = C.shape
+        y = np.zeros((n,d))
+        
+        for s in range(M):
+            C_s = C[s,:]
+            y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
+            
+        # arrange connected components nicely
+        # spaced on horizontal (x) axis
+        offset = 0
+        for i in range(n_clusters):
+            seq = seq_of_intermed_views_in_cluster[i]
+            pts_in_cluster_i = np.any(C[seq,:], axis=0)
+            
+            # make the x coordinate of the leftmost point
+            # of the ith cluster to be equal to the offset
+            if i > 0:
+                offset_ = np.min(y[pts_in_cluster_i,0])
+                intermed_param.v[seq,0] += offset - offset_
+            
+            # recompute the embeddings of the points in this cluster
+            for s in range(seq.shape[0]):
+                C_s = C[seq[s],:]
+                y[C_s,:] = intermed_param.eval_({'view_index': seq[s], 'data_mask': C_s})
+            
+            # recompute the offset as the x coordinate of
+            # rightmost point of the current cluster
+            offset = np.max(y[pts_in_cluster_i,0])
     
     def compute_init_embedding(self, d, Utilde, n_Utilde_Utilde, intermed_param,
                                seq_of_intermed_views_in_cluster,
@@ -307,30 +344,11 @@ class GlobalViews:
             self.log('Alignment error: %0.3f' % err, log_time=True)
             self.tracker['init_err'] = err
         
-        # arrange connected components nicely
-        # spaced on horizontal (x) axis
-        offset = 0
-        for i in range(n_clusters):
-            seq = seq_of_intermed_views_in_cluster[i]
-            pts_in_cluster_i = np.any(C[seq,:], axis=0)
-            
-            # make the x coordinate of the leftmost point
-            # of the ith cluster to be equal to the offset
-            if i > 0:
-                offset_ = np.min(y[pts_in_cluster_i,0])
-                intermed_param.v[seq,0] += offset - offset_
-            
-            # recompute the embeddings of the points in this cluster
-            for s in range(seq.shape[0]):
-                C_s = C[seq[s],:]
-                y[C_s,:] = intermed_param.eval_({'view_index': seq[s], 'data_mask': C_s})
-            
-            # recompute the offset as the x coordinate of
-            # rightmost point of the current cluster
-            offset = np.max(y[pts_in_cluster_i,0])
+        self.add_spacing_bw_clusters(d, seq_of_intermed_views_in_cluster,
+                                intermed_param, C)
         
         # Visualize the initial embedding
-        color_of_pts_on_tear = self.vis_embedding_(d, intermed_param, C, Utilde,
+        color_of_pts_on_tear, y = self.vis_embedding_(d, intermed_param, C, Utilde,
                                                   n_Utilde_Utilde, global_opts, vis,
                                                   vis_opts, title='Init')
 
@@ -417,10 +435,12 @@ class GlobalViews:
                     for i in range(n_clusters):
                         seq = seq_of_intermed_views_in_cluster[i]
                         rho = parents_of_intermed_views_in_cluster[i]
+                        seq_set = set(seq)
                         for m in range(1,seq.shape[0]):
                             s = seq[m]
                             Z_s = ZZ[s,:]
                             Z_s = np.where(Z_s)[0].tolist()
+                            Z_s = list(seq_set.intersection(Z_s))
                             if len(Z_s) == 0: # ideally this should not happen
                                 Z_s = parents_of_intermed_views_in_cluster[cluster_of_intermed_view[s]][s]
                                 Z_s = [Z_s]
@@ -453,6 +473,9 @@ class GlobalViews:
                 err, _ = compute_alignment_err(d, Utilde, intermed_param)
                 self.log('Alignment error: %0.3f' % err, log_time=True)
                 self.tracker['refine_err_at_iter'][it0] = err
+                
+            self.add_spacing_bw_clusters(d, seq_of_intermed_views_in_cluster,
+                                         intermed_param, C)
             
             # If to tear the closed manifolds
             if global_opts['to_tear']:
@@ -470,9 +493,9 @@ class GlobalViews:
                 
              
             # Visualize the current embedding
-            self.vis_embedding_(d, intermed_param, C, Utilde,
+            _, y = self.vis_embedding_(d, intermed_param, C, Utilde,
                               n_Utilde_Utilde, global_opts, vis,
                               vis_opts, title='Iter_%d' % it0,
                               color_of_pts_on_tear=color_of_pts_on_tear)
 
-        return y, color_of_pts_on_tear
+        return y , color_of_pts_on_tear

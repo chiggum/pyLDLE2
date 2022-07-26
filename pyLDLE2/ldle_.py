@@ -258,7 +258,7 @@ def get_default_intermed_opts(eta_min=5, eta_max=25, len_S_thresh=256):
     """
     return {'eta_min': eta_min, 'eta_max': eta_max, 'len_S_thresh': len_S_thresh}
     
-def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=10,
+def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=10, color_tear=True,
                             vis_before_init=False, compute_error=False,
                             init_algo_name='sequential', init_algo_align_w_parent_only=True,
                             refine_algo_name='retraction',
@@ -279,6 +279,8 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=10,
          views in the embedding space.
     max_iter : int
                Number of iterations to refine the global embedding for.
+    color_tear : bool
+                 If True, colors the tear with the colormap provided in vis_opts.
     vis_before_init : bool
                       If True, plots the global embedding before
                       alignment begins. This is same as just plotting
@@ -313,6 +315,7 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=10,
                         when the refinement algorithm is 'retraction'.
     """
     return {'to_tear': to_tear, 'nu': nu, 'max_iter': max_iter,
+               'color_tear': color_tear,
                'vis_before_init': vis_before_init,
                'compute_error': compute_error,
                'main_algo': main_algo, # ['LDLE', 'LTSA']

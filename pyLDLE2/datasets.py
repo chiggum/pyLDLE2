@@ -650,13 +650,6 @@ class Datasets:
         X = np.array(X)
         labels = np.array(labels)[:,np.newaxis]-1
         labelsMat = np.concatenate([labels,labels], axis=1)
-#         m1 = X.shape[0]/310
-#         m2 = 91
-#         m3 = 89
-#         if prefix=='s1':
-#             labelsMat = np.concatenate([np.mod(labels,m1), np.mod(labels,m2)], axis=1)
-#         elif prefix=='s2':
-#             labelsMat = np.concatenate([np.mod(labels,m2), np.mod(labels,m3)], axis=1)
         if normalize:
             X = X - np.mean(X,axis=0)[np.newaxis,:]
             X = X / (np.std(X,axis=0)[np.newaxis,:] + 1e-12)
@@ -665,6 +658,8 @@ class Datasets:
             X_new = do_pca(X, n_pca)
         else:
             X_new = X
+        
+        X_new = X_new / np.max(np.abs(X_new))
         print('X.shape = ', X_new.shape)
         return X_new, labelsMat, X, img_shape
         
