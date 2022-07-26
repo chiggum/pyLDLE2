@@ -248,7 +248,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('Sequence of intermediate views', flush=True)
     print('#'*50, flush=True)
     if ldle.debug:
-        if ldle.d <= 3:
+        if (ldle.d <= 3) and (len(ldle.GlobalViews.seq_of_intermed_views_in_cluster) == 1):
             ldle.vis.seq_of_intermediate_views(ldle.GlobalViews.y_final, ldle.IntermedViews.c,
                                                ldle.GlobalViews.seq_of_intermed_views_in_cluster[0],
                                                ldle.GlobalViews.parents_of_intermed_views_in_cluster[0],
