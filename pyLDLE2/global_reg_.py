@@ -2,13 +2,15 @@ import pdb
 import numpy as np
 import time
 
-from .util_ import procrustes
+from .util_ import procrustes, issparse
 
 import scipy
+from scipy.sparse import csr_matrix
 from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import pdist, squareform
 
 import multiprocess as mp
+from multiprocess import shared_memory
 
 # Computes Z_s for the case when to_tear is True.
 # Input Z_s is the Z_s for the case when to_tear is False.
@@ -144,7 +146,7 @@ def compute_Lpinv(Utilde):
     D_1_inv_sqrt = np.sqrt(1/D_1)
     D_2_inv_sqrt = np.sqrt(1/D_2)
     B_tilde = D_1_inv_sqrt*B_*D_2_inv_sqrt
-    U12,SS,VT = scipy.linalg.svd(B_tilde, full_matrices=False)
+    U12,SS,VT = scipy.linalg.svd(B_tilde, full_matrices=False) # randomized svd
     V = VT.T
     mask = np.abs(SS-1)<1e-6
     m_1 = np.sum(mask)
@@ -188,6 +190,7 @@ def compute_Lpinv(Utilde):
         L_tilde_sum_0.append(elem[2])
     ################################################
     
+    # 1. Do not concatenate. Store blocks.
     L_pinv_1 = np.concatenate((L_tilde[0], L_tilde[1]), axis=1)
     L_pinv_2 = np.concatenate((L_tilde[1].T, L_tilde[2]), axis=1)
     Lpinv = np.concatenate([L_pinv_1, L_pinv_2], axis=0)
@@ -201,43 +204,100 @@ def compute_Lpinv(Utilde):
     Lpinv = Lpinv - v1/n1 - v0.T/n0
     return Lpinv
     
-
-def compute_CC(D, B, Lpinv):
-    CC = D - np.matmul(B, np.matmul(Lpinv, B.T))
-    CC = 0.5*(CC + CC.T)
-    return CC
-
+# Ngoc-Diep Ho, Paul Van Dooren, On the pseudo-inverse of the Laplacian of a bipartite graph
+def compute_Lpinv_BT(Utilde, B):
+    M, n = Utilde.shape
+    B_ = Utilde.T.astype('int')
+    D_1 = np.sum(B_, axis=1, keepdims=True)
+    D_2 = np.sum(B_, axis=0, keepdims=True)
+    D_1_inv_sqrt = np.sqrt(1/D_1)
+    D_2_inv_sqrt = np.sqrt(1/D_2)
+    B_tilde = D_1_inv_sqrt*B_*D_2_inv_sqrt
+    U12,SS,VT = scipy.linalg.svd(B_tilde, full_matrices=False) # randomized svd
+    V = VT.T
+    mask = np.abs(SS-1)<1e-6
+    m_1 = np.sum(mask)
+    Sigma = np.expand_dims(SS[m_1:], 1)
+    Sigma_1 = 1/(1-Sigma**2)
+    Sigma_2 = Sigma*Sigma_1
+    U1 = U12[:,:m_1]
+    U2 = U12[:,m_1:]
+    V1 = V[:,:m_1]
+    V2 = V[:,m_1:]
     
-def build_ortho_optim(d, Utilde, intermed_param, tol = 1e-6, Lpinv=None):
+    B_n = B - B.mean(axis=1)
+    B_n = np.asarray(B_n)
+    B1T = D_1_inv_sqrt * (B_n[:, :n].T)
+    B2T = D_2_inv_sqrt.T * (B_n[:, n:].T)
+    
+    U1TB1T = np.matmul(U1.T, B1T)
+    U2TB1T = np.matmul(U2.T, B1T)
+    V1TB2T = np.matmul(V1.T, B2T)
+    V2TB2T = np.matmul(V2.T, B2T)
+    
+    temp1 = -0.75*np.matmul(U1,U1TB1T)-0.25*np.matmul(U1,V1TB2T) +\
+            np.matmul(U2, ((Sigma_1-1))*(U2TB1T)) + np.matmul(U2, Sigma_2*(V2TB2T)) + B1T
+    temp1 = temp1 * D_1_inv_sqrt
+    
+    temp2 = -0.25*np.matmul(V1, U1TB1T) + 0.25*np.matmul(V1,V1TB2T) +\
+            np.matmul(V2, Sigma_2*(U2TB1T)) + np.matmul(V2, Sigma_1*(V2TB2T))
+    temp2 = temp2 * D_2_inv_sqrt.T 
+    
+    temp = np.concatenate((temp1, temp2), axis=0)
+    temp = temp - np.mean(temp, axis=0, keepdims=True)
+    return temp
+
+# def compute_CC(D, B, Lpinv):
+#     # 3. Low rank or sparse CC?
+#     #CC = D - np.matmul(B, np.matmul(Lpinv, B.T))
+#     CC = D - B.dot(B.dot(Lpinv).transpose()).transpose()
+#     CC = 0.5*(CC + CC.T)
+#     return CC
+
+def compute_CC(D, B, Lpinv_BT):
+    CC = D - B.dot(Lpinv_BT)
+    return 0.5*(CC + CC.T)
+
+def build_ortho_optim(d, Utilde, intermed_param, tol = 1e-6, Lpinv_BT=None):
     M,n = Utilde.shape
-    B = np.zeros((M*d,n+M))
+    # B = np.zeros((M*d,n+M))
+    B_row_inds = []
+    B_col_inds = []
+    B_vals = []
     D = np.zeros((M*d,M*d))
     for i in range(M):
         X_ = intermed_param.eval_({'view_index': i,
                                    'data_mask': Utilde[i,:]})
         D[d*i:d*(i+1),d*i:d*(i+1)] = np.matmul(X_.T,X_)
-        B[d*i:d*(i+1),n+i] = -np.sum(X_.T, axis=1)
-        B[d*i:d*(i+1),np.where(Utilde[i,:])[0]] = X_.T
+        # B[d*i:d*(i+1),n+i] = -np.sum(X_.T, axis=1)
+        # B[d*i:d*(i+1),np.where(Utilde[i,:])[0]] = X_.T
+        row_inds = list(range(d*i,d*(i+1)))
+        col_inds = np.where(Utilde[i,:])[0].tolist()
+        B_row_inds += (row_inds + np.repeat(row_inds, len(col_inds)).tolist())
+        B_col_inds += (np.repeat([n+i], d).tolist() + np.tile(col_inds, d).tolist())
+        B_vals += (np.sum(-X_.T, axis=1).tolist() + X_.T.flatten().tolist())
+        
+    B = csr_matrix((B_vals, (B_row_inds, B_col_inds)), shape=(M*d,n+M))
+    
+    if Lpinv_BT is None:
+        print('Computing Pseudoinverse of a matrix of L of size', n+M, 'multiplied with B', flush=True)
+        Lpinv_BT = compute_Lpinv_BT(Utilde, B)
+        
+    # CC = compute_CC(D, B, Lpinv)
+    CC = compute_CC(D, B, Lpinv_BT)
+    return CC, Lpinv_BT
+    
 
-    
-    if Lpinv is None:
-        print('Computing Pseudoinverse of a matrix of L of size', n+M, flush=True)
-        Lpinv = compute_Lpinv(Utilde)
-    
-    CC = compute_CC(D, B, Lpinv)
-    return CC, Lpinv, B
-    
-
-def compute_alignment_err(d, Utilde, intermed_param, tol = 1e-6, CC=None, Lpinv=None, B=None):
+def compute_alignment_err(d, Utilde, intermed_param, tol = 1e-6, CC=None, Lpinv_BT=None):
     if (CC is None) or (Lpinv is None) or (B is None):
-        CC, Lpinv, B = build_ortho_optim(d, Utilde, intermed_param, tol = 1e-6)
+        CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param, tol = 1e-6)
     else:
-        CC, Lpinv, B = build_ortho_optim(d, Utilde, intermed_param, tol = 1e-6, Lpinv=Lpinv)
+        CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param, tol = 1e-6, Lpinv_BT=Lpinv_BT)
     err = 0
     M,n = Utilde.shape
     CC_mask = np.tile(np.eye(d, dtype=bool), (M,M))
     err = np.sum(CC[CC_mask])
-    return err, [CC, Lpinv, B]
+    return err, [CC, Lpinv_BT]
     
 def spectral_init(y, is_visited_view, d, Utilde,
                   C, intermed_param, global_opts, print_freq=1000,
@@ -343,59 +403,60 @@ def retraction_final(y, d, Utilde, C, intermed_param,
                      first_intermed_view_in_cluster,
                      parents_of_intermed_views_in_cluster,
                      cluster_of_intermed_view,
-                     global_opts, CC=None, Lpinv=None, B=None):
-    if (CC is None) or (Lpinv is None) or (B is None):
-        CC, Lpinv, B = build_ortho_optim(d, Utilde, intermed_param, tol = 1e-6)
+                     global_opts, CC=None, Lpinv_BT=None):
+    if (CC is None) or (Lpinv_BT is None):
+        CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param, tol = 1e-6)
     else:
-        CC, Lpinv, B = build_ortho_optim(d, Utilde, intermed_param, tol = 1e-6, Lpinv=Lpinv)
+        CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param, tol = 1e-6, Lpinv=Lpinv)
     M,n = Utilde.shape
     n_proc = min(M,global_opts['n_proc'])
-    def skew(A):
-        return 0.5*(A-A.T)
+    barrier = mp.Barrier(n_proc)
 
-    def unique_qr(A):
-        Q, R = np.linalg.qr(A)
-        signs = 2 * (np.diag(R) >= 0) - 1
-        Q = Q * signs[np.newaxis, :]
-        R = R * signs[:, np.newaxis]
-        return Q, R
-
-    def update(O, t):
-        O = np.copy(O)
-        xi = 2*np.matmul(O, CC)
-        I_d = np.eye(d)
-        
+    def update(alpha, max_iter, shm_name_O, O_shape, O_dtype,
+               shm_name_CC, CC_shape, CC_dtype, barrier):
         ###########################################
         # Parallel Updates
         ###########################################
-        def target_proc(p_num, chunk_sz, q_):
+        def target_proc(p_num, chunk_sz, barrier):
+            existing_shm_O = shared_memory.SharedMemory(name=shm_name_O)
+            O = np.ndarray(O_shape, dtype=O_dtype, buffer=existing_shm_O.buf)
+            existing_shm_CC = shared_memory.SharedMemory(name=shm_name_CC)
+            CC = np.ndarray(CC_shape, dtype=CC_dtype, buffer=existing_shm_CC.buf)
+
+            def unique_qr(A):
+                Q, R = np.linalg.qr(A)
+                signs = 2 * (np.diag(R) >= 0) - 1
+                Q = Q * signs[np.newaxis, :]
+                R = R * signs[:, np.newaxis]
+                return Q, R
+            
             start_ind = p_num*chunk_sz
             if p_num == (n_proc-1):
                 end_ind = M
             else:
                 end_ind = (p_num+1)*chunk_sz
-            for i in range(start_ind, end_ind):
-                temp0 = O[:,i*d:(i+1)*d]
-                temp1 = skew(np.matmul(xi[:,i*d:(i+1)*d],temp0.T))
-                Q_,R_ = unique_qr(temp0 - t*np.matmul(temp1,temp0))
-                O[:,i*d:(i+1)*d] = Q_
-
-            q_.put((start_ind, end_ind, O[:,start_ind*d:end_ind*d]))
+            for _ in range(max_iter):
+                for i in range(start_ind, end_ind):
+                    xi_ = 2*np.matmul(O, CC[:,i*d:(i+1)*d])
+                    temp0 = O[:,i*d:(i+1)*d]
+                    temp1 = np.matmul(xi_,temp0.T)
+                    skew_temp1 = 0.5*(temp1-temp1.T)
+                    Q_,R_ = unique_qr(temp0 - alpha*np.matmul(skew_temp1,temp0))
+                    O[:,i*d:(i+1)*d] = Q_
+                barrier.wait()
+            
+            existing_shm_O.close()
+            existing_shm_CC.close()
         
-        q_ = mp.Queue()
+        
         proc = []
         chunk_sz = int(M/n_proc)
         for p_num in range(n_proc):
             proc.append(mp.Process(target=target_proc,
-                                   args=(p_num,chunk_sz,q_),
+                                   args=(p_num,chunk_sz, barrier),
                                    daemon=True))
             proc[-1].start()
 
-        for p_num in range(n_proc):
-            start_ind, end_ind, O_ = q_.get()
-            O[:,start_ind*d:end_ind*d] = O_
-
-        q_.close()
         for p_num in range(n_proc):
             proc[p_num].join()
         ###########################################
@@ -406,8 +467,6 @@ def retraction_final(y, d, Utilde, C, intermed_param,
         #     temp1 = skew(np.matmul(xi[:,i*d:(i+1)*d],temp0.T))
         #     Q_,R_ = unique_qr(temp0 - t*np.matmul(temp1,temp0))
         #     O[:,i*d:(i+1)*d] = Q_
-        
-        return O
 
     alpha = global_opts['refine_algo_alpha']
     max_iter = global_opts['refine_algo_max_internal_iter']
@@ -416,10 +475,28 @@ def retraction_final(y, d, Utilde, C, intermed_param,
         Tstar[:,s*d:(s+1)*d] = np.eye(d)
     
     print('Descent starts', flush=True)
-    for _ in range(max_iter):
-        Tstar = update(Tstar, alpha)
+    shm_Tstar = shared_memory.SharedMemory(create=True, size=Tstar.nbytes)
+    np_Tstar = np.ndarray(Tstar.shape, dtype=Tstar.dtype, buffer=shm_Tstar.buf)
+    np_Tstar[:] = Tstar[:]
+    shm_CC = shared_memory.SharedMemory(create=True, size=CC.nbytes)
+    np_CC = np.ndarray(CC.shape, dtype=CC.dtype, buffer=shm_CC.buf)
+    np_CC[:] = CC[:]
     
-    Zstar = np.matmul(Tstar, np.matmul(B, Lpinv))
+    update(alpha, max_iter, shm_Tstar.name, Tstar.shape, Tstar.dtype,
+           shm_CC.name, CC.shape, CC.dtype, barrier)
+    
+    Tstar[:] = np_Tstar[:]
+    
+    del np_Tstar
+    shm_Tstar.close()
+    shm_Tstar.unlink()
+    del np_CC
+    shm_CC.close()
+    shm_CC.unlink()
+    
+    
+    #Zstar = np.matmul(Tstar, np.matmul(B, Lpinv))
+    Zstar = Tstar.dot(Lpinv_BT.transpose())
     
     for s in range(M):
         T_s = Tstar[:,s*d:(s+1)*d].T
@@ -429,4 +506,4 @@ def retraction_final(y, d, Utilde, C, intermed_param,
         C_s = C[s,:]
         y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
 
-    return y, [CC, Lpinv, B]
+    return y, [CC, Lpinv_BT]

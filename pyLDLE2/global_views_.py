@@ -403,8 +403,7 @@ class GlobalViews:
         
         
         CC = None
-        Lpinv = None
-        B = None
+        Lpinv_BT = None
 
         max_iter0 = global_opts['max_iter']
         max_iter1 = global_opts['refine_algo_max_internal_iter']
@@ -453,7 +452,7 @@ class GlobalViews:
                                                    first_intermed_view_in_cluster,
                                                    parents_of_intermed_views_in_cluster,
                                                    cluster_of_intermed_view,
-                                                   global_opts, CC, Lpinv, B)
+                                                   global_opts, CC, Lpinv_BT)
                 elif refine_algo == 'spectral':
                     y, y_2,\
                     is_visited_view = spectral_init(y, is_visited_view,
@@ -461,7 +460,7 @@ class GlobalViews:
                                                     C, intermed_param,
                                                     global_opts, print_freq)
 #                 if not global_opts['to_tear']:
-#                     CC, Lpinv, B = CCLpinvB
+#                     CC, Lpinv_BT = CCLpinvB
             
             
                 
