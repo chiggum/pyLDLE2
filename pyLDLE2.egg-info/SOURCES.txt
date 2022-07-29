@@ -7,6 +7,7 @@ pyLDLE2/gl_.py
 pyLDLE2/global_reg_.py
 pyLDLE2/global_views_.py
 pyLDLE2/intermed_views_.py
+pyLDLE2/intermed_views__trash_.py
 pyLDLE2/ipge_.py
 pyLDLE2/ldle_.py
 pyLDLE2/local_views_.py
