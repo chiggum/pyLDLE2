@@ -178,7 +178,7 @@ def double_manifold_k_nn(data, ddX, k_nn, metric, n_proc=1):
     return neigh_dist, neigh_ind
     
 
-def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=24, gl_type='unnorm',
+def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=35, gl_type='unnorm',
                            N=100, no_gamma=False, Atilde_method='LDLE_1',
                            p=0.99, tau=50, delta=0.9, to_postprocess= True,
                            pp_n_thresh=32):
@@ -293,9 +293,7 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=10, c
                      The algorithm used to compute initial global embedding
                      by aligning the intermediate views.
                      Options are 'sequential' for tree-based-procrustes alignment,
-                     'spectral' for spectral alignment (ignores to_tear),
-                     'sequential+spectral' for tree-based-procrustes alignment
-                     followed by spectral alignment.
+                     'spectral' for spectral alignment (ignores to_tear).
     init_algo_align_w_parent_only : bool
                                     If True only the parents of the intermediate
                                     views are used in the tree-based-procrustes
@@ -318,12 +316,12 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=10, c
                'color_tear': color_tear,
                'vis_before_init': vis_before_init,
                'compute_error': compute_error,
-               'main_algo': main_algo, # ['LDLE', 'LTSA']
-               'init_algo_name': init_algo_name, # ['sequential', 'spectral', 'sequential+spectral'], spectral ignores to_tear
+               'main_algo': main_algo, 
+               'init_algo_name': init_algo_name,
                'init_algo_align_w_parent_only': init_algo_align_w_parent_only,
-               'refine_algo_name': refine_algo_name, # ['sequential', 'retraction', 'spectral']
-               'refine_algo_max_internal_iter': refine_algo_max_internal_iter, # 10 for sequential and 100 for retraction
-               'refine_algo_alpha': refine_algo_alpha, # step size for retraction
+               'refine_algo_name': refine_algo_name, 
+               'refine_algo_max_internal_iter': refine_algo_max_internal_iter,
+               'refine_algo_alpha': refine_algo_alpha, 
               }
 def get_default_vis_opts(save_dir='', cmap_interior='summer', cmap_boundary='jet', c=None):
     """Sets and returns a dictionary of default_vis_opts.
@@ -407,6 +405,12 @@ class LDLE:
         global_opts['n_proc'] = n_proc
         for i in global_opts:
             default_global_opts[i] = global_opts[i]
+        if default_global_opts['refine_algo_name'] != 'retraction':
+            if 'refine_algo_max_internal_iter' not in global_opts:
+                default_global_opts['refine_algo_max_internal_iter'] = 10
+                print("Making global_opts['refine_algo_max_internal_iter'] =",
+                      default_global_opts['refine_algo_max_internal_iter'])
+                print('Supply the argument to use a different value', flush=True)
         self.global_opts = default_global_opts
         #############################################
         for i in vis_opts:
@@ -500,7 +504,7 @@ class LDLE:
         
         # Construct intermediate views
         IntermedViews = intermed_views_.IntermedViews(self.exit_at, self.verbose, self.debug)
-        IntermedViews.fit(self.d, d_e, LocalViews.U,
+        IntermedViews.fit(self.d, d_e, LocalViews.U, neigh_ind[:,:self.local_opts['k']],
                           LocalViews.local_param_post, self.intermed_opts)
         
         self.IntermedViews = IntermedViews

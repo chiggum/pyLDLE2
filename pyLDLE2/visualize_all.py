@@ -132,44 +132,37 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('Distortion of local parameterizations without post-processing', flush=True)
     print('#'*50, flush=True)
     local_algo = ldle.local_opts['algo']
-    if local_algo == 'LDLE':
-        if ldle.debug:
-            ldle.vis.distortion_boxplot(np.log(ldle.LocalViews.local_param_pre.zeta),
-                                        title='log(distortion) without postprocessing',
-                                        figsize=figsize1)
-        else:
-            print('ldle.debug is False, thus ldle.LocalViews.local_param_pre is not saved.')
-    else:
-        ldle.vis.distortion_boxplot(np.log(ldle.LocalViews.local_param_post.zeta),
-                                    title='log(distortion of local views)',
+    if ldle.debug:
+        ldle.vis.distortion_boxplot(np.log(ldle.LocalViews.local_param_pre.zeta),
+                                    title='log(distortion) without postprocessing',
                                     figsize=figsize1)
-        if ldle.d <= 3:
-            ldle.vis.distortion(ldle.GlobalViews.y_final, ldle.LocalViews.local_param_post.zeta,
-                                'Embedding colored by distortion',
-                                figsize=(8,8), s=50)
+    else:
+        print('ldle.debug is False, thus ldle.LocalViews.local_param_pre is not saved.')
+        
+    if ldle.d <= 3:
+        ldle.vis.distortion(ldle.GlobalViews.y_final, ldle.LocalViews.local_param_post.zeta,
+                            'Embedding colored by distortion',
+                            figsize=(8,8), s=50)
 
     print('#'*50, flush=True)
     print('Distortion of local parameterizations with post-processing', flush=True)
     print('#'*50, flush=True)
     local_algo = ldle.local_opts['algo']
-    if local_algo == 'LDLE':
-        ldle.vis.distortion_boxplot(np.log(ldle.LocalViews.local_param_post.zeta),
+    ldle.vis.distortion_boxplot(np.log(ldle.LocalViews.local_param_post.zeta),
                                     title='log(distortion)',
                                     figsize=figsize1)
-        if X.shape[1] <= 3:
-            ldle.vis.distortion(X, ldle.LocalViews.local_param_post.zeta,
-                                'Data colored by distortion',
-                                figsize=(8,8), s=50)
-        else:
-            print('Cannot plot because input data has more than 3 features')
-        if ldle.d <= 3:
-            ldle.vis.distortion(ldle.GlobalViews.y_final, ldle.LocalViews.local_param_post.zeta,
-                                'Embedding colored by distortion',
-                                figsize=(8,8), s=50)
-        else:
-            print('Cannot plot because embedding dim > 3')
+    if X.shape[1] <= 3:
+        ldle.vis.distortion(X, ldle.LocalViews.local_param_post.zeta,
+                            'Data colored by distortion',
+                            figsize=(8,8), s=50)
     else:
-        print('Local views were constructed using', local_algo)
+        print('Cannot plot because input data has more than 3 features')
+    if ldle.d <= 3:
+        ldle.vis.distortion(ldle.GlobalViews.y_final, ldle.LocalViews.local_param_post.zeta,
+                            'Embedding colored by distortion',
+                            figsize=(8,8), s=50)
+    else:
+        print('Cannot plot because embedding dim > 3')
 
     print('#'*50, flush=True)
     print('Here we visualize:')

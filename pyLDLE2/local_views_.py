@@ -15,6 +15,7 @@ from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import pdist, squareform
 
 import multiprocess as mp
+from multiprocess import shared_memory
 
 class LocalViews:
     def __init__(self, exit_at=None, verbose=True, debug=False):
@@ -85,22 +86,23 @@ class LocalViews:
 
             # Compute LDLE: Low Distortion Local Eigenmaps
             self.log('Computing LDLE.')
-            local_param_pre = self.compute_LDLE(d, d_e, neigh_ind, neigh_dist, GL.phi, U, IPGE.Atilde, gamma, local_opts)
+            local_param_pre = self.compute_LDLE(d, d_e, neigh_dist, GL.phi, U, IPGE.Atilde, gamma, local_opts)
             self.log('Done.', log_time=True)
             #############################################
 
             if local_opts['to_postprocess']:
-                self.log('Posprocessing LDLE.')
-                local_param_post = self.postprocess_LDLE(d_e, neigh_ind, neigh_dist, local_param_pre, U, local_opts)
+                self.log('Posprocessing local parameterizations.')
+                local_param_post = self.postprocess(d_e, neigh_dist, neigh_ind, local_param_pre, U, local_opts)
                 self.log('Done.', log_time=True)
             else:
                 local_param_post = local_param_pre
             #############################################
             # set b
-            local_param_post.b = np.ones(neigh_ind.shape[0])
-            for k in range(neigh_ind.shape[0]):
-                d_e_k = to_dense(d_e[np.ix_(neigh_ind[k,:],neigh_ind[k,:])])
-                Psi_k = local_param_post.eval_({'view_index': k, 'data_mask': neigh_ind[k,:]})
+            local_param_post.b = np.ones(U.shape[0])
+            for k in range(U.shape[0]):
+                U_k = U[k,:].indices
+                d_e_k = to_dense(d_e[np.ix_(U_k,U_k)])
+                Psi_k = local_param_post.eval_({'view_index': k, 'data_mask': U_k})
                 local_param_post.b[k] = np.median(squareform(d_e_k))/np.median(pdist(Psi_k))
             
             #############################################
@@ -137,13 +139,17 @@ class LocalViews:
         else:
             self.log('Constructing local views using LTSA.')
             # Local views in the ambient space
-            epsilon = neigh_dist[:,[local_opts['k']-1]]
-            U = sparse_matrix(neigh_ind[:,:local_opts['k']-1],
-                              np.ones((neigh_ind.shape[0],local_opts['k']-1), dtype=bool))
-            local_param_pre = None
-            local_param_post = self.compute_LTSAP(d, X, d_e, neigh_ind)
-            local_param_post.b = np.ones(X.shape[0])
+            U = sparse_matrix(neigh_ind[:,:local_opts['k']],
+                              np.ones((neigh_ind.shape[0],local_opts['k']), dtype=bool))
+            local_param_pre = self.compute_LTSAP(d, X, d_e, U, local_opts)
             self.log('Done.', log_time=True)
+            if local_opts['to_postprocess']:
+                self.log('Posprocessing local parameterizations.')
+                local_param_post = self.postprocess(d_e, neigh_dist, neigh_ind, local_param_pre, U, local_opts)
+                self.log('Done.', log_time=True)
+            else:
+                local_param_post = local_param_pre
+            local_param_post.b = np.ones(X.shape[0])
             
         print('Max local distortion =', np.max(local_param_post.zeta))
         if self.debug:
@@ -151,8 +157,7 @@ class LocalViews:
                 self.GL = GL
                 self.IPGE = IPGE
                 self.gamma = gamma
-            
-            self.epsilon = epsilon
+                self.epsilon = epsilon
             self.local_param_pre = local_param_pre
         
         if local_opts['algo'] == 'LDLE':
@@ -161,14 +166,11 @@ class LocalViews:
         self.U = U
         self.local_param_post = local_param_post
     
-    def compute_LDLE(self, d, d_e, neigh_ind, neigh_dist, phi, U, Atilde, gamma, local_opts, print_prop = 0.25):
+    def compute_LDLE(self, d, d_e, neigh_dist, phi, U, Atilde, gamma, local_opts, print_prop = 0.25):
         n, N = phi.shape
         N = phi.shape[1]
         tau = local_opts['tau']
         delta = local_opts['delta']
-        
-        print_freq = np.int(n*print_prop)
-        
         local_param = Param('LDLE')
         local_param.phi = phi
         local_param.Psi_gamma = np.zeros((n,d))
@@ -188,7 +190,7 @@ class LocalViews:
                 i = np.zeros(d, dtype='int')
 
                 # Grab the precomputed U_k, Atilde_{kij}, gamma_{ki}
-                U_k = U[k,:]
+                U_k = U[k,:].indices
                 Atilde_k = Atilde[k,:,:]
                 gamma_k = gamma[k,:]
 
@@ -230,10 +232,10 @@ class LocalViews:
                 local_param.Psi_i[k,:] = i
 
                 # Compute zeta_{kk}
-                d_e_k = d_e[np.ix_(neigh_ind[k,:],neigh_ind[k,:])]
+                d_e_k = d_e[np.ix_(U_k, U_k)]
                 local_param.zeta[k] = compute_zeta(d_e_k,
                                                    local_param.eval_({'view_index': k,
-                                                                      'data_mask': neigh_ind[k,:]}))
+                                                                      'data_mask': U_k}))
 
             q_.put((start_ind, end_ind,
                     local_param.zeta[start_ind:end_ind],
@@ -264,8 +266,8 @@ class LocalViews:
         print("max distortion is %f" % (np.max(local_param.zeta)))
         return local_param
     
-    def compute_LTSAP(self, d, X, d_e, neigh_ind, print_prop = 0.25):
-        n = neigh_ind.shape[0]
+    def compute_LTSAP(self, d, X, d_e, U, local_opts, print_prop = 0.25):
+        n = U.shape[0]
         p = X.shape[1]
         print_freq = int(print_prop * n)
         
@@ -274,144 +276,185 @@ class LocalViews:
         local_param.Psi = np.zeros((n,p,d))
         local_param.mu = np.zeros((n,p))
         local_param.zeta = np.zeros(n)
-
-        # iterate over points in the data
-        for k in range(n):
-            if print_freq and np.mod(k, print_freq)==0:
-                print('local_param: %d points processed...' % k)
-            
-            neigh_ind_k = neigh_ind[k,:]
-            # LTSA
-            X_k = X[neigh_ind_k,:]
-            xbar_k = np.mean(X_k,axis=0)[np.newaxis,:]
-            X_k = X_k - xbar_k
-            X_k = X_k.T
-            if p == d:
-                Q_k,Sigma_k,_ = svd(X_k)
-            else:
-                Q_k,Sigma_k,_ = svds(X_k, d, which='LM')
-                
-            local_param.Psi[k,:,:] = Q_k[:,:d]
-            local_param.mu[k,:] = xbar_k
-            
-            # Compute zeta_{kk}
-            d_e_k = d_e[np.ix_(neigh_ind_k, neigh_ind_k)]
-            local_param.zeta[k] = compute_zeta(d_e_k,
-                                               local_param.eval_({'view_index': k,
-                                                                  'data_mask': neigh_ind_k}))
-            
-        print('local_param: all %d points processed...' % n)
-        return local_param
-    
-    def postprocess_LDLE(self, d_e, neigh_ind, neigh_dist, local_param_pre, U, local_opts):
-        # initializations
-        n = neigh_ind.shape[0]
-        local_param = copy.deepcopy(local_param_pre)
-        
-        N_replaced = n
-        itr = 1
-        # Extra variable to speed up
-        param_changed_old = None
         n_proc = local_opts['n_proc']
         
-        while N_replaced:
-            new_param_of = np.arange(n, dtype='int')
-            param_changed_new = np.zeros(n, dtype=bool)
-            if N_replaced > local_opts['pp_n_thresh']: # use multiple processors
-                zeta = local_param.zeta
-                if param_changed_old is not None:
-                    param_changed_old = set(np.where(param_changed_old)[0])
-                    
-                def target_proc(p_num, chunk_sz, q_):
-                    start_ind = p_num*chunk_sz
-                    if p_num == (n_proc-1):
-                        end_ind = n
-                    else:
-                        end_ind = (p_num+1)*chunk_sz
+        def target_proc(p_num, chunk_sz, q_):
+            start_ind = p_num*chunk_sz
+            if p_num == (n_proc-1):
+                end_ind = n
+            else:
+                end_ind = (p_num+1)*chunk_sz
 
-                    for k in range(start_ind, end_ind):
-                        U_k = U[k,:].nonzero()[1].tolist()
-                        if param_changed_old is None:
-                            cand_k = U_k
-                        else:
-                            cand_k = param_changed_old.intersection(U_k)
-                        neigh_ind_k = neigh_ind[k,:]
-                        d_e_k = d_e[np.ix_(neigh_ind_k,neigh_ind_k)]
-                        for kp in cand_k:
-                            Psi_kp_on_U_k = local_param.eval_({'view_index': kp,
-                                                               'data_mask': neigh_ind_k})
-                            zeta_kkp = compute_zeta(d_e_k, Psi_kp_on_U_k)
-
-                            # if zeta_{kk'} < zeta_{kk}
-                            if zeta_kkp < zeta[k]:
-                                zeta[k] = zeta_kkp
-                                new_param_of[k] = kp
-                                param_changed_new[k] = 1
-
-                    q_.put((start_ind, end_ind, zeta[start_ind:end_ind],
-                            new_param_of[start_ind:end_ind],
-                            param_changed_new[start_ind:end_ind]))
-                
-                q_ = mp.Queue()
-                chunk_sz = int(n/n_proc)
-                proc = []
-                for p_num in range(n_proc):
-                    proc.append(mp.Process(target=target_proc,
-                                           args=(p_num,chunk_sz,q_),
-                                           daemon=True))
-                    proc[-1].start()
-
-                for p_num in range(n_proc):
-                    start_ind, end_ind, zeta_, new_param_of_, param_changed_new_ = q_.get()
-                    zeta[start_ind:end_ind] = zeta_
-                    param_changed_new[start_ind:end_ind] = param_changed_new_
-                    new_param_of[start_ind:end_ind] = new_param_of_
-                
-                q_.close()
-                
-                for p_num in range(n_proc):
-                    proc[p_num].join()
-                    
-                local_param.zeta = zeta
-            else: # do sequentially (single processor)
-                # Iterate over all local parameterizations
-                # To speed up the process, only consider those neighbors
-                # for which the parameterization changed in the prev step
-                if param_changed_old is None:
-                    cand = U.tocoo()
+            for k in range(start_ind, end_ind):
+                U_k = U[k,:].indices
+                # LTSA
+                X_k = X[U_k,:]
+                xbar_k = np.mean(X_k,axis=0)[np.newaxis,:]
+                X_k = X_k - xbar_k
+                X_k = X_k.T
+                if p == d:
+                    Q_k,Sigma_k,_ = svd(X_k)
                 else:
-                    cand = U.multiply(param_changed_old[None,:])
-                    cand.eliminate_zeros()
+                    Q_k,Sigma_k,_ = svds(X_k, d, which='LM')
 
-                cand_i = cand.row
-                cand_j = cand.col
-                n_ind = cand_i.shape[0]
-                ind = 0
-                for k in range(n):
-                    cand_k = []
-                    while (ind < n_ind) and (k == cand_i[ind]):
-                        cand_k.append(cand_j[ind])
-                        ind += 1
+                local_param.Psi[k,:,:] = Q_k[:,:d]
+                local_param.mu[k,:] = xbar_k
 
-                    neigh_ind_k = neigh_ind[k,:]
+                # Compute zeta_{kk}
+                d_e_k = d_e[np.ix_(U_k, U_k)]
+                local_param.zeta[k] = compute_zeta(d_e_k,
+                                                   local_param.eval_({'view_index': k,
+                                                                      'data_mask': U_k}))
+            
+            q_.put((start_ind, end_ind,
+                    local_param.zeta[start_ind:end_ind],
+                    local_param.Psi[start_ind:end_ind,:],
+                    local_param.mu[start_ind:end_ind,:]))
+        
+        q_ = mp.Queue()
+        chunk_sz = int(n/n_proc)
+        proc = []
+        for p_num in range(n_proc):
+            proc.append(mp.Process(target=target_proc,
+                                   args=(p_num,chunk_sz,q_),
+                                   daemon=True))
+            proc[-1].start()
+
+        for p_num in range(n_proc):
+            start_ind, end_ind, zeta_, Psi_, mu_ = q_.get()
+            local_param.zeta[start_ind:end_ind] = zeta_
+            local_param.Psi[start_ind:end_ind,:] = Psi_
+            local_param.mu[start_ind:end_ind,:] = mu_
+
+        q_.close()
+        
+        for p_num in range(n_proc):
+            proc[p_num].join()
+        print('local_param: all %d points processed...' % n)
+        print("max distortion is %f" % (np.max(local_param.zeta)))
+        return local_param
+    
+    def postprocess(self, d_e, neigh_dist, neigh_ind, local_param_pre, U, local_opts):
+        # initializations
+        n = U.shape[0]
+        local_param = copy.deepcopy(local_param_pre)
+
+        n_proc = local_opts['n_proc']
+        barrier = mp.Barrier(n_proc)
+        pcb = np.zeros(n, dtype=bool) # param changed buffer and converge flag
+        npo = np.arange(n, dtype=int) # new param of
+        zeta = local_param.zeta
+
+        pcb_dtype = pcb.dtype
+        pcb_shape = pcb.shape
+        npo_dtype = npo.dtype
+        npo_shape = npo.shape
+        zeta_shape = zeta.shape
+        zeta_dtype = zeta.dtype
+
+        shm_pcb = shared_memory.SharedMemory(create=True, size=pcb.nbytes)
+        np_pcb = np.ndarray(pcb_shape, dtype=pcb_dtype, buffer=shm_pcb.buf)
+        np_pcb[:] = pcb[:]
+        shm_npo = shared_memory.SharedMemory(create=True, size=npo.nbytes)
+        np_npo = np.ndarray(npo_shape, dtype=npo_dtype, buffer=shm_npo.buf)
+        np_npo[:] = npo[:]
+        shm_zeta = shared_memory.SharedMemory(create=True, size=zeta.nbytes)
+        np_zeta = np.ndarray(zeta_shape, dtype=zeta_dtype, buffer=shm_zeta.buf)
+        np_zeta[:] = zeta[:]
+
+        shm_pcb_name = shm_pcb.name
+        shm_npo_name = shm_npo.name
+        shm_zeta_name = shm_zeta.name
+
+        def target_proc(p_num, chunk_sz, barrier, U, neigh_ind, local_param, d_e):
+            existing_shm_pcb = shared_memory.SharedMemory(name=shm_pcb_name)
+            param_changed_buf = np.ndarray(pcb_shape, dtype=pcb_dtype,
+                                           buffer=existing_shm_pcb.buf)
+            existing_shm_npo = shared_memory.SharedMemory(name=shm_npo_name)
+            new_param_of = np.ndarray(npo_shape, dtype=npo_dtype,
+                                      buffer=existing_shm_npo.buf)
+            existing_shm_zeta = shared_memory.SharedMemory(name=shm_zeta_name)
+            zeta_ = np.ndarray(zeta_shape, dtype=zeta_dtype,
+                                      buffer=existing_shm_zeta.buf)
+
+            start_ind = p_num*chunk_sz
+            if p_num == (n_proc-1):
+                end_ind = n
+            else:
+                end_ind = (p_num+1)*chunk_sz
+
+            param_changed_old = None
+            new_param_of_ = np.arange(start_ind, end_ind)
+            N_replaced = n
+            while N_replaced: # while not converged
+                for k in range(start_ind, end_ind):
+                    param_changed_for_k = False
+                    U_k = U[k,:].indices
+                    # TODO: which one of the two should be used?
+                    neigh_ind_k = U_k # theoretically sound.
+                    # neigh_ind_k = neigh_ind[k,:] # ask for low distortion on slightly bigger views
+                    if param_changed_old is None:
+                        cand_k = U_k.tolist()
+                    else:
+                        cand_k = list(param_changed_old.intersection(U_k.tolist()))
+                    if len(cand_k)==0:
+                        param_changed_buf[k] = False
+                        continue
                     d_e_k = d_e[np.ix_(neigh_ind_k,neigh_ind_k)]
+                    
                     for kp in cand_k:
-                        Psi_kp_on_U_k = local_param.eval_({'view_index': kp,
+                        Psi_kp_on_U_k = local_param.eval_({'view_index': new_param_of[kp],
                                                            'data_mask': neigh_ind_k})
                         zeta_kkp = compute_zeta(d_e_k, Psi_kp_on_U_k)
-
                         # if zeta_{kk'} < zeta_{kk}
-                        if zeta_kkp < local_param.zeta[k]:
-                            local_param.zeta[k] = zeta_kkp
-                            new_param_of[k] = kp
-                            param_changed_new[k] = 1
+                        if zeta_kkp < zeta_[k]:
+                            zeta_[k] = zeta_kkp
+                            new_param_of_[k-start_ind] = new_param_of[kp]
+                            param_changed_for_k = True
+                    param_changed_buf[k] = param_changed_for_k
+                
+                barrier.wait()
+                new_param_of[start_ind:end_ind] = new_param_of_
+                param_changed_old = set(np.where(param_changed_buf)[0])
+                N_replaced = len(param_changed_old)
+                barrier.wait()
+                if p_num == 0:
+                    print("#Param replaced: %d, max distortion: %f" % (N_replaced, np.max(zeta_)))
+                        
+            existing_shm_pcb.close()
+            existing_shm_npo.close()
+            existing_shm_zeta.close()
+
+        proc = []
+        chunk_sz = int(n/n_proc)
+        for p_num in range(n_proc):
+            proc.append(mp.Process(target=target_proc, args=(p_num,chunk_sz, barrier,
+                                                             U, neigh_ind, local_param, d_e),
+                                   daemon=True))
+            proc[-1].start()
+
+        for p_num in range(n_proc):
+            proc[p_num].join()
+
+        npo[:] = np_npo[:]
+        local_param.zeta[:] = np_zeta[:]
+
+        del np_npo
+        shm_npo.close()
+        shm_npo.unlink()
+        del np_zeta
+        shm_zeta.close()
+        shm_zeta.unlink()
+        del np_pcb
+        shm_pcb.close()
+        shm_pcb.unlink()
+
+        if local_opts['algo'] == 'LDLE':
+            local_param.Psi_i = local_param.Psi_i[npo,:]
+            local_param.Psi_gamma = local_param.Psi_gamma[npo,:]
+        elif local_opts['algo'] == 'LTSA':
+            local_param.Psi = local_param.Psi[npo,:]
+            local_param.mu = local_param.mu[npo,:]
             
-            local_param.Psi_i = local_param.Psi_i[new_param_of,:]
-            local_param.Psi_gamma = local_param.Psi_gamma[new_param_of,:]
-            param_changed_old = param_changed_new.copy()
-            N_replaced = np.sum(param_changed_new)
-            
-            print("Iter %d, Param replaced: %d, max distortion: %f" % (itr, N_replaced, np.max(local_param.zeta)))
-            itr = itr + 1
-        
+        print('Max local distortion after postprocessing:', np.max(local_param.zeta))
         return local_param

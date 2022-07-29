@@ -882,7 +882,7 @@ class Visualize:
                     k = np.argmin(np.sum((X-X_k)**2,1))
 
             m = c[k]
-            Utilde_m = Utilde[m,:]
+            Utilde_m = Utilde[m,:].toarray().flatten()
             
             ax[0].cla()
             cb[0].remove()
@@ -1203,7 +1203,7 @@ class Visualize:
         source = np.zeros((M-1,X.shape[1]))
         comp = np.zeros((M-1,X.shape[1]))
         for m in range(M):
-            mu[m,:] = np.mean(X[Utilde[m,:],:],0)
+            mu[m,:] = np.mean(X[Utilde[m,:].indices,:],0)
         
         for m in range(1,M):
             source[m-1,:] = mu[rho[seq[m]],:]

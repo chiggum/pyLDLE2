@@ -3,12 +3,12 @@ import time
 import numpy as np
 import copy
 
-from .util_ import procrustes, print_log
-from .global_reg_ import sequential_init, spectral_init, sequential_final, retraction_final, compute_alignment_err
+from .util_ import procrustes, print_log, nearest_neighbors, sparse_matrix
+from .global_reg_ import sequential_init, spectral_alignment, sequential_final, retraction_final, compute_alignment_err
 
 from scipy.linalg import svdvals
 from scipy.sparse.csgraph import minimum_spanning_tree, breadth_first_order
-from scipy.sparse import coo_matrix
+from scipy.sparse import coo_matrix, csr_matrix
 from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import pdist, squareform
 from matplotlib import pyplot as plt
@@ -29,7 +29,6 @@ class GlobalViews:
         self.global_start_time = time.time()
         
         # saved only when debug is True
-        self.first_intermed_view_in_cluster = None
         self.n_Utilde_Utilde = None
         self.seq_of_intermed_views_in_cluster = None
         self.parents_of_intermed_views_in_cluster = None
@@ -48,8 +47,8 @@ class GlobalViews:
     def fit(self, d, Utilde, C, c, n_C, intermed_param, global_opts, vis, vis_opts):
         if global_opts['main_algo'] == 'LDLE':
             # Compute |Utilde_{mm'}|
-            n_Utilde_Utilde = np.dot(Utilde, Utilde.T)
-            np.fill_diagonal(n_Utilde_Utilde, 0)
+            n_Utilde_Utilde = Utilde.dot(Utilde.T)
+            n_Utilde_Utilde.setdiag(0)
             
             # Compute sequence of intermedieate views
             seq_of_intermed_views_in_cluster, \
@@ -65,11 +64,10 @@ class GlobalViews:
                                   vis_opts, title='Before_Init')
             
             # Compute initial embedding
-            y_init, first_intermed_view_in_cluster,\
-            color_of_pts_on_tear_init = self.compute_init_embedding(d, Utilde, n_Utilde_Utilde, intermed_param,
-                                                                    seq_of_intermed_views_in_cluster,
-                                                                    parents_of_intermed_views_in_cluster,
-                                                                    C, c, vis, vis_opts, global_opts)
+            y_init, color_of_pts_on_tear_init = self.compute_init_embedding(d, Utilde, n_Utilde_Utilde, intermed_param,
+                                                                            seq_of_intermed_views_in_cluster,
+                                                                            parents_of_intermed_views_in_cluster,
+                                                                            C, c, vis, vis_opts, global_opts)
 
             self.y_init = y_init
             self.color_of_pts_on_tear_init = color_of_pts_on_tear_init
@@ -78,7 +76,6 @@ class GlobalViews:
                 y_final,\
                 color_of_pts_on_tear_final = self.compute_final_embedding(y_init, d, Utilde, C, intermed_param,
                                                                           n_Utilde_Utilde,
-                                                                          first_intermed_view_in_cluster, 
                                                                           seq_of_intermed_views_in_cluster,
                                                                           parents_of_intermed_views_in_cluster, 
                                                                           cluster_of_intermed_view, global_opts,
@@ -94,7 +91,6 @@ class GlobalViews:
         
         
         if self.debug:
-            self.first_intermed_view_in_cluster = first_intermed_view_in_cluster
             self.n_Utilde_Utilde = n_Utilde_Utilde
             self.seq_of_intermed_views_in_cluster = seq_of_intermed_views_in_cluster
             self.parents_of_intermed_views_in_cluster = parents_of_intermed_views_in_cluster
@@ -115,10 +111,10 @@ class GlobalViews:
         for m in range(M):
             if np.mod(m, print_freq)==0:
                 print('Ambiguous overlaps checked for %d intermediate views' % m)
-            for mp in np.where(n_Utilde_Utilde[m,:] > 0)[0].tolist():
+            for mp in n_Utilde_Utilde[m,:].indices:
                 if mp > m:
                     # Compute Utilde_{mm'}
-                    Utilde_mmp = Utilde[m,:]*Utilde[mp,:]
+                    Utilde_mmp = Utilde[m,:].multiply(Utilde[mp,:]).nonzero()[1]
                     # Compute V_{mm'}, V_{m'm}, Vbar_{mm'}, Vbar_{m'm}
                     V_mmp = intermed_param.eval_({'view_index': m, 'data_mask': Utilde_mmp})
                     V_mpm = intermed_param.eval_({'view_index': mp, 'data_mask': Utilde_mmp})
@@ -174,8 +170,7 @@ class GlobalViews:
         # Compute the tear: a graph between views where ith view
         # is connected to jth view if they are neighbors in the
         # ambient space but not in the embedding space
-        tear = (n_Utilde_Utilde > 0) & (n_Utildeg_Utildeg == 0)
-
+        tear = n_Utilde_Utilde-n_Utilde_Utilde.multiply(n_Utildeg_Utildeg)
         # Keep track of visited views across clusters of manifolds
         is_visited = np.zeros(M, dtype=bool)
         n_visited = 0
@@ -184,26 +179,28 @@ class GlobalViews:
             cur_color = 1
 
             s0 = np.argmax(is_visited == 0)
-            seq, rho = breadth_first_order(n_Utilde_Utilde>0, s0, directed=False) #(ignores edge weights)
+            seq, rho = breadth_first_order(n_Utilde_Utilde, s0, directed=False) #(ignores edge weights)
             is_visited[seq] = True
             n_visited = np.sum(is_visited)
 
             # Iterate over views
             for m in seq:
-                to_tear_mth_view_with = np.where(tear[m,:])[0].tolist()
+                to_tear_mth_view_with = tear[m,:].nonzero()[1].tolist()
                 if len(to_tear_mth_view_with):
                     # Points in the overlap of mth view and the views
                     # on the opposite side of the tear
-                    temp = Utilde[m,:][np.newaxis,:] & Utilde[to_tear_mth_view_with,:]
+                    Utilde_m = Utilde[m,:]
                     for i in range(len(to_tear_mth_view_with)):
                         mp = to_tear_mth_view_with[i]
+                        temp_i = Utilde_m.multiply(Utilde[mp,:])
                         # Compute points on the overlap of m and m'th view
                         # which are in mth cluster and in m'th cluster. If
                         # both sets are non-empty then assign them same color.
-                        temp_m = temp[i,:] & (C[m,:]) & np.isnan(color_of_pts_on_tear)
-                        temp_mp = temp[i,:] & (C[mp,:])  & np.isnan(color_of_pts_on_tear)
-                        if np.any(temp_m) and np.any(temp_mp):
-                            color_of_pts_on_tear[temp_m|temp_mp] = cur_color
+                        temp0 = np.isnan(color_of_pts_on_tear)
+                        temp_m = C[m,:].multiply(temp_i).multiply(temp0)
+                        temp_mp = C[mp,:].multiply(temp_i).multiply(temp0)
+                        if temp_m.sum() and temp_mp.sum():
+                            color_of_pts_on_tear[(temp_m+temp_mp).nonzero()[1]] = cur_color
                             cur_color += 1
                         
         return color_of_pts_on_tear
@@ -214,7 +211,7 @@ class GlobalViews:
         M,n = Utilde.shape
         y = np.zeros((n,d))
         for s in range(M):
-            C_s = C[s,:]
+            C_s = C[s,:].indices
             y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
 
         if global_opts['color_tear']:
@@ -246,7 +243,7 @@ class GlobalViews:
         y = np.zeros((n,d))
         
         for s in range(M):
-            C_s = C[s,:]
+            C_s = C[s,:].indices
             y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
             
         # arrange connected components nicely
@@ -254,7 +251,7 @@ class GlobalViews:
         offset = 0
         for i in range(n_clusters):
             seq = seq_of_intermed_views_in_cluster[i]
-            pts_in_cluster_i = np.any(C[seq,:], axis=0)
+            pts_in_cluster_i = np.where(C[seq,:].sum(axis=0))[1]
             
             # make the x coordinate of the leftmost point
             # of the ith cluster to be equal to the offset
@@ -264,7 +261,7 @@ class GlobalViews:
             
             # recompute the embeddings of the points in this cluster
             for s in range(seq.shape[0]):
-                C_s = C[seq[s],:]
+                C_s = C[seq[s],:].indices
                 y[C_s,:] = intermed_param.eval_({'view_index': seq[s], 'data_mask': C_s})
             
             # recompute the offset as the x coordinate of
@@ -287,50 +284,30 @@ class GlobalViews:
 
         # Boolean array to keep track of already visited views
         is_visited_view = np.zeros(M, dtype=bool)
-        
-        # First intermediate view in each cluster is fixed
-        first_intermed_view_in_cluster = []
-        for i in range(n_clusters):
-            seq = seq_of_intermed_views_in_cluster[i]
-            first_intermed_view_in_cluster.append(seq[0])
-        
-        # sequential init overrides this if global_opts['to_tear'] is True
-        contrib_of_view = Utilde.copy()
-
         init_algo = global_opts['init_algo_name']
         self.log('Computing initial embedding using: ' + init_algo + ' algorithm', log_time=True)
-        if 'sequential' in init_algo:
-            # Initialization contribution of view i
-            # as the points in cluster i
-            contrib_of_view = C.copy()
+        if 'sequential' == init_algo:
             for i in range(n_clusters):
                 # First view global embedding is same as intermediate embedding
-                seq_0 = first_intermed_view_in_cluster[i]
-                is_visited_view[seq_0] = True
-                y[C[seq_0,:],:] = intermed_param.eval_({'view_index': seq_0, 'data_mask': C[seq_0,:]})
-                
                 seq = seq_of_intermed_views_in_cluster[i]
                 rho = parents_of_intermed_views_in_cluster[i]
-                y, is_visited_view,\
-                contrib_of_view_ = sequential_init(seq, rho, y, is_visited_view,
+                seq_0 = seq[0]
+                is_visited_view[seq_0] = True
+                y[C[seq_0,:].indices,:] = intermed_param.eval_({'view_index': seq_0,
+                                                                'data_mask': C[seq_0,:].indices})
+                y, is_visited_view = sequential_init(seq, rho, y, is_visited_view,
                                             d, Utilde, n_Utilde_Utilde,
                                             C, c, intermed_param,
-                                            global_opts, print_freq,
-                                            ret_contrib_of_views=True)
-                if global_opts['to_tear']:
-                    contrib_of_view[seq,:] = contrib_of_view_[seq,:]
+                                            global_opts, print_freq)
             
             if self.debug:
                 self.y_seq_init = y
-                self.contrib_of_view = contrib_of_view
         
-        if 'spectral' in init_algo:
+        if 'spectral' == init_algo:
             y, y_2,\
-            is_visited_view = spectral_init(y, is_visited_view,
-                                            d, contrib_of_view,
-                                            C, intermed_param,
-                                            global_opts, print_freq)
-            
+            is_visited_view = spectral_alignment(y, is_visited_view, d, Utilde,
+                                                 C, intermed_param, global_opts,
+                                                 seq_of_intermed_views_in_cluster)
             if self.debug:
                 self.y_spec_init = y
                 self.y_spec_init_2 = y_2
@@ -340,7 +317,7 @@ class GlobalViews:
         self.tracker['init_computed_at'] = time.time()
         if global_opts['compute_error']:
             self.log('Computing error.')
-            err, _ = compute_alignment_err(d, Utilde, intermed_param)
+            err = compute_alignment_err(d, Utilde, intermed_param)
             self.log('Alignment error: %0.3f' % err, log_time=True)
             self.tracker['init_err'] = err
         
@@ -352,34 +329,23 @@ class GlobalViews:
                                                   n_Utilde_Utilde, global_opts, vis,
                                                   vis_opts, title='Init')
 
-        return y, first_intermed_view_in_cluster, color_of_pts_on_tear
+        return y, color_of_pts_on_tear
 
     def compute_Utildeg(self, y, Utilde, C, global_opts):
         M,n = Utilde.shape
-        d_e_ = squareform(pdist(y)) # O(n^2 d)
+        k_ = min(global_opts['k']*global_opts['nu'], n-1)
+        neigh_distg, neigh_indg = nearest_neighbors(y, k_, 'euclidean')
+        Ug = sparse_matrix(neigh_indg,
+                           np.ones(neigh_indg.shape,
+                                   dtype=bool))
 
-        k_ = min(global_opts['k']*global_opts['nu'], d_e_.shape[0]-1)
-        
-        neigh = NearestNeighbors(n_neighbors=k_,
-                                 metric='precomputed',
-                                 algorithm='brute')
-        neigh.fit(d_e_)
-        neigh_dist, _ = neigh.kneighbors()
-
-        epsilon = neigh_dist[:,[k_-1]]
-        Ug = d_e_ < (epsilon + 1e-12)
-        Utildeg = np.zeros((M,n),dtype=bool)
-        # O(n^2)
-        for m in range(M):
-            Utildeg[m,:] = np.any(Ug[C[m,:],:], 0)
-            
+        Utildeg = C.dot(Ug)
         # |Utildeg_{mm'}|
-        n_Utildeg_Utildeg = np.dot(Utildeg, Utildeg.T) # O(M^2 n) = O(n^3/eta_min^2)
-        np.fill_diagonal(n_Utildeg_Utildeg, 0)
+        n_Utildeg_Utildeg = Utildeg.dot(Utildeg.T) 
+        n_Utildeg_Utildeg.setdiag(False)
         return Utildeg, n_Utildeg_Utildeg
 
     def compute_final_embedding(self, y, d, Utilde, C, intermed_param, n_Utilde_Utilde,
-                                first_intermed_view_in_cluster, 
                                 seq_of_intermed_views_in_cluster,
                                 parents_of_intermed_views_in_cluster, 
                                 cluster_of_intermed_view, global_opts,
@@ -422,54 +388,64 @@ class GlobalViews:
             
             if refine_algo == 'sequential':
                 y = sequential_final(y, d, Utilde, C, intermed_param, n_Utilde_Utilde, n_Utildeg_Utildeg,
-                                     first_intermed_view_in_cluster,
-                                     parents_of_intermed_views_in_cluster, cluster_of_intermed_view,
-                                     global_opts)
+                                     seq_of_intermed_views_in_cluster, parents_of_intermed_views_in_cluster,
+                                     cluster_of_intermed_view, global_opts)
                     
             elif (refine_algo == 'retraction') or (refine_algo == 'spectral'):
-                
                 if global_opts['to_tear']:
-                    contrib_of_view = C.copy()
-                    ZZ = (n_Utilde_Utilde > 0) & (n_Utildeg_Utildeg > 0)
+                    # Compute which points contribute to which views
+                    # IOW, compute correspondence between views and
+                    # points. Since to_tear is True, this is not
+                    # same as Utilde.
+                    cov_col = []
+                    cov_row = []
+                    ZZ = n_Utilde_Utilde.multiply(n_Utildeg_Utildeg)
+                    ZZ.eliminate_zeros()
                     for i in range(n_clusters):
                         seq = seq_of_intermed_views_in_cluster[i]
                         rho = parents_of_intermed_views_in_cluster[i]
                         seq_set = set(seq)
+                        cov_col_ = C[seq[0],:].indices.tolist()
+                        cov_col += cov_col_
+                        cov_row += [seq[0]]*len(cov_col_)
                         for m in range(1,seq.shape[0]):
                             s = seq[m]
                             Z_s = ZZ[s,:]
-                            Z_s = np.where(Z_s)[0].tolist()
+                            Z_s = Z_s.indices.tolist()
                             Z_s = list(seq_set.intersection(Z_s))
                             if len(Z_s) == 0: # ideally this should not happen
                                 Z_s = parents_of_intermed_views_in_cluster[cluster_of_intermed_view[s]][s]
                                 Z_s = [Z_s]
                             
-                            contrib_of_view[s,:] |= (Utilde[s,:] & np.any(C[Z_s,:], 0))
+                            cov_s = Utilde[s,:].multiply(C[Z_s,:].sum(axis=0))
+                            cov_col_ = cov_s.nonzero()[1].tolist()
+                            cov_col += cov_col_
+                            cov_row += [s]*len(cov_col_)
+                    
+                    contrib_of_view = csr_matrix((np.ones(len(cov_col), dtype=bool),
+                                                  (cov_row, cov_col)),
+                                                 shape=C.shape,
+                                                 dtype = bool)
+                    contrib_of_view += C
                             
                 if refine_algo == 'retraction':
-                    y, CCLpinvB = retraction_final(y, d, contrib_of_view, C, intermed_param,
-                                                   n_Utilde_Utilde, n_Utildeg_Utildeg,
-                                                   first_intermed_view_in_cluster,
-                                                   parents_of_intermed_views_in_cluster,
-                                                   cluster_of_intermed_view,
-                                                   global_opts, CC, Lpinv_BT)
+                    y = retraction_final(y, d, contrib_of_view, C, intermed_param,
+                                           n_Utilde_Utilde, n_Utildeg_Utildeg,
+                                           parents_of_intermed_views_in_cluster,
+                                           cluster_of_intermed_view,
+                                           global_opts)
                 elif refine_algo == 'spectral':
                     y, y_2,\
-                    is_visited_view = spectral_init(y, is_visited_view,
-                                                    d, contrib_of_view,
-                                                    C, intermed_param,
-                                                    global_opts, print_freq)
-#                 if not global_opts['to_tear']:
-#                     CC, Lpinv_BT = CCLpinvB
-            
-            
+                    is_visited_view = spectral_alignment(y, is_visited_view, d, contrib_of_view,
+                                                         C, intermed_param, global_opts,
+                                                         seq_of_intermed_views_in_cluster)
                 
             self.log('Done.', log_time=True)
             self.tracker['refine_iter_done_at'][it0] = time.time()
 
             if global_opts['compute_error'] or (it0 == max_iter0-1):
                 self.log('Computing error.')
-                err, _ = compute_alignment_err(d, Utilde, intermed_param)
+                err = compute_alignment_err(d, Utilde, intermed_param)
                 self.log('Alignment error: %0.3f' % err, log_time=True)
                 self.tracker['refine_err_at_iter'][it0] = err
                 
