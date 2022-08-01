@@ -365,3 +365,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
                                     ldle.vis_opts['cmap_boundary'], 'images',
                                     offset_ratio=0.2, zoom=0.4, nx=8, ny=10, v_ratio=0.65, w_ratio=0.005,
                                     figsize=(10,12), s=80, to_remove=False, k_to_avoid=[], to_T=True)
+    
+    if 'epoch' in fpath:
+        Ls = all_data[4]
+        ldle.vis.visualize_epoch_data(ldle.GlobalViews.y_final, Ls)

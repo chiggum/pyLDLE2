@@ -13,6 +13,16 @@ import multiprocess as mp
 from multiprocess import shared_memory
 import itertools
 
+import queue
+
+# merging s to m
+def merging_cost(s, m, Utilde_s, Utilde_m, d_e, local_param):
+    Utilde_s_U_Utilde_m = list(Utilde_s.union(Utilde_m))
+    return compute_zeta(d_e[np.ix_(Utilde_s_U_Utilde_m,Utilde_s_U_Utilde_m)],
+                           local_param.eval_({'view_index': m,
+                                              'data_mask': Utilde_s_U_Utilde_m}))
+
+
 # Computes cost_k, d_k (dest_k)
 def cost_of_moving(k, d_e, neigh_ind_k, U_k, local_param, c, n_C,
                    Utilde, eta_min, eta_max):
@@ -93,7 +103,7 @@ class IntermedViews:
                                               self.local_start_time, 
                                               self.global_start_time)
     
-    def fit(self, d, d_e, U, neigh_ind_, local_param, intermed_opts):
+    def best(self, d, d_e, U, neigh_ind_, local_param, intermed_opts):
         n = d_e.shape[0]
         c = np.arange(n)
         n_C = np.zeros(n) + 1
@@ -237,8 +247,6 @@ class IntermedViews:
                 cost_star = np_cost[k]
             print('Remaining #nodes in views with sz < %d = %d' % (eta, np.sum(n_C[c]<eta)))
             self.log('Done with eta = %d.' % eta, log_time=True)
-        
-        self.log('Pruning and cleaning up.')
         del U_
         del Clstr
         del Utilde
@@ -250,7 +258,118 @@ class IntermedViews:
         del np_dest
         shm_dest.close()
         shm_dest.unlink()
+        return c, n_C
+    
+    def match_n_merge(self, d, d_e, U, neigh_ind, local_param, intermed_opts):
+        n = d_e.shape[0]
+        c = np.arange(n, dtype=int)
+        n_C = np.ones(n, dtype=int)
+        Utilde = []
+        for k in range(n):
+            neigh_ind_k = set(neigh_ind[k])
+            Utilde.append(neigh_ind_k)
+            
+        n_proc = intermed_opts['n_proc']
+        n_times = intermed_opts['n_times']
         
+        # Compute merging costs between
+        # each pair of nbring clusters
+        def target_proc(p_num, chunk_sz, q_, clstrs, nbr_clstrs_of):
+            start_ind = p_num*chunk_sz
+            if p_num == (n_proc-1):
+                end_ind = len(clstrs)
+            else:
+                end_ind = (p_num+1)*chunk_sz
+            n_rows = 0
+            for s in range(start_ind, end_ind):
+                n_rows += len(nbr_clstrs_of[s])
+            pq_arr = np.zeros((2*n_rows, 3))
+            ctr = 0
+            for s in range(start_ind, end_ind):
+                c_id = clstrs[s]
+                Utilde_s = Utilde[c_id]
+                for m in nbr_clstrs_of[s]:
+                    if m == c_id:
+                        continue
+                    Utilde_m = Utilde[m]
+                    mc = merging_cost(c_id, m, Utilde_s, Utilde_m, 
+                                      d_e, local_param)
+                    pq_arr[2*ctr,:] = [mc,c_id,m]
+                    mc = merging_cost(m, c_id, Utilde_m, Utilde_s, 
+                                      d_e, local_param)
+                    pq_arr[2*ctr+1,:] = [mc,m,c_id]
+                    ctr += 1
+            q_.put(pq_arr[:2*ctr,:])
+        ###########################################
+        
+        clstrs = list(range(n))
+        nbr_clstrs_of = Utilde
+        q_ = mp.Queue()
+        for eta in range(n_times):
+            self.log('Iter#%d: Match and merge' % eta)
+            proc = []
+            chunk_sz = int(len(clstrs)/n_proc)
+            for p_num in range(n_proc):
+                proc.append(mp.Process(target=target_proc,
+                                       args=(p_num,chunk_sz,
+                                             q_, clstrs,
+                                             nbr_clstrs_of),
+                                       daemon=True))
+                proc[-1].start()
+
+            n_done = 0
+            pq = []
+            for p_num in range(n_proc):
+                pq.append(q_.get())
+            
+            for p_num in range(n_proc):
+                proc[p_num].join()
+                
+            pq = np.concatenate(pq, axis=0)
+            pq = pq[np.lexsort((pq[:,2],pq[:,1],pq[:,0]))] # for reproducibility
+            
+            is_merged = np.zeros(n, dtype=bool)
+            max_dist = -1
+            for i in range(pq.shape[0]):
+                s = int(pq[i,1])
+                m = int(pq[i,2])
+                if is_merged[s] or is_merged[m]:
+                    continue
+                max_dist = max(max_dist, pq[i,0])
+                n_C_s = n_C[s]
+                n_C_m = n_C[m]
+                
+                n_C[m] += n_C_s
+                c[c==s] = m
+                Utilde[m] = Utilde[m].union(Utilde[s])
+                n_C[s] = 0
+                Utilde[s] = None
+                
+                is_merged[s] = True
+                is_merged[m] = True
+            
+            # Update list of clstrs and their nbring clstrs
+            clstrs = np.where(n_C>0)[0].tolist()
+            nbr_clstrs_of = []
+            for m in clstrs:
+                nbr_clstrs = c[list(Utilde[m])] # may contain duplicates
+                nbr_clstrs_of.append(set(nbr_clstrs))
+            self.log('Done.', log_time=True)
+            
+        q_.close()
+        return c, n_C
+    
+    def fit(self, d, d_e, U, local_param, intermed_opts):
+        n = d_e.shape[0]
+        neigh_ind = []
+        for i in range(n):
+            neigh_ind.append(U[i,:].indices.tolist())
+        if intermed_opts['algo'] == 'best':
+            c, n_C = self.best(d, d_e, U, neigh_ind, local_param, intermed_opts)
+        else:
+            c, n_C = self.match_n_merge(d, d_e, U, neigh_ind, local_param, intermed_opts)
+            
+        self.log('Pruning and cleaning up.')
         # Prune empty clusters
         non_empty_C = n_C > 0
         M = np.sum(non_empty_C)
@@ -259,17 +378,17 @@ class IntermedViews:
         c = old_to_new_map[c]
         n_C = n_C[non_empty_C]
         
-        # Construct a boolean array C s.t. C[m,i] = 1 if c_i == m, 0 otherwise
+        # Construct a boolean ar ray C s.t. C[m,i] = 1 if c_i == m, 0 otherwise
         C = csr_matrix((np.ones(n), (c, np.arange(n))),
                        shape=(M,n), dtype=bool)
         
         # Compute intermediate views
         intermed_param = copy.deepcopy(local_param)
-        if intermed_opts['algo'] == 'LDLE':
+        if intermed_opts['local_algo'] == 'LDLE':
             intermed_param.Psi_i = local_param.Psi_i[non_empty_C,:]
             intermed_param.Psi_gamma = local_param.Psi_gamma[non_empty_C,:]
             intermed_param.b = intermed_param.b[non_empty_C]
-        elif intermed_opts['algo'] == 'LTSA':
+        elif intermed_opts['local_algo'] == 'LTSA':
             intermed_param.Psi = local_param.Psi[non_empty_C,:]
             intermed_param.mu = local_param.mu[non_empty_C,:]
             intermed_param.b = intermed_param.b[non_empty_C]

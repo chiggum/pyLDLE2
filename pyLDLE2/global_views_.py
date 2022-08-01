@@ -4,7 +4,7 @@ import numpy as np
 import copy
 
 from .util_ import procrustes, print_log, nearest_neighbors, sparse_matrix
-from .global_reg_ import sequential_init, spectral_alignment, sequential_final, retraction_final, compute_alignment_err
+from .global_reg_ import procrustes_init, spectral_alignment, procrustes_final, rgd_final, compute_alignment_err
 
 from scipy.linalg import svdvals
 from scipy.sparse.csgraph import minimum_spanning_tree, breadth_first_order
@@ -286,7 +286,7 @@ class GlobalViews:
         is_visited_view = np.zeros(M, dtype=bool)
         init_algo = global_opts['init_algo_name']
         self.log('Computing initial embedding using: ' + init_algo + ' algorithm', log_time=True)
-        if 'sequential' == init_algo:
+        if 'procrustes' == init_algo:
             for i in range(n_clusters):
                 # First view global embedding is same as intermediate embedding
                 seq = seq_of_intermed_views_in_cluster[i]
@@ -295,7 +295,7 @@ class GlobalViews:
                 is_visited_view[seq_0] = True
                 y[C[seq_0,:].indices,:] = intermed_param.eval_({'view_index': seq_0,
                                                                 'data_mask': C[seq_0,:].indices})
-                y, is_visited_view = sequential_init(seq, rho, y, is_visited_view,
+                y, is_visited_view = procrustes_init(seq, rho, y, is_visited_view,
                                             d, Utilde, n_Utilde_Utilde,
                                             C, c, intermed_param,
                                             global_opts, print_freq)
@@ -386,12 +386,12 @@ class GlobalViews:
             self.log('Refining with ' + refine_algo + ' algorithm for ' + str(max_iter1) + ' iterations.')
             self.log('Refinement iteration: %d' % it0, log_time=True)
             
-            if refine_algo == 'sequential':
-                y = sequential_final(y, d, Utilde, C, intermed_param, n_Utilde_Utilde, n_Utildeg_Utildeg,
+            if refine_algo == 'procrustes':
+                y = procrustes_final(y, d, Utilde, C, intermed_param, n_Utilde_Utilde, n_Utildeg_Utildeg,
                                      seq_of_intermed_views_in_cluster, parents_of_intermed_views_in_cluster,
                                      cluster_of_intermed_view, global_opts)
                     
-            elif (refine_algo == 'retraction') or (refine_algo == 'spectral'):
+            elif (refine_algo == 'rgd') or (refine_algo == 'spectral'):
                 if global_opts['to_tear']:
                     # Compute which points contribute to which views
                     # IOW, compute correspondence between views and
@@ -428,12 +428,12 @@ class GlobalViews:
                                                  dtype = bool)
                     contrib_of_view += C
                             
-                if refine_algo == 'retraction':
-                    y = retraction_final(y, d, contrib_of_view, C, intermed_param,
-                                           n_Utilde_Utilde, n_Utildeg_Utildeg,
-                                           parents_of_intermed_views_in_cluster,
-                                           cluster_of_intermed_view,
-                                           global_opts)
+                if refine_algo == 'rgd':
+                    y = rgd_final(y, d, contrib_of_view, C, intermed_param,
+                                   n_Utilde_Utilde, n_Utildeg_Utildeg,
+                                   parents_of_intermed_views_in_cluster,
+                                   cluster_of_intermed_view,
+                                   global_opts)
                 elif refine_algo == 'spectral':
                     y, y_2,\
                     is_visited_view = spectral_alignment(y, is_visited_view, d, contrib_of_view,

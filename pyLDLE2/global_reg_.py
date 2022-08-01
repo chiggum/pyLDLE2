@@ -30,7 +30,7 @@ def compute_Z_s_to_tear(y, s, Z_s, C, c, k):
     n_Utildeg_Utilde_.setdiag(False)
     return Z_s[n_Utildeg_Utilde_[-1,:-1].nonzero()[1]].tolist()
 
-def sequential_init(seq, rho, y, is_visited_view, d, Utilde, n_Utilde_Utilde,
+def procrustes_init(seq, rho, y, is_visited_view, d, Utilde, n_Utilde_Utilde,
                     C, c, intermed_param, global_opts, print_freq=1000):   
     n = Utilde.shape[1]
     # Traverse views from 2nd view
@@ -238,7 +238,7 @@ def spectral_alignment(y, is_visited_view, d, Utilde,
     
     return y, Zstar[:,:n].T, is_visited_view
 
-def sequential_final(y, d, Utilde, C, intermed_param, n_Utilde_Utilde, n_Utildeg_Utildeg,
+def procrustes_final(y, d, Utilde, C, intermed_param, n_Utilde_Utilde, n_Utildeg_Utildeg,
                      seq_of_intermed_views_in_cluster, parents_of_intermed_views_in_cluster,
                      cluster_of_intermed_view, global_opts):
     M,n = Utilde.shape
@@ -303,11 +303,11 @@ def sequential_final(y, d, Utilde, C, intermed_param, n_Utilde_Utilde, n_Utildeg
             y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
     return y
 
-def retraction_final(y, d, Utilde, C, intermed_param,
-                     n_Utilde_Utilde, n_Utildeg_Utildeg,
-                     parents_of_intermed_views_in_cluster,
-                     cluster_of_intermed_view,
-                     global_opts):
+def rgd_final(y, d, Utilde, C, intermed_param,
+             n_Utilde_Utilde, n_Utildeg_Utildeg,
+             parents_of_intermed_views_in_cluster,
+             cluster_of_intermed_view,
+             global_opts):
     CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param)
     M,n = Utilde.shape
     n_proc = min(M,global_opts['n_proc'])

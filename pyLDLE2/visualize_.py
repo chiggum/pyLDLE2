@@ -3,6 +3,10 @@ import os
 
 import numpy as np
 
+import math
+import matplotlib.colors as mcolors
+import scipy
+
 import matplotlib
 print('matplotlib.get_backend() = ', matplotlib.get_backend())
 #matplotlib.use('Qt4Agg')
@@ -1539,3 +1543,56 @@ class Visualize:
             if not os.path.isdir(self.save_dir+'/ge_img_v2'):
                 os.makedirs(self.save_dir+'/ge_img_v2')
             plt.savefig(self.save_dir+'/ge_img_v2/'+str(title)+'.png')
+    
+    def visualize_epoch_data(self, X, Ls):
+        a=np.array(X)
+        dim=X.shape[1]
+        to=max(Ls)+1
+        index=np.zeros(len(Ls))
+        k=0
+        l2=0
+
+        C=[]
+        C.append("navy")
+        C.append("deepskyblue")
+        C.append("cornflowerblue")
+        C.append("darkcyan")
+        C.append("turquoise")
+        C.append("limegreen")
+        C.append("yellowgreen")
+        C.append("gold")
+        C.append("orange")
+        C.append("red")
+
+        for i in range(len(Ls)):
+            if i==0:
+                l2 = int (k + Ls[ i, 0 ] )
+                s = a[k:l2,:]
+                while s.shape[0]<to:
+                    s=np.append(s, np.zeros((1,dim)),axis=0)
+                T=s
+                index[i]=int(l2)
+                k = int (k + Ls[ i, 0] )
+
+            else:
+                l2 = int (k + Ls[ i, 0 ] )
+                s = a[k:l2,:]
+                while s.shape[0]<to:
+                    s=np.append(s, np.zeros((1,dim)),axis=0)
+                index[i]=int(l2)
+                T=np.dstack((T,s))
+                k = int (k + Ls[ i, 0] )
+
+        fig = plt.figure(figsize=(4*2.3,3*2.3))
+
+        for i in range(len(Ls)):
+            x=T[:,:,i]
+            x=x[np.all(x !=0, axis=1)]
+            b=len(x)
+            x1= x[:b,0]
+            y1= x[:b,1]
+            c=i%10      
+            plt.scatter(x1,y1,color=C[c])
+            plt.scatter(x1[0], y1[0], color='white', marker="^", edgecolor='black')
+            plt.scatter(x1[b-1], y1[b-1], color='white', marker="o", edgecolor='black')
+            plt.axis('image')

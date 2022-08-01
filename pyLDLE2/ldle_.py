@@ -14,6 +14,7 @@ from . import visualize_
 from .util_ import print_log, sparse_matrix, nearest_neighbors
 import multiprocess as mp
 from pandas import DataFrame
+import json
     
 def double_manifold_k_nn(data, ddX, k_nn, metric, n_proc=1):
     """Doubles the manifold represented by X and computes
@@ -178,7 +179,7 @@ def double_manifold_k_nn(data, ddX, k_nn, metric, n_proc=1):
     return neigh_dist, neigh_ind
     
 
-def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=35, gl_type='unnorm',
+def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, gl_type='unnorm',
                            N=100, no_gamma=False, Atilde_method='LDLE_1',
                            p=0.99, tau=50, delta=0.9, to_postprocess= True,
                            pp_n_thresh=32):
@@ -189,7 +190,7 @@ def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=35, gl_type='unnorm
     algo : str
            The algorithm to use for the construction of
            local views. Options are 'LDLE' and 'LTSA'.
-           LTSA uses the hyperparameter k only and is
+           LTSA uses the hyperparameter k and k_nn only and is
            not affected by the value of the others.
     k_nn : int
            For k-nearest neighbor graph construction.
@@ -240,28 +241,39 @@ def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=35, gl_type='unnorm
            'delta': delta, 'to_postprocess': to_postprocess, 'algo': algo,
            'pp_n_thresh': pp_n_thresh}
 
-def get_default_intermed_opts(eta_min=5, eta_max=25, len_S_thresh=256):
+def get_default_intermed_opts(algo='mnm', n_times=4, eta_min=5, eta_max=25, len_S_thresh=256):
     """Sets and returns a dictionary of default_intermed_opts.
     
     Parameters
     ----------
+    algo : str
+           Algo to use. Options are 'mnm' for match and merge,
+           'best' for the optimal algorithm (much slower
+           but creates intermediate views with lower distortion).
+    n_times : int
+              Hypereparameter for 'mnm' algo. Number of times to match
+              and merge. If n is the #local views then the #intermediate
+              views will be approximately n/2^{n_times}.
     eta_min : int
-              Minimum allowed size of the clusters underlying
-              the intermediate views. The values must be >= 1.
+              Hyperparameter for 'best' algo. Minimum allowed size of 
+              the clusters underlying the intermediate views.
+              The values must be >= 1.
     eta_max : int
-              Maximum allowed size of the clusters underlying
-              the intermediate views. The value must be > eta_min.
+              Hyperparameter for 'best' algo. Maximum allowed size of
+              the clusters underlying the intermediate views.
+              The value must be > eta_min.
     len_S_thresh : int
                    Threshold on the number of points for which 
                    the costs are to be updated, to invoke
-                   multiple processors.
+                   multiple processors. Used with 'best' algo only.
     """
-    return {'eta_min': eta_min, 'eta_max': eta_max, 'len_S_thresh': len_S_thresh}
+    return {'algo': algo, 'n_times': n_times, 'eta_min': eta_min,
+            'eta_max': eta_max, 'len_S_thresh': len_S_thresh}
     
-def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=10, color_tear=True,
+def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, color_tear=True,
                             vis_before_init=False, compute_error=False,
-                            init_algo_name='sequential', init_algo_align_w_parent_only=True,
-                            refine_algo_name='retraction',
+                            init_algo_name='procrustes', init_algo_align_w_parent_only=True,
+                            refine_algo_name='rgd',
                             refine_algo_max_internal_iter=100,
                             refine_algo_alpha=0.3):
     """Sets and returns a dictionary of default_global_opts.
@@ -292,7 +304,7 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=10, c
     init_algo_name : str
                      The algorithm used to compute initial global embedding
                      by aligning the intermediate views.
-                     Options are 'sequential' for tree-based-procrustes alignment,
+                     Options are 'procrustes' for tree-based-procrustes alignment,
                      'spectral' for spectral alignment (ignores to_tear).
     init_algo_align_w_parent_only : bool
                                     If True only the parents of the intermediate
@@ -301,8 +313,8 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=10, c
     refine_algo_name : str
                        The algorithm used to refine the initial global embedding
                        by refining the alignment between intermediate views.
-                       Options are 'sequential' for Generalized Procustes Analysis
-                       (GPA) based alignment, 'retraction' for Riemannian optimization
+                       Options are 'gpa' for Generalized Procustes Analysis
+                       (GPA) based alignment, 'rgd' for Riemannian gradient descent
                        based alignment, 'spectral' for spectral alignment.
     refine_algo_max_internal_iter : int
                                     The number of internal iterations used by
@@ -310,7 +322,7 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=10, c
                                     by 'spectral' refinement.
     refine_algo_alpha : int
                         The step size used in the Riemannian gradient descent
-                        when the refinement algorithm is 'retraction'.
+                        when the refinement algorithm is 'rgd'.
     """
     return {'to_tear': to_tear, 'nu': nu, 'max_iter': max_iter,
                'color_tear': color_tear,
@@ -376,7 +388,7 @@ class LDLE:
                  intermed_opts = {},
                  global_opts = {},
                  vis_opts = {},
-                 n_proc = min(8,max(1,int(mp.cpu_count()*0.75))),
+                 n_proc = min(32,max(1,int(mp.cpu_count()*0.75))),
                  exit_at = None,
                  verbose = False,
                  debug = False):
@@ -391,8 +403,8 @@ class LDLE:
             default_local_opts[i] = local_opts[i]
         self.local_opts = default_local_opts
         #############################################
-        intermed_opts['algo'] = self.local_opts['algo']
         intermed_opts['n_proc'] = n_proc
+        intermed_opts['local_algo'] = self.local_opts['algo']
         for i in intermed_opts:
             default_intermed_opts[i] = intermed_opts[i]
         self.intermed_opts = default_intermed_opts
@@ -405,7 +417,7 @@ class LDLE:
         global_opts['n_proc'] = n_proc
         for i in global_opts:
             default_global_opts[i] = global_opts[i]
-        if default_global_opts['refine_algo_name'] != 'retraction':
+        if default_global_opts['refine_algo_name'] != 'rgd':
             if 'refine_algo_max_internal_iter' not in global_opts:
                 default_global_opts['refine_algo_max_internal_iter'] = 10
                 print("Making global_opts['refine_algo_max_internal_iter'] =",
@@ -427,6 +439,14 @@ class LDLE:
         # Other useful inits
         self.global_start_time = time.time()
         self.local_start_time = time.time()
+        
+        print('Options provided:')
+        print('local_opts:')
+        print(json.dumps(self.local_opts, sort_keys=True, indent=4))
+        print('intermed_opts:')
+        print(json.dumps( self.intermed_opts, sort_keys=True, indent=4))
+        print('global_opts:')
+        print(json.dumps( self.global_opts, sort_keys=True, indent=4))
         
         # The variables created during the fit
         self.X = None
@@ -489,6 +509,7 @@ class LDLE:
         neigh_ind = neigh_ind[:,:self.local_opts['k_nn']]
         neigh_dist = neigh_dist[:,:self.local_opts['k_nn']]
         
+        
         # Construct low dimensional local views
         LocalViews = local_views_.LocalViews(self.exit_at, self.verbose, self.debug)
         LocalViews.fit(self.d, X, d_e, neigh_dist, neigh_ind, ddX, self.local_opts)
@@ -497,6 +518,11 @@ class LDLE:
         if ddX is not None:
             n = ddX.shape[0]
             d_e = d_e[:n,:n]
+            
+        if self.debug:
+            self.d_e = d_e
+            self.neigh_ind = neigh_ind
+            self.neigh_dist = neigh_dist
         
         self.LocalViews = LocalViews
         if self.exit_at == 'local_views':
@@ -504,8 +530,9 @@ class LDLE:
         
         # Construct intermediate views
         IntermedViews = intermed_views_.IntermedViews(self.exit_at, self.verbose, self.debug)
-        IntermedViews.fit(self.d, d_e, LocalViews.U, neigh_ind[:,:self.local_opts['k']],
-                          LocalViews.local_param_post, self.intermed_opts)
+        IntermedViews.fit(self.d, d_e, LocalViews.U,
+                          LocalViews.local_param_post,
+                          self.intermed_opts)
         
         self.IntermedViews = IntermedViews
         if self.exit_at == 'intermed_views':
@@ -518,10 +545,5 @@ class LDLE:
                         self.vis, self.vis_opts)
         
         self.GlobalViews = GlobalViews
-        
-        if self.debug:
-            self.d_e = d_e
-            self.neigh_ind = neigh_ind
-            self.neigh_dist = neigh_dist
         
         return GlobalViews.y_final
