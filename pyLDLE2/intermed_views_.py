@@ -274,7 +274,7 @@ class IntermedViews:
         
         # Compute merging costs between
         # each pair of nbring clusters
-        def target_proc(p_num, chunk_sz, q_, clstrs, nbr_clstrs_of):
+        def target_proc(p_num, chunk_sz, q_, clstrs, nbr_clstrs_of, clstr_dist):
             start_ind = p_num*chunk_sz
             if p_num == (n_proc-1):
                 end_ind = len(clstrs)
@@ -283,7 +283,7 @@ class IntermedViews:
             n_rows = 0
             for s in range(start_ind, end_ind):
                 n_rows += len(nbr_clstrs_of[s])
-            pq_arr = np.zeros((2*n_rows, 3))
+            pq_arr = np.zeros((2*n_rows, 4))
             ctr = 0
             for s in range(start_ind, end_ind):
                 c_id = clstrs[s]
@@ -294,16 +294,17 @@ class IntermedViews:
                     Utilde_m = Utilde[m]
                     mc = merging_cost(c_id, m, Utilde_s, Utilde_m, 
                                       d_e, local_param)
-                    pq_arr[2*ctr,:] = [mc,c_id,m]
+                    pq_arr[2*ctr,:] = [clstr_dist[c_id],mc,c_id,m]
                     mc = merging_cost(m, c_id, Utilde_m, Utilde_s, 
                                       d_e, local_param)
-                    pq_arr[2*ctr+1,:] = [mc,m,c_id]
+                    pq_arr[2*ctr+1,:] = [clstr_dist[m],mc,m,c_id]
                     ctr += 1
             q_.put(pq_arr[:2*ctr,:])
         ###########################################
         
         clstrs = list(range(n))
         nbr_clstrs_of = Utilde
+        clstr_dist = local_param.zeta
         q_ = mp.Queue()
         for eta in range(n_times):
             self.log('Iter#%d: Match and merge' % eta)
@@ -313,7 +314,8 @@ class IntermedViews:
                 proc.append(mp.Process(target=target_proc,
                                        args=(p_num,chunk_sz,
                                              q_, clstrs,
-                                             nbr_clstrs_of),
+                                             nbr_clstrs_of,
+                                             clstr_dist),
                                        daemon=True))
                 proc[-1].start()
 
@@ -326,24 +328,27 @@ class IntermedViews:
                 proc[p_num].join()
                 
             pq = np.concatenate(pq, axis=0)
-            pq = pq[np.lexsort((pq[:,2],pq[:,1],pq[:,0]))] # for reproducibility
+            #pq = pq[np.lexsort((pq[:,3],pq[:,2],pq[:,1],pq[:,0]))] # for reproducibility
+            pq = pq[np.lexsort((pq[:,3],pq[:,2],pq[:,1]))] # for reproducibility
             
             is_merged = np.zeros(n, dtype=bool)
             max_dist = -1
             for i in range(pq.shape[0]):
-                s = int(pq[i,1])
-                m = int(pq[i,2])
+                s = int(pq[i,2])
+                m = int(pq[i,3])
                 if is_merged[s] or is_merged[m]:
                     continue
-                max_dist = max(max_dist, pq[i,0])
+                max_dist = max(max_dist, pq[i,1])
                 n_C_s = n_C[s]
                 n_C_m = n_C[m]
                 
                 n_C[m] += n_C_s
                 c[c==s] = m
                 Utilde[m] = Utilde[m].union(Utilde[s])
+                clstr_dist[m] = pq[i,1]
                 n_C[s] = 0
                 Utilde[s] = None
+                clstr_dist[s] = 0
                 
                 is_merged[s] = True
                 is_merged[m] = True
@@ -354,7 +359,7 @@ class IntermedViews:
             for m in clstrs:
                 nbr_clstrs = c[list(Utilde[m])] # may contain duplicates
                 nbr_clstrs_of.append(set(nbr_clstrs))
-            self.log('Done.', log_time=True)
+            self.log('Done. Max cluster distortion is %0.3f' % np.max(clstr_dist), log_time=True)
             
         q_.close()
         return c, n_C

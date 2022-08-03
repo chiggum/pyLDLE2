@@ -241,7 +241,7 @@ def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, gl_type='unnorm
            'delta': delta, 'to_postprocess': to_postprocess, 'algo': algo,
            'pp_n_thresh': pp_n_thresh}
 
-def get_default_intermed_opts(algo='mnm', n_times=4, eta_min=5, eta_max=25, len_S_thresh=256):
+def get_default_intermed_opts(algo='best', n_times=4, eta_min=5, eta_max=25, len_S_thresh=256):
     """Sets and returns a dictionary of default_intermed_opts.
     
     Parameters
