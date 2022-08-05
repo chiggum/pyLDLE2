@@ -9,7 +9,7 @@ Welcome to pyLDLE2's documentation!
 Installation
 ============
 
-``pip install pyLDLE2``
+``pip install --upgrade pyLDLE2``
 
 .. toctree::
    :maxdepth: 3
@@ -18,4 +18,5 @@ Installation
    api
    modules
    examples
+   citations
    todo
