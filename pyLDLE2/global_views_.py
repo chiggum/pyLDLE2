@@ -4,7 +4,7 @@ import numpy as np
 import copy
 
 from .util_ import procrustes, print_log, nearest_neighbors, sparse_matrix
-from .global_reg_ import procrustes_init, spectral_alignment, procrustes_final, rgd_final, compute_alignment_err
+from .global_reg_ import procrustes_init, spectral_alignment, sdp_alignment, procrustes_final, rgd_final, compute_alignment_err
 
 from scipy.linalg import svdvals
 from scipy.sparse.csgraph import minimum_spanning_tree, breadth_first_order
@@ -95,6 +95,7 @@ class GlobalViews:
             self.seq_of_intermed_views_in_cluster = seq_of_intermed_views_in_cluster
             self.parents_of_intermed_views_in_cluster = parents_of_intermed_views_in_cluster
     
+    # Motivated from graph lateration
     def compute_seq_of_intermediate_views(self, Utilde, n_C, n_Utilde_Utilde,
                                           intermed_param, print_prop = 0.25):
         M = Utilde.shape[0]
@@ -312,6 +313,12 @@ class GlobalViews:
                 self.y_spec_init = y
                 self.y_spec_init_2 = y_2
                 
+        if 'sdp' == init_algo:
+            y, y_2,\
+            is_visited_view, _ = sdp_alignment(y, is_visited_view, d, Utilde,
+                                               C, intermed_param, global_opts,
+                                               seq_of_intermed_views_in_cluster)
+                
         
         self.log('Embedding initialized.', log_time=True)
         self.tracker['init_computed_at'] = time.time()
@@ -372,7 +379,7 @@ class GlobalViews:
         Lpinv_BT = None
 
         max_iter0 = global_opts['max_iter']
-        max_iter1 = global_opts['refine_algo_max_internal_iter']
+        max_iter1 = global_opts['max_internal_iter']
         refine_algo = global_opts['refine_algo_name']
         
         self.tracker['refine_iter_start_at'] = np.zeros(max_iter0)
@@ -380,6 +387,7 @@ class GlobalViews:
         self.tracker['refine_err_at_iter'] = np.zeros(max_iter0)
         
         contrib_of_view = Utilde.copy()
+        solver = None
         # Refine global embedding y
         for it0 in range(max_iter0):
             self.tracker['refine_iter_start_at'][it0] = time.time()
@@ -391,7 +399,7 @@ class GlobalViews:
                                      seq_of_intermed_views_in_cluster, parents_of_intermed_views_in_cluster,
                                      cluster_of_intermed_view, global_opts)
                     
-            elif (refine_algo == 'rgd') or (refine_algo == 'spectral'):
+            else:
                 if global_opts['to_tear']:
                     # Compute which points contribute to which views
                     # IOW, compute correspondence between views and
@@ -439,6 +447,13 @@ class GlobalViews:
                     is_visited_view = spectral_alignment(y, is_visited_view, d, contrib_of_view,
                                                          C, intermed_param, global_opts,
                                                          seq_of_intermed_views_in_cluster)
+                elif refine_algo == 'sdp':
+                    y, y_2,\
+                    is_visited_view,\
+                    solver = sdp_alignment(y, is_visited_view, d, contrib_of_view,
+                                           C, intermed_param, global_opts,
+                                           seq_of_intermed_views_in_cluster,
+                                           solver=solver)
                 
             self.log('Done.', log_time=True)
             self.tracker['refine_iter_done_at'][it0] = time.time()

@@ -272,10 +272,11 @@ def get_default_intermed_opts(algo='best', n_times=4, eta_min=5, eta_max=25, len
     
 def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, color_tear=True,
                             vis_before_init=False, compute_error=False,
-                            init_algo_name='procrustes', init_algo_align_w_parent_only=True,
+                            init_algo_name='procrustes', align_w_parent_only=True,
                             refine_algo_name='rgd',
-                            refine_algo_max_internal_iter=100,
-                            refine_algo_alpha=0.3):
+                            max_internal_iter=100,
+                            alpha=0.3,
+                            eps=1e-8):
     """Sets and returns a dictionary of default_global_opts.
 
     Parameters
@@ -305,24 +306,31 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, c
                      The algorithm used to compute initial global embedding
                      by aligning the intermediate views.
                      Options are 'procrustes' for tree-based-procrustes alignment,
-                     'spectral' for spectral alignment (ignores to_tear).
-    init_algo_align_w_parent_only : bool
-                                    If True only the parents of the intermediate
-                                    views are used in the tree-based-procrustes
-                                    alignment.
+                     'spectral' for spectral alignment (ignores to_tear),
+                     'sdp' for semi-definite programming based alignment (ignores
+                     to_tear).
+    align_w_parent_only : bool
+                          If True only the parents of the intermediate
+                          views are used in the tree-based-procrustes
+                          alignment.
     refine_algo_name : str
                        The algorithm used to refine the initial global embedding
                        by refining the alignment between intermediate views.
                        Options are 'gpa' for Generalized Procustes Analysis
                        (GPA) based alignment, 'rgd' for Riemannian gradient descent
-                       based alignment, 'spectral' for spectral alignment.
-    refine_algo_max_internal_iter : int
-                                    The number of internal iterations used by
-                                    the refinement algorithm. This is ignored
-                                    by 'spectral' refinement.
-    refine_algo_alpha : int
-                        The step size used in the Riemannian gradient descent
-                        when the refinement algorithm is 'rgd'.
+                       based alignment, 'spectral' for spectral alignment,
+                       'sdp' for semi-definite programming absed alignment. Note that
+                       sdp based alignment is very slow.
+    max_internal_iter : int
+                        The number of internal iterations used by
+                        the refinement algorithm. This is ignored
+                        by 'spectral' refinement.
+    alpha : float
+            The step size used in the Riemannian gradient descent
+            when the refinement algorithm is 'rgd'.
+    eps : float
+          The tolerance used by sdp solver when the init or refinement
+          algorithm is 'sdp'.
     """
     return {'to_tear': to_tear, 'nu': nu, 'max_iter': max_iter,
                'color_tear': color_tear,
@@ -330,10 +338,11 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, c
                'compute_error': compute_error,
                'main_algo': main_algo, 
                'init_algo_name': init_algo_name,
-               'init_algo_align_w_parent_only': init_algo_align_w_parent_only,
+               'align_w_parent_only': align_w_parent_only,
                'refine_algo_name': refine_algo_name, 
-               'refine_algo_max_internal_iter': refine_algo_max_internal_iter,
-               'refine_algo_alpha': refine_algo_alpha, 
+               'max_internal_iter': max_internal_iter,
+               'alpha': alpha,
+               'eps': eps
               }
 def get_default_vis_opts(save_dir='', cmap_interior='summer', cmap_boundary='jet', c=None):
     """Sets and returns a dictionary of default_vis_opts.
@@ -399,12 +408,16 @@ class LDLE:
         
         self.d = d
         local_opts['n_proc'] = n_proc
+        local_opts['verbose'] = verbose
+        local_opts['debug'] = debug
         for i in local_opts:
             default_local_opts[i] = local_opts[i]
         self.local_opts = default_local_opts
         #############################################
         intermed_opts['n_proc'] = n_proc
         intermed_opts['local_algo'] = self.local_opts['algo']
+        intermed_opts['verbose'] = verbose
+        intermed_opts['debug'] = debug
         for i in intermed_opts:
             default_intermed_opts[i] = intermed_opts[i]
         self.intermed_opts = default_intermed_opts
@@ -415,13 +428,15 @@ class LDLE:
         #############################################
         global_opts['k'] = self.local_opts['k']
         global_opts['n_proc'] = n_proc
+        global_opts['verbose'] = verbose
+        global_opts['debug'] = debug
         for i in global_opts:
             default_global_opts[i] = global_opts[i]
         if default_global_opts['refine_algo_name'] != 'rgd':
-            if 'refine_algo_max_internal_iter' not in global_opts:
-                default_global_opts['refine_algo_max_internal_iter'] = 10
-                print("Making global_opts['refine_algo_max_internal_iter'] =",
-                      default_global_opts['refine_algo_max_internal_iter'])
+            if 'max_internal_iter' not in global_opts:
+                default_global_opts['max_internal_iter'] = 10
+                print("Making global_opts['max_internal_iter'] =",
+                      default_global_opts['max_internal_iter'])
                 print('Supply the argument to use a different value', flush=True)
         self.global_opts = default_global_opts
         #############################################

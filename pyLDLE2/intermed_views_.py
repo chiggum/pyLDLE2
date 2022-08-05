@@ -145,7 +145,7 @@ class IntermedViews:
         self.log('Constructing intermediate views.')
         for eta in range(2,intermed_opts['eta_min']+1):
             self.log('eta = %d.' % eta)
-            self.log('# non-empty views with sz < %d = %d' % (eta, np.sum((n_C > 0)*(n_C < eta))))
+            self.log('#non-empty views with sz < %d = %d' % (eta, np.sum((n_C > 0)*(n_C < eta))))
             self.log('#nodes in views with sz < %d = %d' % (eta, np.sum(n_C[c]<eta)))
             
             # Compute cost_k and d_k (dest_k) for all k

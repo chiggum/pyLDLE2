@@ -6,12 +6,14 @@ from .util_ import procrustes, issparse, sparse_matrix, nearest_neighbors
 
 import scipy
 from scipy.sparse import linalg as slinalg
-from scipy.sparse import csr_matrix, block_diag, vstack
+from scipy.sparse import csr_matrix, csc_matrix, block_diag, vstack
 from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import pdist, squareform
 
 import multiprocess as mp
 from multiprocess import shared_memory
+
+import scs
 
 # Computes Z_s for the case when to_tear is True.
 # Input Z_s is the Z_s for the case when to_tear is False.
@@ -45,7 +47,7 @@ def procrustes_init(seq, rho, y, is_visited_view, d, Utilde, n_Utilde_Utilde,
         
         # If to tear apart closed manifolds
         if global_opts['to_tear']:
-            if global_opts['init_algo_align_w_parent_only']:
+            if global_opts['align_w_parent_only']:
                 Z_s = [p]
             else:
                 # Compute T_s and v_s by aligning
@@ -249,7 +251,7 @@ def procrustes_final(y, d, Utilde, C, intermed_param, n_Utilde_Utilde, n_Utildeg
         is_first_view_in_cluster[seq_of_intermed_views_in_cluster[i][0]] = True
 
     # For a given seq, refine the global embedding
-    for it1 in range(global_opts['refine_algo_max_internal_iter']):
+    for it1 in range(global_opts['max_internal_iter']):
         for s in seq.tolist():
             # Never refine s_0th intermediate view
             if is_first_view_in_cluster[s]:
@@ -369,8 +371,8 @@ def rgd_final(y, d, Utilde, C, intermed_param,
         #     Q_,R_ = unique_qr(temp0 - t*np.matmul(temp1,temp0))
         #     O[:,i*d:(i+1)*d] = Q_
 
-    alpha = global_opts['refine_algo_alpha']
-    max_iter = global_opts['refine_algo_max_internal_iter']
+    alpha = global_opts['alpha']
+    max_iter = global_opts['max_internal_iter']
     Tstar = np.zeros((d,M*d))
     for s in range(M):
         Tstar[:,s*d:(s+1)*d] = np.eye(d)
@@ -406,3 +408,86 @@ def rgd_final(y, d, Utilde, C, intermed_param,
         y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
 
     return y
+
+def vec(A):
+    A = A.copy()
+    N = A.shape[0]
+    A = np.multiply(A, np.sqrt(2)*(1-np.eye(N))+np.eye(N))
+    return np.array(A[np.triu_indices(N)]).flatten()
+
+def sdp_alignment(y, is_visited_view, d, Utilde,
+                  C, intermed_param, global_opts, 
+                  seq_of_intermed_views_in_cluster,
+                  solver=None):
+    CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param)
+    M,n = Utilde.shape
+    b = vec(CC)
+    if solver is None:
+        c_mat = (1-np.tri(M*d,k=-1))*np.tri(M*d,k=1)
+        c_mat = c_mat[np.triu_indices(M*d)]
+        inds = np.where(c_mat)[0]
+        n_ = M*d+M*d-1
+        A = csc_matrix((np.ones(n_), (inds, np.arange(n_))),
+                        shape=((M*d*(M*d+1))//2,n_))
+        c = np.arange(n_)
+        c = -1.0*(c%2==0)
+        
+        data = {'P':None,
+                'b': b,
+                'A': A,
+                'c': c}
+
+        cone = dict(s=[M*d])
+        solver = scs.SCS(data, cone, mkl=True, eps_abs=global_opts['eps'],
+                        max_iters=global_opts['max_internal_iter'])
+    else:
+        print('Reusing solver by updating b')
+        solver.update(b=b)
+    print('SDP solver starts', flush=True)
+    sol = solver.solve(warm_start=True, y=vec(np.tile(np.eye(d), (M,M))))
+    
+    Y = np.zeros((M*d,M*d))
+    Y[np.triu_indices(M*d)] = sol['y']
+    Y_diag = np.diag(Y)
+    Y = Y + Y.T
+    Y = Y/np.sqrt(2)
+    np.fill_diagonal(Y, Y_diag)
+    #print('Objective value verification', np.trace(np.dot(OTO, Y.T)))
+    #B = ichol(Y.copy())
+    print(sol['info'], flush=True)
+    
+    np.random.seed(42)
+    v0 = np.random.uniform(0,1,(Y.shape[0]))
+    lmbda, B = slinalg.eigsh(Y, k=d, which='LM')
+    B = np.sqrt(lmbda)[None,:]*B
+    #print('|Y-BB^T|',np.sum(np.abs(Y-np.dot(B,B.T))))
+    
+    B = B.T
+    Tstar = np.zeros((d,M*d))
+    for s in range(M):
+        [U,_,Vt] = scipy.linalg.svd(B[:,s*d:(s+1)*d])
+        Tstar[:,s*d:(s+1)*d] = np.dot(U,Vt)
+    
+    Zstar = Tstar.dot(Lpinv_BT.transpose())
+    
+    n_clusters = len(seq_of_intermed_views_in_cluster)
+    for i in range(n_clusters):
+        seq = seq_of_intermed_views_in_cluster[i]
+        s0 = seq[0]
+        T0T = Tstar[:,s0*d:(s0+1)*d]
+        v0 = Zstar[:,n+s0][np.newaxis,:]
+        v0TOT = np.matmul(v0, T0T)
+        is_visited_view[s0] = 1
+        for m in range(1, seq.shape[0]):
+            s = seq[m]
+            T_s = np.matmul(Tstar[:,s*d:(s+1)*d].T, T0T)
+            v_s = np.matmul(Zstar[:,n+s][np.newaxis,:], T0T) - v0TOT
+            #T_s = Tstar[:,s*d:(s+1)*d].T
+            #v_s = Zstar[:,n+s][np.newaxis,:]
+            intermed_param.T[s,:,:] = np.matmul(intermed_param.T[s,:,:], T_s)
+            intermed_param.v[s,:] = np.matmul(intermed_param.v[s,:], T_s) + v_s
+            C_s = C[s,:].indices
+            y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
+            is_visited_view[s] = 1
+    
+    return y, Zstar[:,:n].T, is_visited_view, solver
