@@ -181,6 +181,7 @@ def double_manifold_k_nn(data, ddX, k_nn, metric, n_proc=1):
 
 def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, gl_type='unnorm',
                            N=100, no_gamma=False, Atilde_method='LDLE_1',
+                           alpha=1, max_iter=300, reg=0.,
                            p=0.99, tau=50, delta=0.9, to_postprocess= True,
                            pp_n_thresh=32):
     """Sets and returns a dictionary of default_local_opts.
@@ -189,9 +190,11 @@ def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, gl_type='unnorm
     ----------
     algo : str
            The algorithm to use for the construction of
-           local views. Options are 'LDLE' and 'LTSA'.
-           LTSA uses the hyperparameter k and k_nn only and is
-           not affected by the value of the others.
+           local views. Options are 'LDLE', 'LTSA' and
+           'Smooth-LTSA'. LTSA uses the hyperparameter k and 
+           k_nn only and is not affected by the value of the
+           others. Smooth-LTSA additionally uses alpha,
+           max_iter, reg. Currently, Smooth-LTSA is very slow.
     k_nn : int
            For k-nearest neighbor graph construction.
     k_tune : int
@@ -226,6 +229,13 @@ def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, gl_type='unnorm
     delta : float
         A hyperparameter used in computing parameterizations
         of local views. The value must be in (0,1).
+    alpha: float
+           Step size in Riemannian gradient descent when using
+           Smooth-LTSA.
+    max_iter: int
+              Max number of Riemannian gradient descent steps.
+    reg: float
+         Desired regularization (Smoothness) in Smooth-LTSA.
     to_postprocess : bool
         If True the local parameterizations are postprocessed
         to fix anamolous parameterizations leading to high
@@ -237,8 +247,9 @@ def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, gl_type='unnorm
     """
     return {'k_nn': k_nn, 'k_tune': k_tune, 'k': k,
            'gl_type': gl_type, 'N': N, 'no_gamma': no_gamma,
-           'Atilde_method': Atilde_method, 'p': p, 'tau': tau,
-           'delta': delta, 'to_postprocess': to_postprocess, 'algo': algo,
+           'Atilde_method': Atilde_method, 'p': p, 'tau': tau, 'delta': delta,
+           'alpha': alpha, 'max_iter': max_iter, 'reg': reg, 
+           'to_postprocess': to_postprocess, 'algo': algo,
            'pp_n_thresh': pp_n_thresh}
 
 def get_default_intermed_opts(algo='best', n_times=4, eta_min=5, eta_max=25, len_S_thresh=256):

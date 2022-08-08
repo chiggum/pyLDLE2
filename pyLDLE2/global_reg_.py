@@ -117,7 +117,9 @@ def compute_Lpinv_BT(Utilde, B):
     D_2_inv_sqrt = np.sqrt(1/D_2)
     B_tilde = B_.multiply(D_2_inv_sqrt).multiply(D_1_inv_sqrt)
     # TODO: U12 is dense of size nxM
+    print('Computing svd', flush=True)
     U12,SS,VT = scipy.linalg.svd(B_tilde.todense(), full_matrices=False)
+    print('Done', flush=True)
     # U12,SS,VT = slinalg.svds(B_tilde, k=M, solver='propack')
     V = VT.T
     mask = np.abs(SS-1)<1e-6
@@ -175,7 +177,7 @@ def build_ortho_optim(d, Utilde, intermed_param):
     D = block_diag(D, format='csr')
     B = csr_matrix((B_vals, (B_row_inds, B_col_inds)), shape=(M*d,n+M))
 
-    print('Computing Pseudoinverse of a matrix of L of size', n+M, 'multiplied with B', flush=True)
+    print('Computing Pseudoinverse of a matrix of L of size', n, '+', M, 'multiplied with B', flush=True)
     Lpinv_BT = compute_Lpinv_BT(Utilde, B)
 
     CC = compute_CC(D, B, Lpinv_BT)

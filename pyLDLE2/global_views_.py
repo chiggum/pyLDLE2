@@ -3,15 +3,17 @@ import time
 import numpy as np
 import copy
 
-from .util_ import procrustes, print_log, nearest_neighbors, sparse_matrix
+from .util_ import procrustes, print_log, nearest_neighbors, sparse_matrix, lexargmax
 from .global_reg_ import procrustes_init, spectral_alignment, sdp_alignment, procrustes_final, rgd_final, compute_alignment_err
 
 from scipy.linalg import svdvals
 from scipy.sparse.csgraph import minimum_spanning_tree, breadth_first_order
-from scipy.sparse import coo_matrix, csr_matrix
+from scipy.sparse import coo_matrix, csr_matrix, triu
 from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import pdist, squareform
 from matplotlib import pyplot as plt
+
+import multiprocess as mp
 
 class GlobalViews:
     def __init__(self, exit_at, print_logs=True, debug=False):
@@ -47,7 +49,7 @@ class GlobalViews:
     def fit(self, d, Utilde, C, c, n_C, intermed_param, global_opts, vis, vis_opts):
         if global_opts['main_algo'] == 'LDLE':
             # Compute |Utilde_{mm'}|
-            n_Utilde_Utilde = Utilde.dot(Utilde.T)
+            n_Utilde_Utilde = Utilde.dot(Utilde.transpose())
             n_Utilde_Utilde.setdiag(0)
             
             # Compute sequence of intermedieate views
@@ -55,7 +57,7 @@ class GlobalViews:
             parents_of_intermed_views_in_cluster, \
             cluster_of_intermed_view = self.compute_seq_of_intermediate_views(Utilde, n_C, 
                                                                              n_Utilde_Utilde,
-                                                                             intermed_param)
+                                                                             intermed_param, global_opts)
             
             # Visualize embedding before init
             if global_opts['vis_before_init']:
@@ -97,38 +99,59 @@ class GlobalViews:
     
     # Motivated from graph lateration
     def compute_seq_of_intermediate_views(self, Utilde, n_C, n_Utilde_Utilde,
-                                          intermed_param, print_prop = 0.25):
+                                          intermed_param, global_opts, print_prop = 0.25):
         M = Utilde.shape[0]
         print_freq = int(print_prop * M)
-        # First intermediate view in the sequence
-        s_1 = np.argmax(n_C)
-
+        n_proc = global_opts['n_proc']
+        self.log('Computing laterations scores for overlaps b/w intermed views')
         # W_{mm'} = W_{m'm} measures the ambiguity between
         # the pair of the embeddings of the overlap 
         # Utilde_{mm'} in mth and m'th intermediate views
-        W = np.zeros((M,M))
-
-        # Iterate over pairs of overlapping intermediate views
-        for m in range(M):
-            if np.mod(m, print_freq)==0:
-                print('Ambiguous overlaps checked for %d intermediate views' % m)
-            for mp in n_Utilde_Utilde[m,:].indices:
-                if mp > m:
-                    # Compute Utilde_{mm'}
-                    Utilde_mmp = Utilde[m,:].multiply(Utilde[mp,:]).nonzero()[1]
-                    # Compute V_{mm'}, V_{m'm}, Vbar_{mm'}, Vbar_{m'm}
-                    V_mmp = intermed_param.eval_({'view_index': m, 'data_mask': Utilde_mmp})
-                    V_mpm = intermed_param.eval_({'view_index': mp, 'data_mask': Utilde_mmp})
-                    Vbar_mmp = V_mmp - np.mean(V_mmp,0)[np.newaxis,:]
-                    Vbar_mpm = V_mpm - np.mean(V_mpm,0)[np.newaxis,:]
-                    # Compute ambiguity as the minimum singular value of
-                    # the d x d matrix Vbar_{mm'}^TVbar_{m'm}
-                    W[m,mp] = svdvals(np.dot(Vbar_mmp.T,Vbar_mpm))[-1]
-                    W[mp,m] = W[m,mp]
-
-        print('Ambiguous overlaps checked for %d points' % M)
+        W_rows, W_cols = triu(n_Utilde_Utilde).nonzero()
+        n_elem = W_rows.shape[0]
+        W_data = np.zeros(n_elem)
+        chunk_sz = int(n_elem/n_proc)
+        def target_proc(p_num, q_):
+            start_ind = p_num*chunk_sz
+            if p_num == (n_proc-1):
+                end_ind = n_elem
+            else:
+                end_ind = (p_num+1)*chunk_sz
+            W_data_ = np.zeros(end_ind-start_ind)
+            for i in range(start_ind, end_ind):
+                m = W_rows[i]
+                mp = W_cols[i]
+                Utilde_mmp = Utilde[m,:].multiply(Utilde[mp,:]).nonzero()[1]
+                # Compute V_{mm'}, V_{m'm}, Vbar_{mm'}, Vbar_{m'm}
+                V_mmp = intermed_param.eval_({'view_index': m, 'data_mask': Utilde_mmp})
+                V_mpm = intermed_param.eval_({'view_index': mp, 'data_mask': Utilde_mmp})
+                Vbar_mmp = V_mmp - np.mean(V_mmp,0)[np.newaxis,:]
+                Vbar_mpm = V_mpm - np.mean(V_mpm,0)[np.newaxis,:]
+                # Compute ambiguity as the minimum singular value of
+                # the d x d matrix Vbar_{mm'}^TVbar_{m'm}
+                W_data_[i-start_ind] = svdvals(np.dot(Vbar_mmp.T,Vbar_mpm))[-1]
+            q_.put((start_ind, end_ind, W_data_))
+        
+        q_ = mp.Queue()
+        proc = []
+        for p_num in range(n_proc):
+            proc.append(mp.Process(target=target_proc, args=(p_num,q_)))
+            proc[-1].start()
+        
+        for p_num in range(n_proc):
+            start_ind, end_ind, W_data_ = q_.get()
+            W_data[start_ind:end_ind] = W_data_
+        q_.close()
+        
+        for p_num in range(n_proc):
+            proc[p_num].join()
+        
+        self.log('Done', log_time=True)
+        self.log('Computing a lateration.')
+        W = csr_matrix((W_data, (W_rows, W_cols)), shape=(M,M))
+        W = W + W.T
         # Compute maximum spanning tree/forest of W
-        T = minimum_spanning_tree(coo_matrix(-W))
+        T = minimum_spanning_tree(-W)
         # Detect clusters of manifolds and create
         # a sequence of intermediate views for each of them
         n_visited = 0
@@ -138,9 +161,16 @@ class GlobalViews:
         cluster_of_intermed_view = np.zeros(M,dtype=int)
         is_visited = np.zeros(M, dtype=bool)
         cluster_num = 0
+        inf_zeta = np.max(intermed_param.zeta)+1
+        rank_arr = np.zeros((M,3))
+        rank_arr[:,1] = n_C
+        rank_arr[:,2] = -intermed_param.zeta
         while n_visited < M:
             # First intermediate view in the sequence
-            s_1 = np.argmax(n_C * (1-is_visited))
+            #s_1 = np.argmax(n_C * (1-is_visited))
+            #s_1 = np.argmin(intermed_param.zeta +  inf_zeta*is_visited)
+            rank_arr[:,0] = 1-is_visited
+            s_1 = lexargmax(rank_arr)
             # Compute breadth first order in T starting from s_1
             s_, rho_ = breadth_first_order(T, s_1, directed=False) #(ignores edge weights)
             seq_of_intermed_views_in_cluster.append(s_)
@@ -150,10 +180,11 @@ class GlobalViews:
             n_visited = np.sum(is_visited)
             cluster_num = cluster_num + 1
             
-        print('Seq of intermediate views and their predecessors computed.')
-        print('No. of connected components =', len(seq_of_intermed_views_in_cluster))
+        self.log('Seq of intermediate views and their predecessors computed.')
+        self.log('No. of connected components = ' + str(len(seq_of_intermed_views_in_cluster)))
         if len(seq_of_intermed_views_in_cluster)>1:
-            print('Multiple connected components detected')
+            self.log('Multiple connected components detected')
+        self.log('Done.', log_time=True)
         return seq_of_intermed_views_in_cluster,\
                parents_of_intermed_views_in_cluster,\
                cluster_of_intermed_view

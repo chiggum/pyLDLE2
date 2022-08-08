@@ -3,7 +3,8 @@ import numpy as np
 from . import visualize_
 
 def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
-              figsize2=(16,8), figsize3=(15,10), s1=30, puppets_data=False):
+              figsize2=(16,8), figsize3=(15,10), s1=30, puppets_data=False,
+              interact=False):
     with open(fpath, "rb") as f:
         all_data = pickle.load(f)
     X, labelsMat, ldle = all_data[:3]
@@ -174,19 +175,33 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     if local_algo == 'LDLE':
         if ldle.debug:
             if X.shape[1] <= 3:
-                for k in range(n_views):
-                    ldle.vis.local_views(X, ldle.LocalViews.GL.phi, ldle.LocalViews.U.toarray(),
+                for k_ in range(n_views):
+                    if interact:
+                        k = None
+                    else:
+                        k = int(k_*X.shape[0]/n_views)
+                    ldle.vis.local_views(X, ldle.LocalViews.local_param_post, ldle.LocalViews.U.toarray(),
                                          ldle.LocalViews.gamma, ldle.LocalViews.IPGE.Atilde,
-                                         ldle.LocalViews.local_param_post.Psi_gamma,
-                                         ldle.LocalViews.local_param_post.Psi_i,
-                                         ldle.LocalViews.local_param_post.zeta,
-                                         k=int(k*X.shape[0]/n_views), figsize=figsize3)
+                                         k=k, figsize=figsize3)
             else:
                 print('Cannot plot because input data has more than 3 features')
         else:
             print('ldle.debug is False, thus intermediary data was not saved.')
     else:
-        print('Local views were constructed using', local_algo)
+        if ldle.debug:
+            if X.shape[1] <= 3:
+                for k_ in range(n_views):
+                    if interact:
+                        k = None
+                    else:
+                        k = int(k_*X.shape[0]/n_views)
+                    ldle.vis.local_views_ltsa(X, ldle.LocalViews.local_param_post, 
+                                              ldle.LocalViews.U.toarray(),
+                                               k=k, figsize=figsize3)
+            else:
+                print('Cannot plot because input data has more than 3 features')
+        else:
+            print('ldle.debug is False, thus intermediary data was not saved.')
 
     print('#'*50, flush=True)
     print('Same visualization as above but plots based on the embedding.', flush=True)
@@ -194,21 +209,36 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     local_algo = ldle.local_opts['algo']
     if local_algo == 'LDLE':
         if ldle.debug:
-            if ldle.d <= 3:
-                for k in range(n_views):
-                    ldle.vis.local_views(ldle.GlobalViews.y_final, ldle.LocalViews.GL.phi,
+            if X.shape[1] <= 3:
+                for k_ in range(n_views):
+                    if interact:
+                        k = None
+                    else:
+                        k = int(k_*X.shape[0]/n_views)
+                    ldle.vis.local_views(ldle.GlobalViews.y_final, ldle.LocalViews.local_param_post,
                                          ldle.LocalViews.U.toarray(),
                                          ldle.LocalViews.gamma, ldle.LocalViews.IPGE.Atilde,
-                                         ldle.LocalViews.local_param_post.Psi_gamma,
-                                         ldle.LocalViews.local_param_post.Psi_i,
-                                         ldle.LocalViews.local_param_post.zeta,
-                                         k=int(k*X.shape[0]/n_views), figsize=figsize3)
+                                         k=k, figsize=figsize3)
             else:
-                print('Cannot plot because embedding dim > 3')
+                print('Cannot plot because input data has more than 3 features')
         else:
             print('ldle.debug is False, thus intermediary data was not saved.')
     else:
-        print('Local views were constructed using', local_algo)
+        if ldle.debug:
+            if X.shape[1] <= 3:
+                for k_ in range(n_views):
+                    if interact:
+                        k = None
+                    else:
+                        k = int(k_*X.shape[0]/n_views)
+                    ldle.vis.local_views_ltsa(ldle.GlobalViews.y_final,
+                                              ldle.LocalViews.local_param_post,
+                                              ldle.LocalViews.U.toarray(),
+                                              k=k, figsize=figsize3)
+            else:
+                print('Cannot plot because input data has more than 3 features')
+        else:
+            print('ldle.debug is False, thus intermediary data was not saved.')
 
     print('#'*50, flush=True)
     print('Chosen eigenvectors indices for local views', flush=True)
@@ -254,6 +284,12 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('#'*50, flush=True)
     print('Distortion of intermediate views', flush=True)
     print('#'*50, flush=True)
+    if X.shape[1] <= 3:
+        ldle.vis.distortion(X,
+                            ldle.IntermedViews.intermed_param.zeta[ldle.IntermedViews.c],
+                            'Distortion of Intermediate Views', figsize=(8,8), s=50)
+    else:
+        print('Cannot plot because embedding dim > 3')
     if ldle.d <= 3:
         ldle.vis.distortion(ldle.GlobalViews.y_final,
                             ldle.IntermedViews.intermed_param.zeta[ldle.IntermedViews.c],

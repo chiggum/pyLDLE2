@@ -13,6 +13,8 @@ from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import svds
 from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import pdist, squareform
+from scipy.sparse.csgraph import minimum_spanning_tree, breadth_first_order
+from scipy.sparse import coo_matrix, csr_matrix
 
 import multiprocess as mp
 from multiprocess import shared_memory
@@ -99,12 +101,35 @@ class LocalViews:
             #############################################
             # set b
             local_param_post.b = np.ones(U.shape[0])
-            for k in range(U.shape[0]):
-                U_k = U[k,:].indices
-                d_e_k = to_dense(d_e[np.ix_(U_k,U_k)])
-                Psi_k = local_param_post.eval_({'view_index': k, 'data_mask': U_k})
-                local_param_post.b[k] = np.median(squareform(d_e_k))/np.median(pdist(Psi_k))
+            n_proc = local_opts['n_proc']
+            n_ = U.shape[0]
+            chunk_sz = int(n_/n_proc)
+            def target_proc(p_num, q_):
+                start_ind = p_num*chunk_sz
+                if p_num == (n_proc-1):
+                    end_ind = n_
+                else:
+                    end_ind = (p_num+1)*chunk_sz
+                b_ = np.ones(end_ind-start_ind)
+                for k in range(start_ind, end_ind):
+                    U_k = U[k,:].indices
+                    d_e_k = to_dense(d_e[np.ix_(U_k,U_k)])
+                    Psi_k = local_param_post.eval_({'view_index': k, 'data_mask': U_k})
+                    b_[k-start_ind] = np.median(squareform(d_e_k))/np.median(pdist(Psi_k))
+                q_.put((start_ind, end_ind, b_))
             
+            q_ = mp.Queue()
+            proc = []
+            for p_num in range(n_proc):
+                proc.append(mp.Process(target=target_proc, args=(p_num, q_)))
+                proc[-1].start()
+                
+            for p_num in range(n_proc):
+                start_ind, end_ind, b_ = q_.get()
+                local_param_post.b[start_ind:end_ind] = b_
+            q_.close()
+            for p_num in range(n_proc):
+                proc[p_num].join()
             #############################################
             
             if ddX is not None:
@@ -137,11 +162,14 @@ class LocalViews:
                 self.log('Done.', log_time=True)
             #############################################
         else:
-            self.log('Constructing local views using LTSA.')
+            self.log('Constructing local views using ' + local_opts['algo'])
             # Local views in the ambient space
             U = sparse_matrix(neigh_ind[:,:local_opts['k']],
                               np.ones((neigh_ind.shape[0],local_opts['k']), dtype=bool))
-            local_param_pre = self.compute_LTSAP(d, X, d_e, U, local_opts)
+            if local_opts['algo'] == 'Smooth-LTSA':
+                local_param_pre = self.compute_Smooth_LTSAP(d, X, d_e, U, local_opts)
+            else:
+                local_param_pre = self.compute_LTSAP(d, X, d_e, U, local_opts)
             self.log('Done.', log_time=True)
             if local_opts['to_postprocess']:
                 self.log('Posprocessing local parameterizations.')
@@ -334,6 +362,141 @@ class LocalViews:
         print("max distortion is %f" % (np.max(local_param.zeta)))
         return local_param
     
+    def compute_Smooth_LTSAP(self, d, X, d_e, U, local_opts, print_prop = 0.25):
+        local_param_ = self.compute_LTSAP(d, X, d_e, U, local_opts)
+        zeta0 = local_param_.zeta.copy()
+        del local_param_
+        
+        n = U.shape[0]
+        p = X.shape[1]
+        print_freq = int(print_prop * n)
+        max_iter = local_opts['max_iter']
+        alpha = local_opts['alpha']
+        reg = local_opts['reg']
+        
+        def grad_1(Q, Sigma, Q_tilde):
+            return -2*Sigma.dot(Q) 
+        
+        def grad_2(Q, Sigma, Q_tilde):
+            if reg == 0:
+                return 0
+            return -reg*2*Q_tilde
+        
+        def grad_(Q, Sigma, Q_tilde):
+            return grad_1(Q, Sigma, Q_tilde) + grad_2(Q, Sigma, Q_tilde)
+        
+        def skew(A):
+            return 0.5*(A-A.T)
+        
+        def proj_(A, Q):
+            return (np.eye(p)-Q.dot(Q.T)).dot(A) + Q.dot(skew(Q.T.dot(A)))
+        
+        def obj_val_1(Q, Sigma, Q_tilde):
+            return np.trace((np.eye(p)-Q.dot(Q.T)).dot(Sigma))
+        
+        def obj_val_2(Q, Sigma, Q_tilde):
+            if reg == 0:
+                return 0
+            return reg*(2*d - 2*np.trace(Q.dot(Q_tilde.T)))
+        
+        def obj_val(Q, Sigma, Q_tilde):
+            return obj_val_1(Q, Sigma, Q_tilde)+obj_val_2(Q, Sigma, Q_tilde)
+        
+        def unique_qr(A):
+                Q, R = np.linalg.qr(A)
+                signs = 2 * (np.diag(R) >= 0) - 1
+                Q = Q * signs[np.newaxis, :]
+                R = R * signs[:, np.newaxis]
+                return Q, R
+        
+        local_param = Param('LTSA')
+        local_param.X = X
+        local_param.Psi = np.zeros((n,p,d))
+        local_param.mu = np.zeros((n,p))
+        local_param.zeta = np.zeros(n)+np.inf
+        
+        n_U_U = U.astype(int).dot(U.astype(int).transpose())
+        # Compute maximum spanning tree/forest of W
+        T = minimum_spanning_tree(-n_U_U)
+        # Detect clusters of manifolds and create
+        # a sequence of intermediate views for each of them
+        n_visited = 0
+        seq_of_local_views_in_cluster = []
+        parents_of_local_views_in_cluster = []
+        # stores cluster number for the intermediate views in a cluster
+        cluster_of_local_view = np.zeros(n,dtype=int)
+        is_visited = np.zeros(n, dtype=int)
+        cluster_num = 0
+        while n_visited < n:
+            # First intermediate view in the sequence
+            s_1 = np.argmin(zeta0 + 100000000*is_visited)
+            # Compute breadth first order in T starting from s_1
+            s_, rho_ = breadth_first_order(T, s_1, directed=False) #(ignores edge weights)
+            seq_of_local_views_in_cluster.append(s_)
+            parents_of_local_views_in_cluster.append(rho_)
+            is_visited[s_] = True
+            cluster_of_local_view[s_] = cluster_num
+            n_visited = np.sum(is_visited)
+            cluster_num = cluster_num + 1
+        
+        ctr = 0
+        for i in range(cluster_num):
+            seq = seq_of_local_views_in_cluster[i]
+            rho = parents_of_local_views_in_cluster[i]
+            for ki in range(seq.shape[0]):
+                k = seq[ki]
+                U_k = U[k,:].indices
+                X_k = X[U_k,:]
+                xbar_k = np.mean(X_k,axis=0)[np.newaxis,:]
+                X_k = X_k - xbar_k
+                X_k = X_k.T
+                n_k = X_k.shape[1]
+                if ki == 0:
+                    if p == d:
+                        Q_k,Sigma_k,_ = svd(X_k)
+                    else:
+                        Q_k,Sigma_k,_ = svds(X_k, d, which='LM')
+                    Q_k = Q_k[:,:d]
+                else:
+                    Q_tilde = local_param.Psi[rho[k],:,:]
+                    Q_k = Q_tilde.copy()
+                    Sigma = X_k.dot(X_k.transpose())
+                    #pdb.set_trace()
+                    if ctr%print_freq == 1:
+                        print('Starting objective val:',
+                              obj_val_1(Q_k, Sigma, Q_tilde),
+                              obj_val_2(Q_k, Sigma, Q_tilde))
+                        print('Starting Q_k[0,:]:', Q_k[0,:])
+                        print('Starting proj(grad)[0,:]:', proj_(grad_(Q_k, Sigma, Q_tilde), Q_k)[0,:])
+                        
+                    for _ in range(max_iter):
+                        step_ = proj_(grad_(Q_k, Sigma, Q_tilde), Q_k)
+                        if np.mean(np.abs(step_)) <  1e-6:
+                            break
+                        Q_k,R_k = unique_qr(Q_k - alpha*step_)
+                    if ctr%print_freq == 1:
+                        print('Ending objective val:',
+                              obj_val_1(Q_k, Sigma, Q_tilde),
+                              obj_val_2(Q_k, Sigma, Q_tilde))
+                        print('Ending Q_k[0,:]:', Q_k[0,:])
+                        print('Ending proj(grad)[0,:]:', proj_(grad_(Q_k, Sigma, Q_tilde), Q_k)[0,:])
+                    #pdb.set_trace()
+                local_param.Psi[k,:,:] = Q_k.copy()
+                local_param.mu[k,:] = xbar_k
+                # Compute zeta_{kk}
+                d_e_k = d_e[np.ix_(U_k, U_k)]
+                local_param.zeta[k] = compute_zeta(d_e_k,
+                                                   local_param.eval_({'view_index': k,
+                                                                      'data_mask': U_k}))
+                if ctr%print_freq == 1:
+                    print('local_param: %d points processed' % ctr)
+                    print('#'*50)
+                ctr += 1
+                
+        print('local_param: all %d points processed...' % n)
+        print("max distortion is %f" % (np.max(local_param.zeta)))
+        return local_param
+    
     def postprocess(self, d_e, neigh_dist, neigh_ind, local_param_pre, U, local_opts):
         # initializations
         n = U.shape[0]
@@ -452,7 +615,7 @@ class LocalViews:
         if local_opts['algo'] == 'LDLE':
             local_param.Psi_i = local_param.Psi_i[npo,:]
             local_param.Psi_gamma = local_param.Psi_gamma[npo,:]
-        elif local_opts['algo'] == 'LTSA':
+        else:
             local_param.Psi = local_param.Psi[npo,:]
             local_param.mu = local_param.mu[npo,:]
             

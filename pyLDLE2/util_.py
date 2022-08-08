@@ -149,3 +149,16 @@ def custom_procrustes(X, Y, reflection='best'):
 def procrustes(A, B):
     T, c = custom_procrustes(B,A)
     return T, c
+
+def ixmax(x, k=0, idx=None):
+    col = x[idx, k] if idx is not None else x[:, k]
+    z = np.where(col == col.max())[0]
+    return z if idx is None else idx[z]
+
+def lexargmax(x):
+    idx = None
+    for k in range(x.shape[1]):
+        idx = ixmax(x, k, idx)
+        if len(idx) < 2:
+            break
+    return idx[0]

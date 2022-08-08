@@ -25,7 +25,8 @@ def graph_laplacian(neigh_dist, neigh_ind, k_nn, k_tune, gl_type,
         if tune_type == 0: # scaling depends on sigma_i and sigma_j
             autotune = sigma[neigh_ind]*sigma[:,np.newaxis]
         elif tune_type == 1: # scaling depends on sigma_i only
-            autotune = sigma[:,np.newaxis]**2
+            autotune = np.repeat(sigma**2, neigh_ind.shape[1])
+            autotune = autotune.reshape(neigh_ind.shape)
         elif tune_type == 2: # scaling is fixed across data points
             autotune = np.median(sigma)**2
     
@@ -39,17 +40,14 @@ def graph_laplacian(neigh_dist, neigh_ind, k_nn, k_tune, gl_type,
     # Convert to sparse matrices
     source_ind = np.repeat(np.arange(n),neigh_ind.shape[1])
     K = coo_matrix((K.flatten(),(source_ind, neigh_ind.flatten())),shape=(n,n))
-    autotune = coo_matrix((autotune.flatten(),(source_ind, neigh_ind.flatten())),shape=(n,n))
     ones_K_like = coo_matrix((np.ones(neigh_dist.shape).flatten(),(source_ind, neigh_ind.flatten())),shape=(n,n))
     
     
     # symmetrize
     K = K + K.T
     ones_K_like = ones_K_like + ones_K_like.T
-    autotune = autotune + autotune.T
-    
     K.data /= ones_K_like.data
-    autotune.data /= ones_K_like.data
+    #K = K + K.T - K.multiply(K.T)
     
     if gl_type == 'diffusion':
         D = 1/(K.sum(axis=1).reshape((n,1)))

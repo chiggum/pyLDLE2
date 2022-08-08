@@ -14,6 +14,7 @@ from multiprocess import shared_memory
 import itertools
 
 import queue
+import copy
 
 # merging s to m
 def merging_cost(s, m, Utilde_s, Utilde_m, d_e, local_param):
@@ -67,9 +68,8 @@ def cost_of_moving(k, d_e, neigh_ind_k, U_k, local_param, c, n_C,
             # that is cost_{x_k \rightarrow m}
             cost_x_k_to[i] = compute_zeta(d_e[np.ix_(U_k_U_Utilde_m,U_k_U_Utilde_m)],
                                   local_param.eval_({'view_index': m,
-                                                     'data_mask': U_k_U_Utilde_m}))
+                                                     'data_mask': U_k_U_Utilde_m}))   
         i += 1
-        
     
     # find the cluster with minimum cost
     # to move x_k in.
@@ -151,7 +151,7 @@ class IntermedViews:
             # Compute cost_k and d_k (dest_k) for all k
             ###########################################
             # Proc for computing the cost and dest
-            def target_proc(p_num, chunk_sz, n_, S):
+            def target_proc(p_num, chunk_sz, n_, Utilde, n_C, c, S):
                 existing_shm_cost = shared_memory.SharedMemory(name=shm_cost_name)
                 cost_ = np.ndarray(cost_shape, dtype=cost_dtype, buffer=existing_shm_cost.buf)
                 existing_shm_dest = shared_memory.SharedMemory(name=shm_dest_name)
@@ -180,7 +180,7 @@ class IntermedViews:
             chunk_sz = int(n/n_proc)
             for p_num in range(n_proc):
                 proc.append(mp.Process(target=target_proc,
-                                       args=(p_num,chunk_sz,n,None),
+                                       args=(p_num,chunk_sz,n,Utilde,n_C,c,None),
                                        daemon=True))
                 proc[-1].start()
                 
@@ -201,6 +201,8 @@ class IntermedViews:
             self.log('Costs computed when eta = %d.' % eta, log_time=True)
             
             # Loop until minimum cost is inf
+            total_len_S = 0
+            ctr = 0
             while cost_star < np.inf:
                 # Move x_k from cluster s to
                 # dest_k and update variables
@@ -216,8 +218,14 @@ class IntermedViews:
                 
                 # Compute the set of points S for which 
                 # cost of moving needs to be recomputed
-                S = np.where((c==dest_k) | (np_dest==dest_k) | np.any(U[:,list(Clstr[s])].toarray(),1))[0].tolist()
+                if n_C[s] > 0:
+                    S_ = (c==dest_k) | (np_dest==dest_k) | np.array(U[:,list(Clstr[s])].sum(1),dtype=bool).flatten()
+                else:
+                    S_ = (c==dest_k) | (np_dest==dest_k) | (np_dest==s)
+                S = np.where(S_)[0].tolist()
                 len_S = len(S)
+                total_len_S += len_S
+                ctr += 1
                 
                 ###########################################
                 # cost, dest update for k in S
@@ -228,7 +236,7 @@ class IntermedViews:
                     chunk_sz = int(len_S/n_proc_)
                     for p_num in range(n_proc_):
                         proc.append(mp.Process(target=target_proc,
-                                               args=(p_num,chunk_sz,len_S,S),
+                                               args=(p_num,chunk_sz,len_S,Utilde,n_C,c,S),
                                                daemon=True))
                         proc[-1].start()
 
@@ -238,13 +246,15 @@ class IntermedViews:
                 else: # sequential update
                     for k in S:
                         np_cost[k], np_dest[k] = cost_of_moving(k, d_e, neigh_ind[k], U_[k], local_param,
-                                                                  c, n_C, Utilde, eta, eta_max)
+                                                                c, n_C, Utilde, eta, eta_max)
                 ###########################################
                 ###########################################
                 # Recompute point with minimum cost
                 # Recompute k and cost^*
                 k = np.argmin(np_cost)
                 cost_star = np_cost[k]
+            
+            print('ctr=%d, total_len_S=%d, avg_len_S=%0.3f' % (ctr, total_len_S, total_len_S/ctr))
             print('Remaining #nodes in views with sz < %d = %d' % (eta, np.sum(n_C[c]<eta)))
             self.log('Done with eta = %d.' % eta, log_time=True)
         del U_
@@ -366,50 +376,58 @@ class IntermedViews:
     
     def fit(self, d, d_e, U, local_param, intermed_opts):
         n = d_e.shape[0]
-        neigh_ind = []
-        for i in range(n):
-            neigh_ind.append(U[i,:].indices.tolist())
-        if intermed_opts['algo'] == 'best':
-            c, n_C = self.best(d, d_e, U, neigh_ind, local_param, intermed_opts)
-        else:
-            c, n_C = self.match_n_merge(d, d_e, U, neigh_ind, local_param, intermed_opts)
-            
-        self.log('Pruning and cleaning up.')
-        # Prune empty clusters
-        non_empty_C = n_C > 0
-        M = np.sum(non_empty_C)
-        old_to_new_map = np.arange(n)
-        old_to_new_map[non_empty_C] = np.arange(M)
-        c = old_to_new_map[c]
-        n_C = n_C[non_empty_C]
-        
-        # Construct a boolean ar ray C s.t. C[m,i] = 1 if c_i == m, 0 otherwise
-        C = csr_matrix((np.ones(n), (c, np.arange(n))),
-                       shape=(M,n), dtype=bool)
-        
-        # Compute intermediate views
-        intermed_param = copy.deepcopy(local_param)
-        if intermed_opts['local_algo'] == 'LDLE':
-            intermed_param.Psi_i = local_param.Psi_i[non_empty_C,:]
-            intermed_param.Psi_gamma = local_param.Psi_gamma[non_empty_C,:]
-            intermed_param.b = intermed_param.b[non_empty_C]
-        elif intermed_opts['local_algo'] == 'LTSA':
-            intermed_param.Psi = local_param.Psi[non_empty_C,:]
-            intermed_param.mu = local_param.mu[non_empty_C,:]
-            intermed_param.b = intermed_param.b[non_empty_C]
-        
-        # Compute Utilde_m
-        Utilde = C.dot(U)
-        
-        intermed_param.zeta = np.ones(M);
-        for m in range(M):
-            Utilde_m = Utilde[m,:].indices
-            d_e_Utilde_m = d_e[np.ix_(Utilde_m,Utilde_m)]
-            intermed_param.zeta[m] = compute_zeta(d_e_Utilde_m,
-                                                  intermed_param.eval_({'view_index': m,
-                                                                        'data_mask': Utilde_m}))
+        if intermed_opts['eta_min'] > 1:
+            neigh_ind = []
+            for i in range(n):
+                neigh_ind.append(U[i,:].indices.tolist())
+            if intermed_opts['algo'] == 'best':
+                c, n_C = self.best(d, d_e, U, neigh_ind, local_param, intermed_opts)
+            else:
+                c, n_C = self.match_n_merge(d, d_e, U, neigh_ind, local_param, intermed_opts)
 
-        self.log('Done.', log_time=True)
+            self.log('Pruning and cleaning up.')
+            # Prune empty clusters
+            non_empty_C = n_C > 0
+            M = np.sum(non_empty_C)
+            old_to_new_map = np.arange(n)
+            old_to_new_map[non_empty_C] = np.arange(M)
+            c = old_to_new_map[c]
+            n_C = n_C[non_empty_C]
+
+            # Construct a boolean ar ray C s.t. C[m,i] = 1 if c_i == m, 0 otherwise
+            C = csr_matrix((np.ones(n), (c, np.arange(n))),
+                           shape=(M,n), dtype=bool)
+
+            # Compute intermediate views
+            intermed_param = copy.deepcopy(local_param)
+            if intermed_opts['local_algo'] == 'LDLE':
+                intermed_param.Psi_i = local_param.Psi_i[non_empty_C,:]
+                intermed_param.Psi_gamma = local_param.Psi_gamma[non_empty_C,:]
+                intermed_param.b = intermed_param.b[non_empty_C]
+            else:
+                intermed_param.Psi = local_param.Psi[non_empty_C,:]
+                intermed_param.mu = local_param.mu[non_empty_C,:]
+                intermed_param.b = intermed_param.b[non_empty_C]
+
+            # Compute Utilde_m
+            Utilde = C.dot(U)
+
+            intermed_param.zeta = np.ones(M);
+            for m in range(M):
+                Utilde_m = Utilde[m,:].indices
+                d_e_Utilde_m = d_e[np.ix_(Utilde_m,Utilde_m)]
+                intermed_param.zeta[m] = compute_zeta(d_e_Utilde_m,
+                                                      intermed_param.eval_({'view_index': m,
+                                                                            'data_mask': Utilde_m}))
+
+            self.log('Done.', log_time=True)
+        else:
+            c = np.arange(n, dtype=int)
+            C = csr_matrix((np.ones(n), (c, np.arange(n))),
+                           shape=(n,n), dtype=bool)
+            n_C = np.ones(n, dtype=int)
+            Utilde = U.copy()
+            intermed_param = copy.deepcopy(local_param)
         print("After clustering, max distortion is %f" % (np.max(intermed_param.zeta)))
         self.C = C
         self.c = c

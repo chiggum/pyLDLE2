@@ -547,10 +547,13 @@ class Visualize:
         if self.save_dir:
             plt.savefig(self.save_dir+'/chosen_eigvecs_for_intermediate_views.png') 
     
-    def local_views(self, X, phi, U, gamma, Atilde, Psi_gamma, Psi_i, zeta, k=None, save_subdir='', figsize=(15,10), s=20):
+    def local_views(self, X, local_param, U, gamma, Atilde, k=None, save_subdir='', figsize=(15,10), s=20):
         assert X.shape[1] <= 3, 'X.shape[1] must be either 2 or 3.'
         is_3d_data = X.shape[1] == 3
-        n,N = phi.shape
+        n = U.shape[0]
+        zeta = local_param.zeta
+        if k is None:
+            matplotlib.use('Qt5Agg')
         
         fig = plt.figure(figsize=figsize)
         fig.canvas.mpl_connect('close_event', on_close)
@@ -621,7 +624,8 @@ class Visualize:
             ax[0].set_title('$\\mathcal{M}$ and $U_{%d}$' % k)
             
             # Plot the corresponding local view in the embedding space
-            y = eval_param(phi, Psi_gamma, Psi_i, k, np.ones(n)==1)
+            y = local_param.eval_({'view_index': k,
+                                   'data_mask': np.arange(n)})
             ax[3]
             ax[3].cla()
             ax[3].scatter(y[:,0], y[:,1], s=s, c='r')
@@ -631,30 +635,31 @@ class Visualize:
                               '$\\Phi_{%d}(\\mathcal{M})$ in red\n$\\Phi_{%d}(U_{%d})$ in black'\
                               % (zeta[k], k, k, k))
             
+            
             # Plot the chosen eigenvectors and scaled eigenvectors
             subplots = [232, 233]
             for j in range(len(subplots)):
-                i_s = Psi_i[k,j]
                 ax[j+1]
                 ax[j+1].cla()
+                i_s = Psi_i[k,j]
                 if not first_plot:
                     cb[j+1].remove()
                 if is_3d_data:
-                    p = ax[j+1].scatter(X[:,0], X[:,1], X[:,2], s=s*(1-U_k), c=phi[:,i_s], cmap='jet')
+                    p = ax[j+1].scatter(X[:,0], X[:,1], X[:,2], s=s*(1-U_k), c=local_param.phi[:,i_s], cmap='jet')
                     ax[j+1].scatter(X[U_k,0], X[U_k,1], X[U_k,2], s=s, c='k')
                     set_axes_equal(ax[j+1])
                 else:
-                    p = ax[j+1].scatter(X[:,0], X[:,1], s=s*(1-U_k), c=phi[:,i_s], cmap='jet')
+                    p = ax[j+1].scatter(X[:,0], X[:,1], s=s*(1-U_k), c=local_param.phi[:,i_s], cmap='jet')
                     ax[j+1].scatter(X[U_k,0], X[U_k,1], s=s, c='k')
                     ax[j+1].axis('image')
-                
+
                 cb[j+1] = plt.colorbar(p, ax=ax[j+1])
                 ax[j+1].set_title('$\\phi_{%d}$' % i_s)
-            
+
             Atilde_k = np.abs(Atilde[k,:,:])
             Atilde_kii = np.sqrt(Atilde_k.diagonal()[:,np.newaxis])
             angles = (Atilde_k/Atilde_kii)/(Atilde_kii.T)
-            
+
             prctiles = np.arange(100)
             ax[4]
             ax[4].cla()
@@ -663,12 +668,12 @@ class Visualize:
             ax[4].plot([0,100], [angles[Psi_i[k,0],Psi_i[k,1]]]*2, 'r-')
             ax[4].set_xlabel('percentiles')
             ax[4].set_title('$\\cos(\\nabla\\phi_{i_1},\\nabla\\phi_{i_2})$')
-            
-            
+
+
             local_scales = gamma[[k],:].T*Atilde_kii
             #dlocal_scales = squareform(pdist(local_scales))
             dlocal_scales = np.log(local_scales/local_scales.T+1)
-            
+
             ax[5]
             ax[5].cla()
             ax[5].plot(prctiles, np.percentile(dlocal_scales.flatten(), prctiles), 'bo-')
@@ -677,6 +682,7 @@ class Visualize:
             ax[5].set_xlabel('percentiles')
             ax[5].set_title('$\\log(\\gamma_{i_1}\\left\\|\\nabla\\phi_{i_1}\\right\\|_2 / \
                       \\gamma_{i_2}\\left\\|\\nabla\\phi_{i_2}\\right\\|_2+1)$')
+                
             fig.tight_layout()    
             fig.canvas.draw()
             fig.canvas.flush_events()
@@ -690,10 +696,13 @@ class Visualize:
             if not k_not_available:
                 break
     
-    def local_views_ltsap(self, X, phi, U, gamma, Atilde, Psi_gamma, Psi_i, zeta, save_subdir='', figsize=None, s=20):
+    def local_views_ltsa(self, X, local_param, U, k=None, save_subdir='', figsize=(15,10), s=20):
         assert X.shape[1] <= 3, 'X.shape[1] must be either 2 or 3.'
         is_3d_data = X.shape[1] == 3
-        n,N = phi.shape
+        n = U.shape[0]
+        zeta = local_param.zeta
+        if k is None:
+            matplotlib.use('Qt5Agg')
         
         fig = plt.figure(figsize=figsize)
         fig.canvas.mpl_connect('close_event', on_close)
@@ -704,45 +713,51 @@ class Visualize:
         cb = [None, None, None]
         ax = []
         if is_3d_data:
-            for i in range(3):
-                ax.append(fig.add_subplot(231+i, projection='3d'))
-            for i in range(3,6):
-                ax.append(fig.add_subplot(231+i))
-                                        
+            ax.append(fig.add_subplot(221+0, projection='3d'))
+            ax.append(fig.add_subplot(221+1))
+            ax.append(fig.add_subplot(221+2, projection='3d'))
+            ax.append(fig.add_subplot(221+3, projection='3d'))
+        else:
+            for i in range(4):
+                ax.append(fig.add_subplot(221+i))
+        
+        
+        ax[0]
+        ax[0].cla()
+        if is_3d_data:
             p = ax[0].scatter(X[:,0], X[:,1], X[:,2], s=s, c=zeta, cmap='jet')
             set_axes_equal(ax[0])
         else:
-            for i in range(6):
-                ax.append(fig.add_subplot(231+i))
-            
             p = ax[0].scatter(X[:,0], X[:,1], s=s, c=zeta, cmap='jet')
             ax[0].axis('image')
-        
-        ax[0].set_title('Double click = select a local view.\nPress button = exit.')
             
         cb[0] = plt.colorbar(p, ax=ax[0])
-        cb[1] = plt.colorbar(p, ax=ax[1])
-        cb[2] = plt.colorbar(p, ax=ax[2])
+        ax[0].set_title('Double click = select a local view.\nPress button = exit.')
+        
+        k_not_available = k is None
+        first_plot = True
         
         while True:
-            plt.figure(1, figsize=figsize)
-            to_exit = plt.waitforbuttonpress(timeout=20)
-            if to_exit:
-                plt.close()
-                return
-            # Plot data with distortion colormap and the
-            # selected local view in the ambient space
+            if k_not_available:
+                to_exit = plt.waitforbuttonpress(timeout=20)
+                if to_exit:
+                    plt.close()
+                    return
+                
+                # Plot data with distortion colormap and the
+                # selected local view in the ambient space
             ax[0]
-            if is_3d_data:
-                plt.ginput(1)
-                k = np.random.randint(n)
-            else:
-                X_k = plt.ginput(1)
-                X_k = np.array(X_k[0])[np.newaxis,:]
-                k = np.argmin(np.sum((X-X_k)**2,1))
+            if k_not_available:
+                if is_3d_data:
+                    plt.ginput(1)
+                    k = np.random.randint(n)
+                else:
+                    X_k = plt.ginput(1)
+                    X_k = np.array(X_k[0])[np.newaxis,:]
+                    k = np.argmin(np.sum((X-X_k)**2,1))
                 
             U_k = U[k,:]==1
-            
+
             ax[0].cla()
             cb[0].remove()
             if is_3d_data:
@@ -758,62 +773,40 @@ class Visualize:
             ax[0].set_title('$\\mathcal{M}$ and $U_{%d}$' % k)
             
             # Plot the corresponding local view in the embedding space
-            y = eval_param(phi, Psi_gamma, Psi_i, k, np.ones(n)==1)
-            ax[3]
-            ax[3].cla()
-            ax[3].scatter(y[:,0], y[:,1], s=s, c='r')
-            ax[3].scatter(y[U_k,0], y[U_k,1], s=s, c='k')
-            ax[3].axis('image')
-            ax[3].set_title('$\\zeta_{%d%d}=%.3f\\'\
-                              ' \\Phi_{%d}(\\mathcal{M})$ in red and $\\Phi_{%d}(U_{%d})$ in black'\
-                              % (k, k, zeta[k], k, k, k))
+            y = local_param.eval_({'view_index': k,
+                                   'data_mask': np.arange(n)})
+            ax[1]
+            ax[1].cla()
+            ax[1].scatter(y[:,0], y[:,1], s=s, c='r')
+            ax[1].scatter(y[U_k,0], y[U_k,1], s=s, c='k')
+            ax[1].axis('image')
+            ax[1].set_title('Distortion=%.3f\n'\
+                              '$\\Phi_{%d}(\\mathcal{M})$ in red\n$\\Phi_{%d}(U_{%d})$ in black'\
+                              % (zeta[k], k, k, k))
+            
             
             # Plot the chosen eigenvectors and scaled eigenvectors
-            subplots = [232, 233]
+            subplots = [223, 224]
             for j in range(len(subplots)):
-                i_s = Psi_i[k,j]
-                ax[j+1]
-                ax[j+1].cla()
-                cb[j+1].remove()
+                ax[j+2]
+                ax[j+2].cla()
                 if is_3d_data:
-                    p = ax[j+1].scatter(X[:,0], X[:,1], X[:,2], s=s*(1-U_k), c=phi[:,i_s], cmap='jet')
-                    ax[j+1].scatter(X[U_k,0], X[U_k,1], X[U_k,2], s=s, c='k')
-                    set_axes_equal(ax[j+1])
+                    V = local_param.Psi[:,:,j]
+                    p = ax[j+2].quiver(X[:,0], X[:,1], X[:,2],
+                                       V[:,0], V[:,1], V[:,2], length=0.1, color='r',linewidths=0.1)
+                    ax[j+2].quiver(X[U_k,0], X[U_k,1], X[U_k,2],
+                                   V[U_k,0], V[U_k,1], V[U_k,2], length=0.1, color='k',linewidths=0.1)
+                    #set_axes_equal(ax[j+2])
                 else:
-                    p = ax[j+1].scatter(X[:,0], X[:,1], s=s*(1-U_k), c=phi[:,i_s], cmap='jet')
-                    ax[j+1].scatter(X[U_k,0], X[U_k,1], s=s, c='k')
-                    ax[j+1].axis('image')
-                                        
-                cb[j+1] = plt.colorbar(p, ax=ax[j+1])
-                ax[j+1].set_title('$\\phi_{%d}$' % i_s)
-            
-            Atilde_k = np.abs(Atilde[k,:,:])
-            Atilde_kii = np.sqrt(Atilde_k.diagonal()[:,np.newaxis])
-            angles = (Atilde_k/Atilde_kii)/(Atilde_kii.T)
-            
-            prctiles = np.arange(100)
-            ax[4]
-            ax[4].cla()
-            ax[4].plot(prctiles, np.percentile(angles.flatten(), prctiles), 'bo-')
-            ax[4].plot([0,100], [0,0], 'g-')
-            ax[4].plot([0,100], [angles[Psi_i[k,0],Psi_i[k,1]]]*2, 'r-')
-            ax[4].set_xlabel('percentiles')
-            ax[4].set_title('$|\\widetilde{A}_{%dij}|/(\\widetilde{A}_{%dii}\\widetilde{A}_{%djj})$' % (k, k, k))
-            
-            
-            local_scales = gamma[[k],:].T*Atilde_kii
-            #dlocal_scales = squareform(pdist(local_scales))
-            dlocal_scales = np.log(local_scales/local_scales.T+1)
-            
-            ax[5]
-            ax[5].cla()
-            ax[5].plot(prctiles, np.percentile(dlocal_scales.flatten(), prctiles), 'bo-')
-            ax[5].plot([0,100], [np.log(2)]*2, 'g-')
-            ax[5].plot([0,100], [dlocal_scales[Psi_i[k,0],Psi_i[k,1]]]*2, 'r-')
-            ax[5].set_xlabel('percentiles')
-            ax[5].set_title('$\\log(\\gamma_{%di}\\sqrt{\\widetilde{A}_{%dii}} / \
-                      \\gamma_{%dj}\\sqrt{\\widetilde{A}_{%djj}}+1)$' % (k, k, k, k))
+                    V = local_param.Psi[:,:,j]
+                    p = ax[j+2].quiver(X[:,0], X[:,1], V[:,0], V[:,1], color='r',linewidths=0.1)
+                    ax[j+2].quiver(X[U_k,0], X[U_k,1],
+                                   V[U_k,0], V[U_k,1], color='k',linewidths=0.1)
+                    #ax[j+2].axis('image')
+
+                ax[j+2].set_title('Proj component %d' % j)
                 
+            fig.tight_layout()    
             fig.canvas.draw()
             fig.canvas.flush_events()
             plt.show()
@@ -821,6 +814,10 @@ class Visualize:
                 if not os.path.isdir(self.save_dir+'/local_views/'+save_subdir):
                     os.makedirs(self.save_dir+'/local_views/'+save_subdir)
                 plt.savefig(self.save_dir+'/local_views/'+save_subdir+'/'+str(k)+'.png')
+            
+            first_plot = False
+            if not k_not_available:
+                break
     
     def intermediate_views(self, X, phi, Utilde, gamma, Atilde, Psitilde_gamma,
               Psitilde_i, zetatilde, c, k=None, figsize=(15,10), s=20):

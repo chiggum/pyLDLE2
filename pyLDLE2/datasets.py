@@ -27,9 +27,9 @@ def do_pca(X, n_pca):
     print('Applying PCA')
     pca = PCA(n_components=n_pca, random_state=42)
     pca.fit(X)
-    print('explained_variance_ratio:', pca.explained_variance_ratio_)
+    #print('explained_variance_ratio:', pca.explained_variance_ratio_)
     print('sum(explained_variance_ratio):', np.sum(pca.explained_variance_ratio_))
-    print('singular_values:', pca.singular_values_)
+    #print('singular_values:', pca.singular_values_)
     X = pca.fit_transform(X)
     return X
 
@@ -365,6 +365,17 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, None
     
+    def cuboid_and_swissroll(self, n=5000, RES=70, noise1 = 0.01, noise2=0.015, sep=0):
+        s1, l1, _ = self.solidcuboid3d(RES=15)
+        s2, l2, _ = self.noisyswissroll(RES=RES, noise=0)
+        x_max = np.max(s1[:,0])
+        x_min = np.min(s2[:,0])
+        s2 = s2 + np.array([x_max-x_min,0,0]).reshape((1,3)) + sep
+        X = np.concatenate([s1, s2], axis=0)
+        labelsMat = np.concatenate([l1[:,:2], l2], axis=0)
+        print('X.shape = ', X.shape)
+        return X, labelsMat, None
+    
     def multi_spheres(self, m=3, n=3000, noise = 0, sep=1):
         X = []
         labelsMat = []
@@ -576,7 +587,7 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, None
     
-    def mnist(self, digits, n, n_pca=25, normalize=False):
+    def mnist(self, digits, n, n_pca=25, scale=True):
         X0, y0 = fetch_openml('mnist_784', version=1, return_X_y=True, as_frame=False)
         X = []
         y = []
@@ -587,9 +598,8 @@ class Datasets:
             y.append(np.zeros(n)+digit)
             
         X = np.concatenate(X, axis=0)
-        if normalize:
-            X = X - np.mean(X,axis=0)[np.newaxis,:]
-            X = X / (np.std(X,axis=0)[np.newaxis,:] + 1e-12)
+        if scale:
+            X = X/np.max(np.abs(X))
         y = np.concatenate(y, axis=0)
         labelsMat = y[:,np.newaxis]
         
