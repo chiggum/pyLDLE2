@@ -1,3 +1,4 @@
+import pdb
 import sys
 import os
 
@@ -641,15 +642,15 @@ class Visualize:
             for j in range(len(subplots)):
                 ax[j+1]
                 ax[j+1].cla()
-                i_s = Psi_i[k,j]
+                i_s = local_param.Psi_i[k,j]
                 if not first_plot:
                     cb[j+1].remove()
                 if is_3d_data:
-                    p = ax[j+1].scatter(X[:,0], X[:,1], X[:,2], s=s*(1-U_k), c=local_param.phi[:,i_s], cmap='jet')
+                    p = ax[j+1].scatter(X[:,0], X[:,1], X[:,2], s=s*(1-U_k), c=local_param.phi[:n,i_s], cmap='jet')
                     ax[j+1].scatter(X[U_k,0], X[U_k,1], X[U_k,2], s=s, c='k')
                     set_axes_equal(ax[j+1])
                 else:
-                    p = ax[j+1].scatter(X[:,0], X[:,1], s=s*(1-U_k), c=local_param.phi[:,i_s], cmap='jet')
+                    p = ax[j+1].scatter(X[:,0], X[:,1], s=s*(1-U_k), c=local_param.phi[:n,i_s], cmap='jet')
                     ax[j+1].scatter(X[U_k,0], X[U_k,1], s=s, c='k')
                     ax[j+1].axis('image')
 
@@ -665,7 +666,7 @@ class Visualize:
             ax[4].cla()
             ax[4].plot(prctiles, np.percentile(angles.flatten(), prctiles), 'bo-')
             ax[4].plot([0,100], [0,0], 'g-')
-            ax[4].plot([0,100], [angles[Psi_i[k,0],Psi_i[k,1]]]*2, 'r-')
+            ax[4].plot([0,100], [angles[local_param.Psi_i[k,0],local_param.Psi_i[k,1]]]*2, 'r-')
             ax[4].set_xlabel('percentiles')
             ax[4].set_title('$\\cos(\\nabla\\phi_{i_1},\\nabla\\phi_{i_2})$')
 
@@ -678,7 +679,7 @@ class Visualize:
             ax[5].cla()
             ax[5].plot(prctiles, np.percentile(dlocal_scales.flatten(), prctiles), 'bo-')
             ax[5].plot([0,100], [np.log(2)]*2, 'g-')
-            ax[5].plot([0,100], [dlocal_scales[Psi_i[k,0],Psi_i[k,1]]]*2, 'r-')
+            ax[5].plot([0,100], [dlocal_scales[local_param.Psi_i[k,0],local_param.Psi_i[k,1]]]*2, 'r-')
             ax[5].set_xlabel('percentiles')
             ax[5].set_title('$\\log(\\gamma_{i_1}\\left\\|\\nabla\\phi_{i_1}\\right\\|_2 / \
                       \\gamma_{i_2}\\left\\|\\nabla\\phi_{i_2}\\right\\|_2+1)$')
