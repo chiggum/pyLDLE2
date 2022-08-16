@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: pyLDLE2
-Version: 0.1.3
+Version: 0.1.4
 Summary: Low Distortion Local Eigenmaps and its variations.
 Author: Dhruv Kohli, Alex Cloninger, Gal Mishne
 License: MIT License
