@@ -341,8 +341,9 @@ def rgd_final(y, d, Utilde, C, intermed_param,
             else:
                 end_ind = (p_num+1)*chunk_sz
             for _ in range(max_iter):
+                O_copy = O.copy()
                 for i in range(start_ind, end_ind):
-                    xi_ = 2*np.matmul(O, CC[:,i*d:(i+1)*d])
+                    xi_ = 2*np.matmul(O_copy, CC[:,i*d:(i+1)*d])
                     temp0 = O[:,i*d:(i+1)*d]
                     temp1 = np.matmul(xi_,temp0.T)
                     skew_temp1 = 0.5*(temp1-temp1.T)
