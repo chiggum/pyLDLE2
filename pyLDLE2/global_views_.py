@@ -4,7 +4,7 @@ import numpy as np
 import copy
 
 from .util_ import procrustes, print_log, nearest_neighbors, sparse_matrix, lexargmax
-from .global_reg_ import procrustes_init, spectral_alignment, sdp_alignment, procrustes_final, rgd_final, compute_alignment_err
+from .global_reg_ import procrustes_init, spectral_alignment, sdp_alignment, procrustes_final, rgd_final, gpm_final, compute_alignment_err
 
 from scipy.linalg import svdvals
 from scipy.sparse.csgraph import minimum_spanning_tree, breadth_first_order
@@ -243,8 +243,15 @@ class GlobalViews:
         M,n = Utilde.shape
         y = np.zeros((n,d))
         for s in range(M):
-            C_s = C[s,:].indices
-            y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
+            if global_opts['to_tear']: #TODO: partial aggregate
+                C_s = C[s,:].indices
+                y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
+            else:
+                Utilde_s = Utilde[s,:].indices
+                y[Utilde_s,:] += intermed_param.eval_({'view_index': s, 'data_mask': Utilde_s})
+        
+        if not global_opts['to_tear']:
+            y = y/np.asarray(Utilde.sum(0).T)
 
         if global_opts['color_tear']:
             if (color_of_pts_on_tear is None) and global_opts['to_tear']:
@@ -469,6 +476,12 @@ class GlobalViews:
                             
                 if refine_algo == 'rgd':
                     y = rgd_final(y, d, contrib_of_view, C, intermed_param,
+                                   n_Utilde_Utilde, n_Utildeg_Utildeg,
+                                   parents_of_intermed_views_in_cluster,
+                                   cluster_of_intermed_view,
+                                   global_opts)
+                if refine_algo == 'gpm':
+                    y = gpm_final(y, d, contrib_of_view, C, intermed_param,
                                    n_Utilde_Utilde, n_Utildeg_Utildeg,
                                    parents_of_intermed_views_in_cluster,
                                    cluster_of_intermed_view,

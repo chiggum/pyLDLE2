@@ -330,6 +330,7 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, c
                        Options are 'gpa' for Generalized Procustes Analysis
                        (GPA) based alignment, 'rgd' for Riemannian gradient descent
                        based alignment, 'spectral' for spectral alignment,
+                       'gpm' for generalized power method based alignment,
                        'sdp' for semi-definite programming based alignment. Note that
                        sdp based alignment is very slow.
     max_internal_iter : int

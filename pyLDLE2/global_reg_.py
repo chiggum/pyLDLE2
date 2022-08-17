@@ -158,7 +158,7 @@ def compute_CC(D, B, Lpinv_BT):
     CC = D - B.dot(Lpinv_BT)
     return 0.5*(CC + CC.T)
 
-def build_ortho_optim(d, Utilde, intermed_param):
+def build_ortho_optim(d, Utilde, intermed_param, ret_D=False):
     M,n = Utilde.shape
     B_row_inds = []
     B_col_inds = []
@@ -181,7 +181,10 @@ def build_ortho_optim(d, Utilde, intermed_param):
     Lpinv_BT = compute_Lpinv_BT(Utilde, B)
 
     CC = compute_CC(D, B, Lpinv_BT)
-    return CC, Lpinv_BT
+    if ret_D:
+        return CC, Lpinv_BT, D
+    else:
+        return CC, Lpinv_BT
     
 
 def compute_alignment_err(d, Utilde, intermed_param):
@@ -197,6 +200,7 @@ def spectral_alignment(y, is_visited_view, d, Utilde,
                       C, intermed_param, global_opts, 
                       seq_of_intermed_views_in_cluster):
     CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param)
+        
     M,n = Utilde.shape
     print('Computing eigh(C,k=d)', flush=True)
     np.random.seed(42)
@@ -342,6 +346,7 @@ def rgd_final(y, d, Utilde, C, intermed_param,
                 end_ind = (p_num+1)*chunk_sz
             for _ in range(max_iter):
                 O_copy = O.copy()
+                barrier.wait()
                 for i in range(start_ind, end_ind):
                     xi_ = 2*np.matmul(O_copy, CC[:,i*d:(i+1)*d])
                     temp0 = O[:,i*d:(i+1)*d]
@@ -349,6 +354,103 @@ def rgd_final(y, d, Utilde, C, intermed_param,
                     skew_temp1 = 0.5*(temp1-temp1.T)
                     Q_,R_ = unique_qr(temp0 - alpha*np.matmul(skew_temp1,temp0))
                     O[:,i*d:(i+1)*d] = Q_
+                barrier.wait()
+            
+            existing_shm_O.close()
+            existing_shm_CC.close()
+        
+        
+        proc = []
+        chunk_sz = int(M/n_proc)
+        for p_num in range(n_proc):
+            proc.append(mp.Process(target=target_proc,
+                                   args=(p_num,chunk_sz, barrier),
+                                   daemon=True))
+            proc[-1].start()
+
+        for p_num in range(n_proc):
+            proc[p_num].join()
+        ###########################################
+        
+        # Sequential version of above
+        # for i in range(M):
+        #     temp0 = O[:,i*d:(i+1)*d]
+        #     temp1 = skew(np.matmul(xi[:,i*d:(i+1)*d],temp0.T))
+        #     Q_,R_ = unique_qr(temp0 - t*np.matmul(temp1,temp0))
+        #     O[:,i*d:(i+1)*d] = Q_
+
+    alpha = global_opts['alpha']
+    max_iter = global_opts['max_internal_iter']
+    Tstar = np.zeros((d,M*d))
+    for s in range(M):
+        Tstar[:,s*d:(s+1)*d] = np.eye(d)
+    
+    print('Descent starts', flush=True)
+    shm_Tstar = shared_memory.SharedMemory(create=True, size=Tstar.nbytes)
+    np_Tstar = np.ndarray(Tstar.shape, dtype=Tstar.dtype, buffer=shm_Tstar.buf)
+    np_Tstar[:] = Tstar[:]
+    shm_CC = shared_memory.SharedMemory(create=True, size=CC.nbytes)
+    np_CC = np.ndarray(CC.shape, dtype=CC.dtype, buffer=shm_CC.buf)
+    np_CC[:] = CC[:]
+    
+    update(alpha, max_iter, shm_Tstar.name, Tstar.shape, Tstar.dtype,
+           shm_CC.name, CC.shape, CC.dtype, barrier)
+    
+    Tstar[:] = np_Tstar[:]
+    
+    del np_Tstar
+    shm_Tstar.close()
+    shm_Tstar.unlink()
+    del np_CC
+    shm_CC.close()
+    shm_CC.unlink()
+    
+    Zstar = Tstar.dot(Lpinv_BT.transpose())
+    
+    for s in range(M):
+        T_s = Tstar[:,s*d:(s+1)*d].T
+        v_s = Zstar[:,n+s]
+        intermed_param.T[s,:,:] = np.matmul(intermed_param.T[s,:,:], T_s)
+        intermed_param.v[s,:] = np.matmul(intermed_param.v[s,:][np.newaxis,:], T_s) + v_s
+        C_s = C[s,:].indices
+        y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
+
+    return y
+
+def gpm_final(y, d, Utilde, C, intermed_param,
+             n_Utilde_Utilde, n_Utildeg_Utildeg,
+             parents_of_intermed_views_in_cluster,
+             cluster_of_intermed_view,
+             global_opts):
+    CC, Lpinv_BT, D = build_ortho_optim(d, Utilde, intermed_param, ret_D=True)
+    CC = D - CC
+    M,n = Utilde.shape
+    n_proc = min(M,global_opts['n_proc'])
+    barrier = mp.Barrier(n_proc)
+
+    def update(alpha, max_iter, shm_name_O, O_shape, O_dtype,
+               shm_name_CC, CC_shape, CC_dtype, barrier):
+        ###########################################
+        # Parallel Updates
+        ###########################################
+        def target_proc(p_num, chunk_sz, barrier):
+            existing_shm_O = shared_memory.SharedMemory(name=shm_name_O)
+            O = np.ndarray(O_shape, dtype=O_dtype, buffer=existing_shm_O.buf)
+            existing_shm_CC = shared_memory.SharedMemory(name=shm_name_CC)
+            CC = np.ndarray(CC_shape, dtype=CC_dtype, buffer=existing_shm_CC.buf)
+            
+            start_ind = p_num*chunk_sz
+            if p_num == (n_proc-1):
+                end_ind = M
+            else:
+                end_ind = (p_num+1)*chunk_sz
+            for _ in range(max_iter):
+                O_copy = O.copy()
+                barrier.wait()
+                for i in range(start_ind, end_ind):
+                    temp = np.dot(O_copy, CC[:,i*d:(i+1)*d])
+                    U_,S_,VT_ = scipy.linalg.svd(temp)
+                    O[:,i*d:(i+1)*d] = np.matmul(U_,VT_)
                 barrier.wait()
             
             existing_shm_O.close()
