@@ -531,6 +531,48 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, None
     
+    def non_uniform_trapezoid(self, ar=2, RES=100, r0=0.98, r1=0.75, noise=0, noise_type='uniform'):
+        sideLx = np.sqrt(ar)
+        sideLy = 1/sideLx
+        RESx = int(sideLx*RES+1)
+        RESy = int(sideLy*RES+1)
+        x = np.linspace(0, sideLx, RESx)
+        dx = x[1]-x[0]
+        x = np.concatenate([[0],dx*np.power(r0,np.arange(RESx-1))])
+        x = sideLx * np.cumsum(x)/np.sum(x)
+        y = np.linspace(0, sideLy, RESy)
+        rx = np.linspace(r0, 1, RESx)
+        rSideLx = np.linspace(1, r1, RESy)
+        xv_, yv = np.meshgrid(x, y)
+        _, rSideLxv = np.meshgrid(x, rSideLx)
+        xv = rSideLxv * xv_
+        xv_ = xv_.flatten('F')[:,np.newaxis]
+        xv = xv.flatten('F')[:,np.newaxis]
+        yv = yv.flatten('F')[:,np.newaxis]
+        X = np.concatenate([xv,yv], axis=1)
+        X_ = np.concatenate([xv_,yv], axis=1)
+        if noise:
+            np.random.seed(42)
+            n = xv.shape[0]
+            if noise_type == 'normal':
+                n = xv.shape[0]
+                X = np.concatenate([X,np.zeros((n,1))], axis=1)
+                X = X + noise*np.random.normal(0,1,(n,3))
+            elif noise_type == 'uniform':
+                X = np.concatenate([X,noise*np.random.uniform(-1,1,(n,1))], axis=1)
+
+        labelsMat = X
+        print('X.shape = ', X.shape)
+
+        n = X.shape[0]
+        ddX = np.zeros(n)
+        for k in range(n):
+            ddXx = np.min([X_[k,0], sideLx-X_[k,0]])
+            ddXy = np.min([X_[k,1], sideLy-X_[k,1]])
+            ddX[k] = np.min([ddXx, ddXy]) > 0
+            
+        return X, labelsMat, ddX
+    
     def twinpeaks(self, n=10000, noise=0, ar=4):
         np.random.seed(42)
         s_ = 2
