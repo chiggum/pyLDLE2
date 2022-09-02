@@ -50,8 +50,8 @@ def graph_laplacian(neigh_dist, neigh_ind, k_nn, k_tune, gl_type,
     #K = K + K.T - K.multiply(K.T)
     
     if gl_type == 'diffusion':
-        D = 1/(K.sum(axis=1).reshape((n,1)))
-        K = K.multiply(D).multiply(D.transpose())
+        Dinv = 1/(K.sum(axis=1).reshape((n,1)))
+        K = K.multiply(Dinv).multiply(Dinv.transpose())
         gl_type = 'symnorm'
 
     # Compute and return graph Laplacian based on gl_type

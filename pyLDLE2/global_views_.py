@@ -432,79 +432,78 @@ class GlobalViews:
             self.log('Refining with ' + refine_algo + ' algorithm for ' + str(max_iter1) + ' iterations.')
             self.log('Refinement iteration: %d' % it0, log_time=True)
             
+            if global_opts['to_tear']:
+                # Compute which points contribute to which views
+                # IOW, compute correspondence between views and
+                # points. Since to_tear is True, this is not
+                # same as Utilde.
+                cov_col = []
+                cov_row = []
+                ZZ = n_Utilde_Utilde.multiply(n_Utildeg_Utildeg)
+                ZZ.eliminate_zeros()
+                for i in range(n_clusters):
+                    seq = seq_of_intermed_views_in_cluster[i]
+                    rho = parents_of_intermed_views_in_cluster[i]
+                    seq_set = set(seq)
+                    cov_col_ = C[seq[0],:].indices.tolist()
+                    cov_col += cov_col_
+                    cov_row += [seq[0]]*len(cov_col_)
+                    for m in range(1,seq.shape[0]):
+                        s = seq[m]
+                        Z_s = ZZ[s,:]
+                        Z_s = Z_s.indices.tolist()
+                        Z_s = list(seq_set.intersection(Z_s))
+                        if len(Z_s) == 0: # ideally this should not happen
+                            Z_s = parents_of_intermed_views_in_cluster[cluster_of_intermed_view[s]][s]
+                            Z_s = [Z_s]
+
+                        cov_s = Utilde[s,:].multiply(C[Z_s,:].sum(axis=0))
+                        cov_col_ = cov_s.nonzero()[1].tolist()
+                        cov_col += cov_col_
+                        cov_row += [s]*len(cov_col_)
+
+                contrib_of_view = csr_matrix((np.ones(len(cov_col), dtype=bool),
+                                              (cov_row, cov_col)),
+                                             shape=C.shape,
+                                             dtype = bool)
+                contrib_of_view += C
+            
             if refine_algo == 'procrustes':
                 y = procrustes_final(y, d, Utilde, C, intermed_param, n_Utilde_Utilde, n_Utildeg_Utildeg,
                                      seq_of_intermed_views_in_cluster, parents_of_intermed_views_in_cluster,
                                      cluster_of_intermed_view, global_opts)
                     
-            else:
-                if global_opts['to_tear']:
-                    # Compute which points contribute to which views
-                    # IOW, compute correspondence between views and
-                    # points. Since to_tear is True, this is not
-                    # same as Utilde.
-                    cov_col = []
-                    cov_row = []
-                    ZZ = n_Utilde_Utilde.multiply(n_Utildeg_Utildeg)
-                    ZZ.eliminate_zeros()
-                    for i in range(n_clusters):
-                        seq = seq_of_intermed_views_in_cluster[i]
-                        rho = parents_of_intermed_views_in_cluster[i]
-                        seq_set = set(seq)
-                        cov_col_ = C[seq[0],:].indices.tolist()
-                        cov_col += cov_col_
-                        cov_row += [seq[0]]*len(cov_col_)
-                        for m in range(1,seq.shape[0]):
-                            s = seq[m]
-                            Z_s = ZZ[s,:]
-                            Z_s = Z_s.indices.tolist()
-                            Z_s = list(seq_set.intersection(Z_s))
-                            if len(Z_s) == 0: # ideally this should not happen
-                                Z_s = parents_of_intermed_views_in_cluster[cluster_of_intermed_view[s]][s]
-                                Z_s = [Z_s]
-                            
-                            cov_s = Utilde[s,:].multiply(C[Z_s,:].sum(axis=0))
-                            cov_col_ = cov_s.nonzero()[1].tolist()
-                            cov_col += cov_col_
-                            cov_row += [s]*len(cov_col_)
-                    
-                    contrib_of_view = csr_matrix((np.ones(len(cov_col), dtype=bool),
-                                                  (cov_row, cov_col)),
-                                                 shape=C.shape,
-                                                 dtype = bool)
-                    contrib_of_view += C
-                            
-                if refine_algo == 'rgd':
-                    y = rgd_final(y, d, contrib_of_view, C, intermed_param,
-                                   n_Utilde_Utilde, n_Utildeg_Utildeg,
-                                   parents_of_intermed_views_in_cluster,
-                                   cluster_of_intermed_view,
-                                   global_opts)
-                if refine_algo == 'gpm':
-                    y = gpm_final(y, d, contrib_of_view, C, intermed_param,
-                                   n_Utilde_Utilde, n_Utildeg_Utildeg,
-                                   parents_of_intermed_views_in_cluster,
-                                   cluster_of_intermed_view,
-                                   global_opts)
-                elif refine_algo == 'spectral':
-                    y, y_2,\
-                    is_visited_view = spectral_alignment(y, is_visited_view, d, contrib_of_view,
-                                                         C, intermed_param, global_opts,
-                                                         seq_of_intermed_views_in_cluster)
-                elif refine_algo == 'sdp':
-                    y, y_2,\
-                    is_visited_view,\
-                    solver = sdp_alignment(y, is_visited_view, d, contrib_of_view,
-                                           C, intermed_param, global_opts,
-                                           seq_of_intermed_views_in_cluster,
-                                           solver=solver)
+            elif refine_algo == 'rgd':
+                y = rgd_final(y, d, contrib_of_view, C, intermed_param,
+                               n_Utilde_Utilde, n_Utildeg_Utildeg,
+                               parents_of_intermed_views_in_cluster,
+                               cluster_of_intermed_view,
+                               global_opts)
+            elif refine_algo == 'gpm':
+                y = gpm_final(y, d, contrib_of_view, C, intermed_param,
+                               n_Utilde_Utilde, n_Utildeg_Utildeg,
+                               parents_of_intermed_views_in_cluster,
+                               cluster_of_intermed_view,
+                               global_opts)
+            elif refine_algo == 'spectral':
+                y, y_2,\
+                is_visited_view = spectral_alignment(y, is_visited_view, d, contrib_of_view,
+                                                     C, intermed_param, global_opts,
+                                                     seq_of_intermed_views_in_cluster)
+            elif refine_algo == 'sdp':
+                y, y_2,\
+                is_visited_view,\
+                solver = sdp_alignment(y, is_visited_view, d, contrib_of_view,
+                                       C, intermed_param, global_opts,
+                                       seq_of_intermed_views_in_cluster,
+                                       solver=solver)
                 
             self.log('Done.', log_time=True)
             self.tracker['refine_iter_done_at'][it0] = time.time()
 
             if global_opts['compute_error'] or (it0 == max_iter0-1):
                 self.log('Computing error.')
-                err = compute_alignment_err(d, Utilde, intermed_param)
+                err = compute_alignment_err(d, contrib_of_view, intermed_param)
                 self.log('Alignment error: %0.3f' % err, log_time=True)
                 self.tracker['refine_err_at_iter'][it0] = err
                 

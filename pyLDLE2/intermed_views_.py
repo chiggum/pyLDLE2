@@ -230,7 +230,7 @@ class IntermedViews:
                 ###########################################
                 # cost, dest update for k in S
                 ###########################################
-                if len_S > intermed_opts['len_S_thresh']: # do parallel update (almost never true)
+                if False and len_S > intermed_opts['len_S_thresh']: # do parallel update (almost never true)
                     proc = []
                     n_proc_ = min(n_proc, len_S)
                     chunk_sz = int(len_S/n_proc_)
@@ -412,14 +412,15 @@ class IntermedViews:
             # Compute Utilde_m
             Utilde = C.dot(U)
 
-            intermed_param.zeta = np.ones(M);
+            intermed_param.zeta = np.ones(M)
             for m in range(M):
                 Utilde_m = Utilde[m,:].indices
                 d_e_Utilde_m = d_e[np.ix_(Utilde_m,Utilde_m)]
                 intermed_param.zeta[m] = compute_zeta(d_e_Utilde_m,
                                                       intermed_param.eval_({'view_index': m,
                                                                             'data_mask': Utilde_m}))
-
+            np.random.seed(42)
+            intermed_param.noise_seed = np.random.randint(M*M, size=M)
             self.log('Done.', log_time=True)
         else:
             c = np.arange(n, dtype=int)
@@ -428,6 +429,8 @@ class IntermedViews:
             n_C = np.ones(n, dtype=int)
             Utilde = U.copy()
             intermed_param = copy.deepcopy(local_param)
+            np.random.seed(42)
+            intermed_param.noise_seed = np.random.randint(n*n, size=n)
         print("After clustering, max distortion is %f" % (np.max(intermed_param.zeta)))
         self.C = C
         self.c = c

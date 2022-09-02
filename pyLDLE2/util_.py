@@ -27,7 +27,8 @@ class Param:
         # initialized externally
         # i.e. by the caller
         self.zeta = None
-        self.noise = 0
+        self.noise_seed = None
+        self.noise_var = 0
         
         # For LDLE
         self.Psi_gamma = None
@@ -45,12 +46,14 @@ class Param:
         
         if self.algo == 'LDLE':
             temp = self.Psi_gamma[k,:][np.newaxis,:]*self.phi[np.ix_(mask,self.Psi_i[k,:])]
+            n = self.phi.shape[0]
         elif self.algo == 'LTSA':
             temp = np.dot(self.X[mask,:]-self.mu[k,:][np.newaxis,:],self.Psi[k,:,:])
+            n = self.X.shape[0]
         
-        if self.noise:
-            np.random.seed(k)
-            temp2 = np.random.normal(0, self.noise, (mask.shape[0], temp.shape[1]))
+        if self.noise_var:
+            np.random.seed(self.noise_seed[k])
+            temp2 = np.random.normal(0, self.noise_var, (n, temp.shape[1]))
             temp = temp + temp2[mask,:]
         
         if self.b is None:

@@ -284,7 +284,7 @@ def get_default_intermed_opts(algo='best', n_times=4, eta_min=5, eta_max=25, len
 def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, color_tear=True,
                             vis_before_init=False, compute_error=False,
                             init_algo_name='procrustes', align_w_parent_only=True,
-                            refine_algo_name='rgd',
+                            refine_algo_name='gpm',
                             max_internal_iter=100,
                             alpha=0.3,
                             eps=1e-8):
@@ -478,6 +478,7 @@ class LDLE:
         # The variables created during the fit
         self.X = None
         self.d_e = None
+        self.scale = None
         self.ddX = None
         self.neigh_dist = None
         self.neigh_ind = None
@@ -530,6 +531,7 @@ class LDLE:
             self.log('Done.', log_time=True)
         
         # Construct a sparse d_e matrix based on neigh_ind and neigh_dist
+        self.scale = np.min(neigh_dist[neigh_dist > 0])
         d_e = sparse_matrix(neigh_ind, neigh_dist)
         d_e = d_e.maximum(d_e.transpose())
 
