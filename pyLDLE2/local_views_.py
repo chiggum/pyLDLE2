@@ -80,10 +80,13 @@ class LocalViews:
             #############################################
             
             # Compute gamma
-            if local_opts['no_gamma']:
+            if local_opts['scale_by']=='none':
                 gamma = np.ones((GL.phi.shape[0], local_opts['N']))
-            else:
+            elif local_opts['scale_by']=='gamma':
                 gamma = np.sqrt(local_opts['k']/U.dot(GL.phi**2))
+            else:
+                gamma = np.repeat(np.power(GL.lmbda.flatten(),local_opts['scale_by']),
+                                  GL.phi.shape[0]).reshape(GL.phi.shape)
             #############################################
 
             # Compute LDLE: Low Distortion Local Eigenmaps

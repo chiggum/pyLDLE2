@@ -180,7 +180,7 @@ def double_manifold_k_nn(data, ddX, k_nn, metric, n_proc=1):
     
 
 def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, gl_type='unnorm',
-                           N=100, no_gamma=False, Atilde_method='LDLE_1',
+                           N=100, scale_by='gamma', Atilde_method='LDLE_1',
                            alpha=1, max_iter=300, reg=0.,
                            p=0.99, tau=50, delta=0.9, to_postprocess= True,
                            pp_n_thresh=32):
@@ -212,9 +212,12 @@ def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, gl_type='unnorm
         Number of smallest non-trivial eigenvectors of the
         graph Laplacian to be used for the construction of
         local views.
-    no_gamma : bool
-               If True, the parameterization of local views
-               are not normalized.
+    scale_by : str
+               To scale the eigenvectors. Options
+               are 'none', 'gamma' or a positive real value. Default is
+               'gamma'. Using numerical value with gl_type as 'diffusion'
+               uses diffusion maps to construct local views where
+               the numeric value is used as the power of the eigenvalues.
     Atilde_method : str
                     Method to use for conmputing Atilde.
                     Options are 'LDLE_1' for finite element method,
@@ -246,7 +249,7 @@ def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, gl_type='unnorm
         value such as 32 leads to faster postprocessing.
     """
     return {'k_nn': k_nn, 'k_tune': k_tune, 'k': k,
-           'gl_type': gl_type, 'N': N, 'no_gamma': no_gamma,
+           'gl_type': gl_type, 'N': N, 'scale_by': scale_by,
            'Atilde_method': Atilde_method, 'p': p, 'tau': tau, 'delta': delta,
            'alpha': alpha, 'max_iter': max_iter, 'reg': reg, 
            'to_postprocess': to_postprocess, 'algo': algo,
@@ -284,7 +287,7 @@ def get_default_intermed_opts(algo='best', n_times=4, eta_min=5, eta_max=25, len
 def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, color_tear=True,
                             vis_before_init=False, compute_error=False,
                             init_algo_name='procrustes', align_w_parent_only=True,
-                            refine_algo_name='gpm',
+                            refine_algo_name='rgd',
                             max_internal_iter=100,
                             alpha=0.3,
                             eps=1e-8):

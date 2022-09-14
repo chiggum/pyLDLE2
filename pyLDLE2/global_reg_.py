@@ -191,7 +191,7 @@ def compute_alignment_err(d, Utilde, intermed_param):
     CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param)
     M,n = Utilde.shape
     CC_mask = np.tile(np.eye(d, dtype=bool), (M,M))
-    err = np.sum(CC[CC_mask])
+    err = np.sum(CC[CC_mask])/(Utilde.sum()-n)
     return err
 
 # Kunal N Chaudhury, Yuehaw Khoo, and Amit Singer, Global registration

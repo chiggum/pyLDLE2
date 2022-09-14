@@ -239,18 +239,24 @@ class GlobalViews:
     
     def vis_embedding_(self, d, intermed_param, C, Utilde,
                       n_Utilde_Utilde, global_opts, vis,
-                      vis_opts, title='', color_of_pts_on_tear=None):
+                      vis_opts, title='', color_of_pts_on_tear=None,
+                      contrib_of_view=None):
         M,n = Utilde.shape
         y = np.zeros((n,d))
         for s in range(M):
-            if global_opts['to_tear']: #TODO: partial aggregate
-                C_s = C[s,:].indices
-                y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
+            if global_opts['to_tear']:
+                if contrib_of_view is None:
+                    C_s = C[s,:].indices
+                else:
+                    C_s = contrib_of_view[s,:].indices
+                y[C_s,:] += intermed_param.eval_({'view_index': s, 'data_mask': C_s})
             else:
                 Utilde_s = Utilde[s,:].indices
                 y[Utilde_s,:] += intermed_param.eval_({'view_index': s, 'data_mask': Utilde_s})
         
-        if not global_opts['to_tear']:
+        if global_opts['to_tear'] and (contrib_of_view is not None):
+            y = y/np.asarray(contrib_of_view.sum(0).T)
+        elif not global_opts['to_tear']:
             y = y/np.asarray(Utilde.sum(0).T)
 
         if global_opts['color_tear']:
@@ -504,7 +510,7 @@ class GlobalViews:
             if global_opts['compute_error'] or (it0 == max_iter0-1):
                 self.log('Computing error.')
                 err = compute_alignment_err(d, contrib_of_view, intermed_param)
-                self.log('Alignment error: %0.3f' % err, log_time=True)
+                self.log('Alignment error: %0.6f' % err, log_time=True)
                 self.tracker['refine_err_at_iter'][it0] = err
                 
             self.add_spacing_bw_clusters(d, seq_of_intermed_views_in_cluster,
@@ -529,6 +535,7 @@ class GlobalViews:
             _, y = self.vis_embedding_(d, intermed_param, C, Utilde,
                               n_Utilde_Utilde, global_opts, vis,
                               vis_opts, title='Iter_%d' % it0,
-                              color_of_pts_on_tear=color_of_pts_on_tear)
+                              color_of_pts_on_tear=color_of_pts_on_tear,
+                              contrib_of_view=contrib_of_view)
 
         return y , color_of_pts_on_tear
