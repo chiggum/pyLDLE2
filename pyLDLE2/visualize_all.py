@@ -15,7 +15,11 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('Data', flush=True)
     print('#'*50, flush=True)
     if X.shape[1] <= 3:
-        ldle.vis.data(X, labelsMat[:,0], figsize=figsize1, s=s1, cmap='summer')
+        ldle.vis.data(X, labelsMat[:,0], figsize=figsize1, s=s1, cmap='hsv', title='data_hsv')
+    else:
+        print('Cannot plot because input data has more than 3 features.')
+    if X.shape[1] <= 3:
+        ldle.vis.data(X, labelsMat[:,0], figsize=figsize1, s=s1, cmap='summer', title='data_summer')
     else:
         print('Cannot plot because input data has more than 3 features.')
 
@@ -182,7 +186,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
                         k = int(k_*X.shape[0]/n_views)
                     ldle.vis.local_views(X, ldle.LocalViews.local_param_post, ldle.LocalViews.U.toarray(),
                                          ldle.LocalViews.gamma, ldle.LocalViews.IPGE.Atilde,
-                                         k=k, figsize=figsize3)
+                                         k=k, figsize=figsize3, save_subdir='data_space')
             else:
                 print('Cannot plot because input data has more than 3 features')
         else:
@@ -197,7 +201,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
                         k = int(k_*X.shape[0]/n_views)
                     ldle.vis.local_views_ltsa(X, ldle.LocalViews.local_param_post, 
                                               ldle.LocalViews.U.toarray(),
-                                               k=k, figsize=figsize3)
+                                               k=k, figsize=figsize3, save_subdir='data_space')
             else:
                 print('Cannot plot because input data has more than 3 features')
         else:
@@ -218,7 +222,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
                     ldle.vis.local_views(ldle.GlobalViews.y_final, ldle.LocalViews.local_param_post,
                                          ldle.LocalViews.U.toarray(),
                                          ldle.LocalViews.gamma, ldle.LocalViews.IPGE.Atilde,
-                                         k=k, figsize=figsize3)
+                                         k=k, figsize=figsize3, save_subdir='embedding_space')
             else:
                 print('Cannot plot because input data has more than 3 features')
         else:
@@ -234,7 +238,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
                     ldle.vis.local_views_ltsa(ldle.GlobalViews.y_final,
                                               ldle.LocalViews.local_param_post,
                                               ldle.LocalViews.U.toarray(),
-                                              k=k, figsize=figsize3)
+                                              k=k, figsize=figsize3, save_subdir='embedding_space')
             else:
                 print('Cannot plot because input data has more than 3 features')
         else:
@@ -316,7 +320,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
                                                 ldle.IntermedViews.intermed_param.Psi_i,
                                                 ldle.IntermedViews.intermed_param.zeta,
                                                 ldle.IntermedViews.c, k=int(X.shape[0]*k/n_views),
-                                                figsize=figsize3)
+                                                figsize=figsize3, save_subdir='data_space')
             else:
                 print('Input has more than 3 features')
         else:
@@ -339,7 +343,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
                                                 ldle.IntermedViews.intermed_param.Psi_i,
                                                 ldle.IntermedViews.intermed_param.zeta,
                                                 ldle.IntermedViews.c, k=int(X.shape[0]*k/n_views),
-                                                figsize=figsize3)
+                                                figsize=figsize3, save_subdir='embedding_space')
             else:
                 print('Cannot plot because embedding dim > 3')
         else:
@@ -388,9 +392,9 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('final global embedding', flush=True)
     print('#'*50, flush=True)
     if ldle.d <= 3:
-        ldle.vis.global_embedding(ldle.GlobalViews.y_final, ldle.vis_opts['c'], ldle.vis_opts['cmap_interior'],
+        ldle.vis.global_embedding(ldle.GlobalViews.y_final, ldle.vis_opts['c'], 'hsv',
                                   ldle.GlobalViews.color_of_pts_on_tear_final, ldle.vis_opts['cmap_boundary'],
-                                  'Initial Embedding', figsize=figsize1, s=50)
+                                  'Final Embedding', figsize=figsize1, s=50)
     else:
         print('Cannot plot because embedding dim > 3')
     
