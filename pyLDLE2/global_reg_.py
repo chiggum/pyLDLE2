@@ -187,11 +187,20 @@ def build_ortho_optim(d, Utilde, intermed_param, ret_D=False):
         return CC, Lpinv_BT
     
 
-def compute_alignment_err(d, Utilde, intermed_param):
+def compute_alignment_err(d, Utilde, intermed_param, scale_num):
     CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param)
     M,n = Utilde.shape
+    
+    ## Check if C is pd or psd
+    #np.random.seed(42)
+    #v0 = np.random.uniform(0,1,CC.shape[0])
+    #sigma_min_C = slinalg.eigsh(CC, k=1, v0=v0, which='SM',return_eigenvectors=False)
+    #print('Smallest singular value of C', sigma_min_C, flush=True)
+    
     CC_mask = np.tile(np.eye(d, dtype=bool), (M,M))
-    err = np.sum(CC[CC_mask])/(Utilde.sum()-n)
+    scale_denom = Utilde.sum()
+    scale = (scale_num/scale_denom)**2
+    err = np.sum(CC[CC_mask]) * scale
     return err
 
 # Kunal N Chaudhury, Yuehaw Khoo, and Amit Singer, Global registration

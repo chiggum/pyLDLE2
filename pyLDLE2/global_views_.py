@@ -368,7 +368,7 @@ class GlobalViews:
         self.tracker['init_computed_at'] = time.time()
         if global_opts['compute_error']:
             self.log('Computing error.')
-            err = compute_alignment_err(d, Utilde, intermed_param)
+            err = compute_alignment_err(d, Utilde, intermed_param, Utilde.count_nonzero())
             self.log('Alignment error: %0.3f' % err, log_time=True)
             self.tracker['init_err'] = err
         
@@ -509,7 +509,7 @@ class GlobalViews:
 
             if global_opts['compute_error'] or (it0 == max_iter0-1):
                 self.log('Computing error.')
-                err = compute_alignment_err(d, contrib_of_view, intermed_param)
+                err = compute_alignment_err(d, contrib_of_view, intermed_param, Utilde.count_nonzero())
                 self.log('Alignment error: %0.6f' % err, log_time=True)
                 self.tracker['refine_err_at_iter'][it0] = err
                 

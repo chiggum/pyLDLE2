@@ -83,7 +83,7 @@ class LocalViews:
             if local_opts['scale_by']=='none':
                 gamma = np.ones((GL.phi.shape[0], local_opts['N']))
             elif local_opts['scale_by']=='gamma':
-                gamma = np.sqrt(local_opts['k']/U.dot(GL.phi**2))
+                gamma = 1/(np.sqrt(U.dot(GL.phi**2)/local_opts['k'])+1e-12)
             else:
                 gamma = np.repeat(np.power(GL.lmbda.flatten(),local_opts['scale_by']),
                                   GL.phi.shape[0]).reshape(GL.phi.shape)
