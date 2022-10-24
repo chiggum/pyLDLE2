@@ -189,6 +189,61 @@ class GlobalViews:
                parents_of_intermed_views_in_cluster,\
                cluster_of_intermed_view
     
+    def compute_pwise_dist_in_embedding(self, s_d_e, y, Utilde, C, global_opts,
+                                     n_Utilde_Utilde, n_Utildeg_Utildeg=None):
+        M,n = Utilde.shape
+        dist = squareform(pdist(y))
+
+        # Compute |Utildeg_{mm'}| if not provided
+        if n_Utildeg_Utildeg is None:
+            _, n_Utildeg_Utildeg = self.compute_Utildeg(y, Utilde, C, global_opts)
+
+        # Compute the tear: a graph between views where ith view
+        # is connected to jth view if they are neighbors in the
+        # ambient space but not in the embedding space
+        tear = n_Utilde_Utilde-n_Utilde_Utilde.multiply(n_Utildeg_Utildeg)
+        # Keep track of visited views across clusters of manifolds
+        is_visited = np.zeros(M, dtype=bool)
+        n_visited = 0
+        pts_on_tear = np.zeros(n, dtype=bool)
+        while n_visited < M: # boundary of a cluster remain to be colored
+            s0 = np.argmax(is_visited == 0)
+            seq, rho = breadth_first_order(n_Utilde_Utilde, s0, directed=False) #(ignores edge weights)
+            is_visited[seq] = True
+            n_visited = np.sum(is_visited)
+
+            # Iterate over views
+            for m in seq:
+                to_tear_mth_view_with = tear[m,:].nonzero()[1].tolist()
+                if len(to_tear_mth_view_with):
+                    # Points in the overlap of mth view and the views
+                    # on the opposite side of the tear
+                    Utilde_m = Utilde[m,:]
+                    for i in range(len(to_tear_mth_view_with)):
+                        mp = to_tear_mth_view_with[i]
+                        temp_i = Utilde_m.multiply(Utilde[mp,:])
+                        # Compute points on the overlap of m and m'th view
+                        # which are in mth cluster and in m'th cluster. If
+                        # both sets are non-empty then assign them same color.
+                        temp_m = C[m,:].multiply(temp_i).nonzero()[1]
+                        temp_mp = C[mp,:].multiply(temp_i).nonzero()[1]
+                        dist[np.ix_(temp_m,temp_mp)] = s_d_e[np.ix_(temp_m,temp_mp)]
+                        dist[np.ix_(temp_mp,temp_m)] = s_d_e[np.ix_(temp_mp,temp_m)]
+                        pts_on_tear[temp_m] = True
+                        pts_on_tear[temp_mp] = True
+
+        # Compute min of original vs lengths of one hop-distances by
+        # contracting dist.T, dist with min as the binary operation
+        print('Computing min(original dist, min(one-hop distances))', flush=True)
+        print('#pts on tear', np.sum(pts_on_tear))
+        print_freq = int(n/10)
+        for i in range(n):
+            if np.mod(i, print_freq) == 0:
+                print('Processed', i, 'points.', flush=True)
+            dist[i,:] = np.minimum(dist[i,:],np.min(dist[pts_on_tear,:] + dist[i,pts_on_tear][:,None], axis=0))
+
+        return dist
+    
     def compute_color_of_pts_on_tear(self, y, Utilde, C, global_opts,
                                      n_Utilde_Utilde, n_Utildeg_Utildeg=None):
         M,n = Utilde.shape

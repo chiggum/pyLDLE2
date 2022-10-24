@@ -3,6 +3,8 @@ import sys
 import os
 
 import numpy as np
+import seaborn as sns
+import pandas as pd
 
 import math
 import matplotlib.colors as mcolors
@@ -436,6 +438,15 @@ class Visualize:
         plt.boxplot([zeta],labels=[title], notch=True, patch_artist=True)
         if self.save_dir:
             plt.savefig(self.save_dir+'/box_'+title+'.png') 
+        plt.show()
+        
+    def global_distortion_viloinplot(self, dist_dict, ylabel='$\log(D_k)$',
+                                     title='violinplot for $\log(D_k)$'):
+        sns.violinplot(data=pd.DataFrame(dist_dict))
+        plt.ylabel('$\log(D_k)$')
+        plt.title('Violinplot for $\log(D_k)$')
+        if self.save_dir:
+            plt.savefig(self.save_dir+'/global_distortion.png') 
         plt.show()
     
     def dX(self, X, ddX, title, figsize=None, s=20):

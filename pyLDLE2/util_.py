@@ -165,3 +165,32 @@ def lexargmax(x):
         if len(idx) < 2:
             break
     return idx[0]
+
+def compute_distortion_at(y_d_e, s_d_e):
+    scale_factors = y_d_e/(s_d_e+1e-12)
+    np.fill_diagonal(scale_factors,1)
+    print('Max distortion is:', np.max(scale_factors)/np.min(scale_factors), flush=True)
+    n = y_d_e.shape[0]
+    distortion_at = np.zeros(n)
+    for i in range(n):
+        distortion_at[i] = np.max(scale_factors[i,:])/np.min(scale_factors[i,:])
+    return distortion_at
+
+def get_global_distortion_info(ldle, ys=None, names=None, include_ldle=True, s_d_e=None):
+    if s_d_e is None:
+        print('Using Floyd Warshall on the data', flush=True)
+        s_d_e = scipy.sparse.csgraph.floyd_warshall(ldle.d_e, directed=False)
+    df_dict = {}
+    if include_ldle:
+        print('Computing pairwise Euclidean distances in the LDLE embedding', flush=True)
+        y_ldle_d_e = ldle.GlobalViews.compute_pwise_dist_in_embedding(s_d_e, ldle.GlobalViews.y_final,
+                                                                    ldle.IntermedViews.Utilde,
+                                                                    ldle.IntermedViews.C, ldle.global_opts,
+                                                                    ldle.GlobalViews.n_Utilde_Utilde)
+        df_dict['LDLE'] = compute_distortion_at(y_ldle_d_e, s_d_e)
+
+    for i in range(len(ys)):
+        print('Computing pairwise Euclidean distances in the', names[i], 'embedding.', flush=True)
+        y_d_e = squareform(pdist(ys[i]))
+        df_dict[names[i]] = compute_distortion_at(y_d_e, s_d_e)
+    return df_dict
