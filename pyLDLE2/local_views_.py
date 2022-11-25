@@ -167,8 +167,19 @@ class LocalViews:
         else:
             self.log('Constructing local views using ' + local_opts['algo'])
             # Local views in the ambient space
-            U = sparse_matrix(neigh_ind[:,:local_opts['k']],
-                              np.ones((neigh_ind.shape[0],local_opts['k']), dtype=bool))
+            if local_opts['U_method'] == 'k_nn':
+                U = sparse_matrix(neigh_ind[:,:local_opts['k']],
+                                  np.ones((neigh_ind.shape[0],local_opts['k']), dtype=bool))
+            else:
+                neigh_ind_ = []
+                neigh_dist_ = []
+                radius = neigh_dist[:,local_opts['k']-1].max()
+                for k in range(neigh_ind.shape[0]):
+                    mask = neigh_dist[k] < radius
+                    neigh_ind_.append(neigh_ind[k][mask])
+                    neigh_dist_.append(np.ones(np.sum(mask), dtype=bool))
+                U = sparse_matrix(np.array(neigh_ind_), np.array(neigh_dist_))
+                    
             if local_opts['algo'] == 'Smooth-LTSA':
                 local_param_pre = self.compute_Smooth_LTSAP(d, X, d_e, U, local_opts)
             else:

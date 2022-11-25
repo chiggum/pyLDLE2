@@ -179,8 +179,8 @@ def double_manifold_k_nn(data, ddX, k_nn, metric, n_proc=1):
     return neigh_dist, neigh_ind
     
 
-def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, gl_type='unnorm',
-                           N=100, scale_by='gamma', Atilde_method='LDLE_1',
+def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, radius=0.5, U_method='k_nn', 
+                           gl_type='unnorm', N=100, scale_by='gamma', Atilde_method='LDLE_1',
                            alpha=1, max_iter=300, reg=0.,
                            p=0.99, tau=50, delta=0.9, to_postprocess= True,
                            pp_n_thresh=32):
@@ -203,6 +203,11 @@ def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, gl_type='unnorm
            be less than k_nn.
     k : int 
         The size of local view per point.
+    radius : float
+             Radius of the balls to be used to find nearest neighbors.
+    U_method : str
+                Method to use to construct local views.
+                Options are 'k_nn' and 'radius'.
     gl_type : str
               The type of graph Laplacian to construct.
               Options are 'unnorm' for unnormalized,
@@ -248,8 +253,8 @@ def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, gl_type='unnorm
         while postprocessing the local parameterizations. A small
         value such as 32 leads to faster postprocessing.
     """
-    return {'k_nn': k_nn, 'k_tune': k_tune, 'k': k,
-           'gl_type': gl_type, 'N': N, 'scale_by': scale_by,
+    return {'k_nn': k_nn, 'k_tune': k_tune, 'k': k, 'radius': radius,
+           'U_method': U_method, 'gl_type': gl_type, 'N': N, 'scale_by': scale_by,
            'Atilde_method': Atilde_method, 'p': p, 'tau': tau, 'delta': delta,
            'alpha': alpha, 'max_iter': max_iter, 'reg': reg, 
            'to_postprocess': to_postprocess, 'algo': algo,
@@ -533,8 +538,11 @@ class LDLE:
                                                          self.local_opts['n_proc'])
             self.log('Done.', log_time=True)
         
+#         self.neigh_ind = neigh_ind
+#         self.neigh_dist = neigh_dist
+#         return
         # Construct a sparse d_e matrix based on neigh_ind and neigh_dist
-        self.scale = np.min(neigh_dist[neigh_dist > 0])
+        # self.scale = np.min(neigh_dist[neigh_dist > 0])
         d_e = sparse_matrix(neigh_ind, neigh_dist)
         d_e = d_e.maximum(d_e.transpose())
 

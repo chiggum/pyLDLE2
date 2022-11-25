@@ -6,7 +6,7 @@ from .util_ import procrustes, issparse, sparse_matrix, nearest_neighbors
 
 import scipy
 from scipy.sparse import linalg as slinalg
-from scipy.sparse import csr_matrix, csc_matrix, block_diag, vstack
+from scipy.sparse import csr_matrix, csc_matrix, block_diag, vstack, bmat
 from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import pdist, squareform
 
@@ -154,6 +154,20 @@ def compute_Lpinv_BT(Utilde, B):
     temp = temp - np.mean(temp, axis=0, keepdims=True)
     return temp
 
+# conjugate gradient based approach
+def compute_Lpinv_BT_cg(Utilde, B):
+    pdb.set_trace()
+    L_0 = bmat([[None, -Utilde.T.astype(int)],[-Utilde.astype(int), None]], format='csr')
+    L_0.setdiag(-np.array(np.sum(L_0,axis=1)).flatten())
+    x = []
+    for i in range(B.shape[0]):
+        x_, info_ = slinalg.cg(L_0, B[i,:].toarray().flatten())
+        if info_:
+            print('CG did not converge.')
+            raise
+        x.append(x_[:,None])
+    return np.concatenate(x, axis=1)
+
 def compute_CC(D, B, Lpinv_BT):
     CC = D - B.dot(Lpinv_BT)
     return 0.5*(CC + CC.T)
@@ -211,40 +225,50 @@ def spectral_alignment(y, is_visited_view, d, Utilde,
     CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param)
         
     M,n = Utilde.shape
+    n_clusters = len(seq_of_intermed_views_in_cluster)
+    
     print('Computing eigh(C,k=d)', flush=True)
     np.random.seed(42)
     v0 = np.random.uniform(0,1,CC.shape[0])
     # To find smallest eigenvalues, using shift-inverted algo with mode=normal and which='LM'
-    #W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, sigma=0.0)
+    W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, sigma=0.0)
     # or just pass which='SM' without using sigma
-    W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, which='SM')
+    #W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, which='SM')
     print('Done.', flush=True)
     Wstar = np.sqrt(M)*V_.T
-    
     Tstar = np.zeros((d, M*d))
-    for i in range(M):
-        U_,S_,VT_ = scipy.linalg.svd(Wstar[:,d*i:d*(i+1)])
-        temp_ = np.matmul(U_,VT_)
-        if (global_opts['init_algo_name'] != 'spectral') and (np.linalg.det(temp_) < 0): # remove reflection
-            VT_[-1,:] *= -1
-            Tstar[:,i*d:(i+1)*d] = np.matmul(U_, VT_)
-        else:
-            Tstar[:,i*d:(i+1)*d] = temp_
     
-    Zstar = Tstar.dot(Lpinv_BT.transpose())
-    
-    n_clusters = len(seq_of_intermed_views_in_cluster)
     for i in range(n_clusters):
         seq = seq_of_intermed_views_in_cluster[i]
         s0 = seq[0]
-        T0T = Tstar[:,s0*d:(s0+1)*d]
-        v0 = Zstar[:,n+s0][np.newaxis,:]
-        v0TOT = np.matmul(v0, T0T)
-        is_visited_view[s0] = 1
-        for m in range(1, seq.shape[0]):
+        U_,S_,VT_ = scipy.linalg.svd(Wstar[:,d*s0:d*(s0+1)])
+        Q =  np.matmul(U_,VT_)
+        if (global_opts['init_algo_name'] != 'spectral') and (np.linalg.det(Q) < 0): # remove reflection
+            VT_[-1,:] *= -1
+            Q = np.matmul(U_, VT_)
+        Q = Q.T
+        
+        for m in range(seq.shape[0]):
+            U_,S_,VT_ = scipy.linalg.svd(Wstar[:,d*m:d*(m+1)])
+            temp_ = np.matmul(U_,VT_)
+            if (global_opts['init_algo_name'] != 'spectral') and (np.linalg.det(temp_) < 0): # remove reflection
+                VT_[-1,:] *= -1
+                temp_ = np.matmul(U_, VT_)
+            Tstar[:,m*d:(m+1)*d] = np.matmul(temp_, Q)
+    
+    Zstar = Tstar.dot(Lpinv_BT.transpose())
+    for i in range(n_clusters):
+        seq = seq_of_intermed_views_in_cluster[i]
+        s0 = seq[0]
+        print(Zstar[:,n+s0])
+        Zstar[:,n+seq] -= Zstar[:,n+s0][:,None]
+    
+    for i in range(n_clusters):
+        seq = seq_of_intermed_views_in_cluster[i]
+        for m in range(seq.shape[0]):
             s = seq[m]
-            T_s = np.matmul(Tstar[:,s*d:(s+1)*d].T, T0T)
-            v_s = np.matmul(Zstar[:,n+s][np.newaxis,:], T0T) - v0TOT
+            T_s = Tstar[:,s*d:(s+1)*d].T
+            v_s = Zstar[:,n+s][np.newaxis,:]
             #T_s = Tstar[:,s*d:(s+1)*d].T
             #v_s = Zstar[:,n+s][np.newaxis,:]
             intermed_param.T[s,:,:] = np.matmul(intermed_param.T[s,:,:], T_s)
