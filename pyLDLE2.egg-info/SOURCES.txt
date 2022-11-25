@@ -2,6 +2,7 @@ LICENSE
 README.md
 pyproject.toml
 pyLDLE2/__init__.py
+pyLDLE2/_trash_.py
 pyLDLE2/datasets.py
 pyLDLE2/gl_.py
 pyLDLE2/global_reg_.py
