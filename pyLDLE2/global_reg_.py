@@ -65,6 +65,9 @@ def procrustes_init(seq, rho, y, is_visited_view, d, Utilde, n_Utilde_Utilde,
                 Z_s = n_Utilde_Utilde[s,:].multiply(is_visited_view)
                 Z_s_all = Z_s.nonzero()[1]
                 Z_s = compute_Z_s_to_tear(y, s, Z_s_all, C, c, global_opts['k'])
+                # The parent must be in Z_s
+                if p not in Z_s:
+                    Z_s.append(p)
         # otherwise
         else:
             # Align sth view with all the views which have

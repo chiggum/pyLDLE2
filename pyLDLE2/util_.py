@@ -69,14 +69,18 @@ class Param:
 
 
 # includes self as the first neighbor
-# data is either X or distance matric d_e
+# data is either X or distance matrix d_e
 def nearest_neighbors(data, k_nn, metric, n_jobs=-1):
-    neigh = NearestNeighbors(n_neighbors=k_nn-1, metric=metric, n_jobs=n_jobs)
-    neigh.fit(data)
-    neigh_dist, neigh_ind = neigh.kneighbors()
-    n = neigh_dist.shape[0]
-    neigh_dist = np.insert(neigh_dist, 0, np.zeros(n), axis=1)
-    neigh_ind = np.insert(neigh_ind, 0, np.arange(n), axis=1)
+    n = data.shape[0]
+    if k_nn > 1:
+        neigh = NearestNeighbors(n_neighbors=k_nn-1, metric=metric, n_jobs=n_jobs)
+        neigh.fit(data)
+        neigh_dist, neigh_ind = neigh.kneighbors()
+        neigh_dist = np.insert(neigh_dist, 0, np.zeros(n), axis=1)
+        neigh_ind = np.insert(neigh_ind, 0, np.arange(n), axis=1)
+    else:
+        neigh_dist = np.zeros((n,1))
+        neigh_ind = np.arange(n).reshape((n,1)).astype('int')
     return neigh_dist, neigh_ind
             
 def sparse_matrix(neigh_ind, neigh_dist):

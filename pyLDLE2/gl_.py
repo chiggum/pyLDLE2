@@ -94,17 +94,18 @@ class GL:
         else:
             if gl_type == 'random_walk':
                 gl_type = 'symnorm'
-            autotune, LD = graph_laplacian(neigh_dist, neigh_ind, local_opts['k_nn'],
+            autotune, L_and_sqrt_D = graph_laplacian(neigh_dist, neigh_ind, local_opts['k_nn'],
                                             local_opts['k_tune'], gl_type,
                                             return_diag = True)
-            L, D = LD
-            sqrt_D = np.sqrt(D)
+            L, sqrt_D = L_and_sqrt_D
             lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, which='SM')
             # TODO: Why the following doesn't give correct eigenvalues
             # lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, sigma=0.0)
             
             L = L.multiply(1/sqrt_D[:,np.newaxis]).multiply(sqrt_D[np.newaxis,:])
             phi = phi/sqrt_D[:,np.newaxis]
+            
+            # TODO: Is this normalization needed?
             phi = phi/(np.linalg.norm(phi,axis=0)[np.newaxis,:])
 
         if self.debug:

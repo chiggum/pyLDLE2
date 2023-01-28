@@ -42,6 +42,8 @@ SMALL_SIZE = 14
 MEDIUM_SIZE = 16
 BIGGER_SIZE = 18
 
+plt.rcParams["font.family"] = "Times New Roman"
+plt.rcParams['mathtext.fontset'] = 'cm'
 plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
 plt.rc('axes', titlesize=MEDIUM_SIZE)     # fontsize of the axes title
 plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
@@ -49,6 +51,9 @@ plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('legend', fontsize=MEDIUM_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+plt.rcParams["font.weight"] = "bold"
+plt.rcParams["axes.labelweight"] = "bold"
+plt.rcParams["axes.titleweight"] = "bold"
 
 # colorcube colormap taken from matlab
 def colorcube(m):
@@ -192,7 +197,7 @@ class Visualize:
         plt.tight_layout()
         #plt.axis('off')
         if self.save_dir:
-            plt.savefig(self.save_dir+'/' + title + '.eps') 
+            plt.savefig(self.save_dir+'/' + title + '.pdf') 
         plt.show()
         
     def eigenvalues(self, lmbda, figsize=None):
@@ -227,7 +232,7 @@ class Visualize:
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/gamma'):
                 os.makedirs(self.save_dir+'/gamma')
-            plt.savefig(self.save_dir+'/gamma/'+str(i)+'.eps') 
+            plt.savefig(self.save_dir+'/gamma/'+str(i)+'.pdf') 
         plt.show()
     
     def eigenvector(self, X, phi, i, figsize=None, s=20):
@@ -249,7 +254,7 @@ class Visualize:
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/eigvecs'):
                 os.makedirs(self.save_dir+'/eigvecs')
-            plt.savefig(self.save_dir+'/eigvecs/'+str(i)+'.eps') 
+            plt.savefig(self.save_dir+'/eigvecs/'+str(i)+'.pdf') 
         plt.show()
     
     def grad_phi(self, X, phi, grad_phi, i, prop=0.01, figsize=None, s=20):
@@ -289,7 +294,7 @@ class Visualize:
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/grad_phi'):
                 os.makedirs(self.save_dir+'/grad_phi')
-            plt.savefig(self.save_dir+'/grad_phi/'+str(i)+'.eps') 
+            plt.savefig(self.save_dir+'/grad_phi/'+str(i)+'.pdf') 
         plt.show()
     
     def Atilde(self, X, phi, i, j, Atilde, figsize=None, s=20):
@@ -335,7 +340,7 @@ class Visualize:
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/Atilde'):
                 os.makedirs(self.save_dir+'/Atilde')
-            plt.savefig(self.save_dir+'/Atilde/'+str(i)+'_'+str(j)+'.eps') 
+            plt.savefig(self.save_dir+'/Atilde/'+str(i)+'_'+str(j)+'.pdf') 
         plt.show()
     
     def n_eigvecs_w_grad_lt(self, X, Atilde, thresh_prctile=None, figsize=(16,8), s=20):
@@ -411,7 +416,7 @@ class Visualize:
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/n_eigvecs_w_grad_lt'):
                     os.makedirs(self.save_dir+'/n_eigvecs_w_grad_lt')
-                plt.savefig(self.save_dir+'/n_eigvecs_w_grad_lt/'+str(thresh)+'.eps')
+                plt.savefig(self.save_dir+'/n_eigvecs_w_grad_lt/'+str(thresh)+'.pdf')
             plt.show()
             
             if thresh_prctile is not None:
@@ -438,31 +443,33 @@ class Visualize:
             fig.colorbar(p)
         plt.title(title)
         if self.save_dir:
-            plt.savefig(self.save_dir+'/'+title+'.eps') 
+            plt.savefig(self.save_dir+'/'+title+'.pdf') 
         plt.show()
     
     def distortion_boxplot(self, zeta, title, figsize=None):
         fig = plt.figure(figsize=figsize)
         plt.boxplot([zeta],labels=[title], notch=True, patch_artist=True)
         if self.save_dir:
-            plt.savefig(self.save_dir+'/box_'+title+'.eps') 
+            plt.savefig(self.save_dir+'/box_'+title+'.pdf') 
         plt.show()
         
-    def global_distortion_viloinplot_overlay(self, dist_dicts, ylabel='$\log(\mathcal{G}_k)$',
-                                     title='violinplot for $\log(\mathcal{G}_k)$',
+    def global_distortion_viloinplot_overlay(self, dist_dicts, label=r'$\log(\mathcal{G}_k)$',
+                                     title=r'violinplot for $\log(\mathcal{G}_k)$',
                                      log_scale=True, figsize=None,
                                      color=None, widths=0.5, lw=3,
                                      offset1=1, offset2=0.01,
-                                     legend=True, rotation=0, filled=False):
+                                     legend=True, rotation=0, filled=False, loc_='lower right',
+                                     bbox_to_anchor_=(1,-0.05,0.35,0.35),
+                                     vert=True, ncol=1, columnspacing=2, prop={'size':26}):
         # create figure and axes
         fig, ax = plt.subplots(figsize=figsize)
 
-        xticks = []
-        xticklabels = []
+        ticks = []
+        ticklabels = []
         x0 = 0
         for ex_name,dist_dict in dist_dicts.items():
-            xticks.append(x0)
-            xticklabels.append(ex_name)
+            ticks.append(x0)
+            ticklabels.append(ex_name)
             for k in dist_dict.keys():
                 if log_scale:
                     data=pd.DataFrame(dist_dict[k]).applymap(lambda x: np.log(x))
@@ -471,8 +478,11 @@ class Visualize:
                 parts = ax.violinplot(data, [x0], showmeans=False,
                                        showmedians=False,
                                        showextrema=False,
-                                       widths=widths)
-                x0 += offset2
+                                       widths=widths, vert=vert)
+                if vert:
+                    x0 += offset2
+                else:
+                    x0 -= offset2
                 for pc in parts['bodies']:
                     pc.set_linewidth(lw)
                     pc.set_alpha(1)
@@ -483,25 +493,48 @@ class Visualize:
                     else:
                         pc.set_facecolor(color[k])
                     pc.set_label(k)
-            x0 += offset1
+            if vert:
+                x0 += offset1
+            else:
+                x0 -= offset1
 
         if legend:
             custom_lines = [
                 Line2D([0], [0], color=color[k], lw=lw, alpha=1) 
                 for k in color.keys()
             ]
-            ax.legend(
-                custom_lines, 
-                [k for k in color.keys()],
-            )
+            if bbox_to_anchor_ is None:
+                ax.legend(
+                    custom_lines, 
+                    [k for k in color.keys()],
+                    loc=loc_,
+                    ncol=ncol,
+                    columnspacing=columnspacing,
+                    prop=prop
+                )
+            else:
+                ax.legend(
+                    custom_lines, 
+                    [k for k in color.keys()],
+                    loc=loc_,
+                    bbox_to_anchor=bbox_to_anchor_,
+                    ncol=ncol,
+                    columnspacing=columnspacing,
+                    prop=prop
+                )
         
-        ax.set_xticks(xticks)
-        ax.set_xticklabels(xticklabels, rotation=rotation)
-        plt.ylabel(ylabel)
+        if vert:
+            ax.set_xticks(ticks)
+            ax.set_xticklabels(ticklabels, rotation=rotation)
+            plt.ylabel(label)
+        else:
+            ax.set_yticks(ticks)
+            ax.set_yticklabels(ticklabels, rotation=rotation)
+            plt.xlabel(label)
         plt.title(title)
+        plt.tight_layout()
         if self.save_dir:
-            plt.savefig(self.save_dir+'/global_distortion_violinplot_overlay.eps', format='eps') 
-        plt.show()
+            plt.savefig(self.save_dir+'/global_distortion_violinplot_overlay.pdf') 
         
     def global_distortion_viloinplot(self, dist_dict, ylabel='$\log(D_k)$',
                                      title='violinplot for $\log(D_k)$',
@@ -516,7 +549,7 @@ class Visualize:
             plt.ylabel('$D_k$')
             plt.title('Violinplot for $D_k$')
         if self.save_dir:
-            plt.savefig(self.save_dir+'/global_distortion_violinplot.eps', format='eps') 
+            plt.savefig(self.save_dir+'/global_distortion_violinplot.pdf', format='eps') 
         plt.show()
     
     def dX(self, X, ddX, title, figsize=None, s=20):
@@ -546,7 +579,7 @@ class Visualize:
             fig.colorbar(p, ax=ax)
             ax.set_title('dX') 
         if self.save_dir:
-            plt.savefig(self.save_dir+'/'+title+'.eps') 
+            plt.savefig(self.save_dir+'/'+title+'.pdf') 
         plt.show()
     
     def intrinsic_dim(self, X, chi, figsize=None, s=20):
@@ -781,7 +814,7 @@ class Visualize:
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/local_views/'+save_subdir):
                     os.makedirs(self.save_dir+'/local_views/'+save_subdir)
-                plt.savefig(self.save_dir+'/local_views/'+save_subdir+'/'+str(k)+'.eps')
+                plt.savefig(self.save_dir+'/local_views/'+save_subdir+'/'+str(k)+'.pdf')
             plt.show()
             
             first_plot = False
@@ -904,7 +937,7 @@ class Visualize:
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/local_views/'+save_subdir):
                     os.makedirs(self.save_dir+'/local_views/'+save_subdir)
-                plt.savefig(self.save_dir+'/local_views/'+save_subdir+'/'+str(k)+'.eps')
+                plt.savefig(self.save_dir+'/local_views/'+save_subdir+'/'+str(k)+'.pdf')
             plt.show()
             
             first_plot = False
@@ -1054,7 +1087,7 @@ class Visualize:
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/intermediate_views/'+save_subdir):
                     os.makedirs(self.save_dir+'/intermediate_views/'+save_subdir)
-                plt.savefig(self.save_dir+'/intermediate_views/'+save_subdir+'/'+str(m)+'.eps') 
+                plt.savefig(self.save_dir+'/intermediate_views/'+save_subdir+'/'+str(m)+'.pdf') 
             plt.show()
             
             first_plot = False
@@ -1168,7 +1201,7 @@ class Visualize:
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/local_high_low_distortion/'):
                     os.makedirs(self.save_dir+'/local_high_low_distortion/')
-                plt.savefig(self.save_dir+'/local_high_low_distortion/thresh='+str(thresh)+'.eps') 
+                plt.savefig(self.save_dir+'/local_high_low_distortion/thresh='+str(thresh)+'.pdf') 
             plt.show()
             
         
@@ -1286,7 +1319,7 @@ class Visualize:
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/intermediate_high_low_distortion'):
                     os.makedirs(self.save_dir+'/intermediate_high_low_distortion')
-                plt.savefig(self.save_dir+'/intermediate_high_low_distortion/thresh='+str(thresh)+'.eps') 
+                plt.savefig(self.save_dir+'/intermediate_high_low_distortion/thresh='+str(thresh)+'.pdf') 
             plt.show()
     
     def seq_of_intermediate_views(self, X, c, seq, rho, Utilde, figsize=None, s=20, cmap='jet'):
@@ -1399,8 +1432,8 @@ class Visualize:
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/ge'):
                 os.makedirs(self.save_dir+'/ge')
-            plt.savefig(self.save_dir+'/ge/'+str(title)+'.eps', bbox_inches = 'tight',pad_inches = 0)
-        plt.show()
+            plt.savefig(self.save_dir+'/ge/'+str(title)+'.pdf', bbox_inches = 'tight',pad_inches = 0)
+        #plt.show()
     
     def global_embedding_images(self, X, img_shape, y, labels, cmap0, color_of_pts_on_tear=None, cmap1=None,
                          title=None, figsize=None, s=30, zoom=1, offset_ratio=0.2,w_ratio=0.0025):
@@ -1502,7 +1535,7 @@ class Visualize:
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/ge_img'):
                     os.makedirs(self.save_dir+'/ge_img')
-                plt.savefig(self.save_dir+'/ge_img/'+str(title)+'.eps')
+                plt.savefig(self.save_dir+'/ge_img/'+str(title)+'.pdf')
             plt.show()
     
     def global_embedding_images_v2(self, X, img_shape, y, labels, cmap0, color_of_pts_on_tear=None, cmap1=None,
@@ -1631,7 +1664,7 @@ class Visualize:
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/ge_img_v2'):
                 os.makedirs(self.save_dir+'/ge_img_v2')
-            plt.savefig(self.save_dir+'/ge_img_v2/'+str(title)+'.eps')
+            plt.savefig(self.save_dir+'/ge_img_v2/'+str(title)+'.pdf')
     
     def visualize_epoch_data(self, X, Ls):
         a=np.array(X)
