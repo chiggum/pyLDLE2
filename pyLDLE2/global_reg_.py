@@ -175,7 +175,7 @@ def compute_CC(D, B, Lpinv_BT):
     CC = D - B.dot(Lpinv_BT)
     return 0.5*(CC + CC.T)
 
-def build_ortho_optim(d, Utilde, intermed_param, ret_D=False):
+def build_ortho_optim(d, Utilde, intermed_param, ret_D=False, far_off_points=[], repel_by=0.):
     M,n = Utilde.shape
     B_row_inds = []
     B_col_inds = []
@@ -198,14 +198,33 @@ def build_ortho_optim(d, Utilde, intermed_param, ret_D=False):
     Lpinv_BT = compute_Lpinv_BT(Utilde, B)
 
     CC = compute_CC(D, B, Lpinv_BT)
+    
+    n_repel = len(far_off_points)
+    if n_repel > 0:
+        L__row_inds = []
+        L__col_inds = []
+        L__vals = []
+        temp_arr = (-np.ones(n_repel)).tolist()
+        for i in range(n_repel):
+            L__row_inds += [far_off_points[i]]*n_repel
+            L__col_inds += far_off_points[i]
+            temp_arr[i] = n_repel
+            L__vals += temp_arr
+            temp_arr[i] = -1
+        L_ = csr_matrix((L__vals, (L__row_inds, L__col_inds)), shape=(n+M,n+M))
+        L_ = -repel_by*L_
+        CC = CC + (Lpinv_BT.T).dot(L_.dot(Lpinv_BT))
+    
     if ret_D:
         return CC, Lpinv_BT, D
     else:
         return CC, Lpinv_BT
     
 
-def compute_alignment_err(d, Utilde, intermed_param, scale_num):
-    CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param)
+def compute_alignment_err(d, Utilde, intermed_param, scale_num, far_off_points=[], repel_by=0.):
+    CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param,
+                                     far_off_points=far_off_points,
+                                     repel_by=repel_by)
     M,n = Utilde.shape
     
     ## Check if C is pd or psd
@@ -225,7 +244,9 @@ def compute_alignment_err(d, Utilde, intermed_param, scale_num):
 def spectral_alignment(y, is_visited_view, d, Utilde,
                       C, intermed_param, global_opts, 
                       seq_of_intermed_views_in_cluster):
-    CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param)
+    CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param,
+                                     far_off_points=global_opts['far_off_points'],
+                                     repel_by=global_opts['repel_by'])
         
     M,n = Utilde.shape
     n_clusters = len(seq_of_intermed_views_in_cluster)
@@ -352,7 +373,9 @@ def rgd_final(y, d, Utilde, C, intermed_param,
              parents_of_intermed_views_in_cluster,
              cluster_of_intermed_view,
              global_opts):
-    CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param)
+    CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param,
+                                     far_off_points=global_opts['far_off_points'],
+                                     repel_by=global_opts['repel_by'])
     M,n = Utilde.shape
     n_proc = min(M,global_opts['n_proc'])
     barrier = mp.Barrier(n_proc)
@@ -458,7 +481,9 @@ def gpm_final(y, d, Utilde, C, intermed_param,
              parents_of_intermed_views_in_cluster,
              cluster_of_intermed_view,
              global_opts):
-    CC, Lpinv_BT, D = build_ortho_optim(d, Utilde, intermed_param, ret_D=True)
+    CC, Lpinv_BT, D = build_ortho_optim(d, Utilde, intermed_param, ret_D=True,
+                                        far_off_points=global_opts['far_off_points'],
+                                        repel_by=global_opts['repel_by'])
     CC = D - CC
     M,n = Utilde.shape
     n_proc = min(M,global_opts['n_proc'])
@@ -560,7 +585,9 @@ def sdp_alignment(y, is_visited_view, d, Utilde,
                   C, intermed_param, global_opts, 
                   seq_of_intermed_views_in_cluster,
                   solver=None):
-    CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param)
+    CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param
+                                     far_off_points=global_opts['far_off_points'],
+                                     repel_by=global_opts['repel_by'])
     M,n = Utilde.shape
     b = vec(CC)
     if solver is None:

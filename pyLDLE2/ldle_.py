@@ -6,6 +6,7 @@ from scipy.spatial.distance import pdist, squareform
 from sklearn.neighbors import NearestNeighbors, KNeighborsTransformer
 
 from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import dijkstra
 
 from . import local_views_
 from . import intermed_views_
@@ -293,9 +294,8 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, c
                             vis_before_init=False, compute_error=False,
                             init_algo_name='procrustes', align_w_parent_only=True,
                             refine_algo_name='rgd',
-                            max_internal_iter=100,
-                            alpha=0.3,
-                            eps=1e-8):
+                            max_internal_iter=100, alpha=0.3, eps=1e-8,
+                            repel_by=0., n_repel=0):
     """Sets and returns a dictionary of default_global_opts.
 
     Parameters
@@ -351,6 +351,12 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, c
     eps : float
           The tolerance used by sdp solver when the init or refinement
           algorithm is 'sdp'.
+    repel_by: float
+              If positive, the points which are far off are repelled
+              away from each other by a force proportional to it.
+              Ignored when refinement algorithm is 'procrustes'.
+    n_repel: int
+             the number of far off points repelled from each other.
     """
     return {'to_tear': to_tear, 'nu': nu, 'max_iter': max_iter,
                'color_tear': color_tear,
@@ -361,8 +367,8 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, c
                'align_w_parent_only': align_w_parent_only,
                'refine_algo_name': refine_algo_name, 
                'max_internal_iter': max_internal_iter,
-               'alpha': alpha,
-               'eps': eps
+               'alpha': alpha, 'eps': eps,
+               'repel_by': repel_by, 'n_repel': n_repel
               }
 def get_default_vis_opts(save_dir='', cmap_interior='summer', cmap_boundary='jet', c=None):
     """Sets and returns a dictionary of default_vis_opts.
@@ -578,11 +584,25 @@ class LDLE:
         if self.exit_at == 'intermed_views':
             return
         
-        # Construct Global views
+        # Construct Global view
+        # the far off points which are to be repelled from each other
+        np.random.seed(42)
+        far_off_points = []
+        dist_from_far_off_points = None
+        while len(far_off_points) < self.global_opts['n_repel']:
+            if len(far_off_points) == 0:
+                far_off_points = [np.random.randint(0,d_e.shape[0])]
+            else:
+                far_off_points.append(np.argmax(dist_from_far_off_points))
+            dist_from_far_off_points = np.minimum(dist_from_far_off_points,
+                                                  dijkstra(d_e, directed=False,
+                                                           indices=far_off_points[-1]))
+        self.global_opts['far_off_points'] = far_off_points
+        # Global view
         GlobalViews = global_views_.GlobalViews(self.exit_at, self.verbose, self.debug)
         GlobalViews.fit(self.d, IntermedViews.Utilde, IntermedViews.C, IntermedViews.c,
-                        IntermedViews.n_C, IntermedViews.intermed_param, self.global_opts,
-                        self.vis, self.vis_opts)
+                        IntermedViews.n_C, IntermedViews.intermed_param,
+                        self.global_opts, self.vis, self.vis_opts)
         
         self.GlobalViews = GlobalViews
         
