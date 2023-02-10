@@ -585,7 +585,7 @@ def sdp_alignment(y, is_visited_view, d, Utilde,
                   C, intermed_param, global_opts, 
                   seq_of_intermed_views_in_cluster,
                   solver=None):
-    CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param
+    CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=global_opts['far_off_points'],
                                      repel_by=global_opts['repel_by'])
     M,n = Utilde.shape
