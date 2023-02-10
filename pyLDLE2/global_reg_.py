@@ -207,7 +207,7 @@ def build_ortho_optim(d, Utilde, intermed_param, ret_D=False, far_off_points=[],
         temp_arr = (-np.ones(n_repel)).tolist()
         for i in range(n_repel):
             L__row_inds += [far_off_points[i]]*n_repel
-            L__col_inds += far_off_points[i]
+            L__col_inds += far_off_points
             temp_arr[i] = n_repel
             L__vals += temp_arr
             temp_arr[i] = -1
