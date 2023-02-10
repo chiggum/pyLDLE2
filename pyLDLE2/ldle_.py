@@ -592,11 +592,13 @@ class LDLE:
         while len(far_off_points) < self.global_opts['n_repel']:
             if len(far_off_points) == 0:
                 far_off_points = [np.random.randint(0,d_e.shape[0])]
+                dist_from_far_off_points = dijkstra(d_e, directed=False,
+                                                    indices=far_off_points[-1])
             else:
                 far_off_points.append(np.argmax(dist_from_far_off_points))
-            dist_from_far_off_points = np.minimum(dist_from_far_off_points,
-                                                  dijkstra(d_e, directed=False,
-                                                           indices=far_off_points[-1]))
+                dist_from_far_off_points = np.minimum(dist_from_far_off_points,
+                                                      dijkstra(d_e, directed=False,
+                                                               indices=far_off_points[-1]))
         self.global_opts['far_off_points'] = far_off_points
         # Global view
         GlobalViews = global_views_.GlobalViews(self.exit_at, self.verbose, self.debug)
