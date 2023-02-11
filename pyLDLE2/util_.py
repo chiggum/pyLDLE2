@@ -42,6 +42,8 @@ class Param:
         self.mu = None
         self.X = None
         
+        self.add_dim = False
+        
     def eval_(self, opts):
         k = opts['view_index']
         mask = opts['data_mask']
@@ -57,15 +59,19 @@ class Param:
             np.random.seed(self.noise_seed[k])
             temp2 = np.random.normal(0, self.noise_var, (n, temp.shape[1]))
             temp = temp + temp2[mask,:]
+            
+        if self.add_dim:
+            temp = np.concatenate([temp,np.zeros((temp.shape[0],1))], axis=1)
         
         if self.b is None:
             return temp
         else:
             temp = self.b[k]*temp
-            if self.T is not None and self.v is not None:
-                return np.dot(temp, self.T[k,:,:]) + self.v[[k],:]
-            else:
-                return temp
+            if self.T is not None:
+                temp = np.dot(temp, self.T[k,:,:])
+            if self.v is not None:
+                temp = temp + self.v[[k],:]
+            return temp
 
 
 # includes self as the first neighbor

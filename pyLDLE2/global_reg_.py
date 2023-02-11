@@ -257,7 +257,7 @@ def spectral_alignment(y, is_visited_view, d, Utilde,
     # To find smallest eigenvalues, using shift-inverted algo with mode=normal and which='LM'
     W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, sigma=0.0)
     # or just pass which='SM' without using sigma
-    #W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, which='SM')
+    # W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, which='SM')
     print('Done.', flush=True)
     Wstar = np.sqrt(M)*V_.T
     Tstar = np.zeros((d, M*d))

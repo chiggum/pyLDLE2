@@ -59,6 +59,9 @@ class GlobalViews:
                                                                              n_Utilde_Utilde,
                                                                              intermed_param, global_opts)
             
+            if global_opts['add_dim']:
+                intermed_param.add_dim = True
+                d = d + 1
             # Visualize embedding before init
             if global_opts['vis_before_init']:
                 self.vis_embedding_(d, intermed_param, C, Utilde,
