@@ -331,6 +331,7 @@ class LocalViews:
                 U_k = U[k,:].indices
                 # LTSA
                 X_k = X[U_k,:]
+                
                 xbar_k = np.mean(X_k,axis=0)[np.newaxis,:]
                 X_k = X_k - xbar_k
                 X_k = X_k.T
