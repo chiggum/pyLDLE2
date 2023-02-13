@@ -180,19 +180,20 @@ def double_manifold_k_nn(data, ddX, k_nn, metric, n_proc=1):
     return neigh_dist, neigh_ind
     
 
-def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, radius=0.5, U_method='k_nn', 
-                           gl_type='unnorm', N=100, scale_by='gamma', Atilde_method='LDLE_1',
-                           alpha=1, max_iter=300, reg=0.,
+def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, metric='euclidean', radius=0.5,
+                           U_method='k_nn', gl_type='unnorm', N=100, scale_by='gamma',
+                           Atilde_method='LDLE_1', alpha=1, max_iter=300, reg=0.,
                            p=0.99, tau=50, delta=0.9, to_postprocess= True,
-                           pp_n_thresh=32):
+                           pp_n_thresh=32, lambda1_init=8, lambda1_decay=0.75, lambda1_min=1e-3,
+                           power=5, max_sparsity=0.9):
     """Sets and returns a dictionary of default_local_opts.
     
     Parameters
     ----------
     algo : str
            The algorithm to use for the construction of
-           local views. Options are 'LDLE', 'LTSA' and
-           'Smooth-LTSA'. LTSA uses the hyperparameter k and 
+           local views. Options are 'LDLE', 'LTSA', 'SparsePCA',
+           and 'RPCA-GODEC'. LTSA uses the hyperparameter k and 
            k_nn only and is not affected by the value of the
            others. Smooth-LTSA additionally uses alpha,
            max_iter, reg. Currently, Smooth-LTSA is very slow.
@@ -204,6 +205,8 @@ def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, radius=0.5, U_m
            be less than k_nn.
     k : int 
         The size of local view per point.
+    metric : str
+             The metric to use for finding nearest neighbors.
     radius : float
              Radius of the balls to be used to find nearest neighbors.
     U_method : str
@@ -253,13 +256,24 @@ def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, radius=0.5, U_m
         Threshold to use multiple processors or a single processor
         while postprocessing the local parameterizations. A small
         value such as 32 leads to faster postprocessing.
+    lambda1_init: float
+                  Initialization of lambda1 for RPCA-GODEC.
+    lambda1_decay: float
+                   Decay of lambda1 for RPCA-GODEC.
+    lambda1_min: float
+                 Minimum allowed valued of lambda1 for RPCA-GODEC.
+    power: int
+           Number of power iterations for initialization in RPCA-GODEC.
+    max_sparsity: float
+                  maximum fraction of the desired sparsity.
     """
-    return {'k_nn': k_nn, 'k_tune': k_tune, 'k': k, 'radius': radius,
+    return {'k_nn': k_nn, 'k_tune': k_tune, 'k': k, 'metric': metric, 'radius': radius,
            'U_method': U_method, 'gl_type': gl_type, 'N': N, 'scale_by': scale_by,
            'Atilde_method': Atilde_method, 'p': p, 'tau': tau, 'delta': delta,
            'alpha': alpha, 'max_iter': max_iter, 'reg': reg, 
            'to_postprocess': to_postprocess, 'algo': algo,
-           'pp_n_thresh': pp_n_thresh}
+           'pp_n_thresh': pp_n_thresh, 'lambda1_init': lambda1_init, 'lambda1_decay': lambda1_decay,
+           'lambda1_min': lambda1_min, 'power': power, 'max_sparsity': max_sparsity}
 
 def get_default_intermed_opts(algo='best', n_times=4, eta_min=5, eta_max=25, len_S_thresh=256):
     """Sets and returns a dictionary of default_intermed_opts.
@@ -537,12 +551,12 @@ class LDLE:
         if ddX is None or self.local_opts['algo'] == 'LTSA':
             neigh_dist, neigh_ind = nearest_neighbors(data,
                                                       k_nn=self.local_opts['k_nn0'],
-                                                      metric='euclidean')
+                                                      metric=self.local_opts['metric'])
         else:
             self.log('Doubling manifold.')
             neigh_dist, neigh_ind = double_manifold_k_nn(data, ddX,
                                                          self.local_opts['k_nn0'],
-                                                         'euclidean',
+                                                         self.local_opts['metric'],
                                                          self.local_opts['n_proc'])
             self.log('Done.', log_time=True)
         

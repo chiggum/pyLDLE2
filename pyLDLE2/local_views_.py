@@ -8,13 +8,16 @@ from . import ipge_
 from .util_ import print_log, compute_zeta, to_dense
 from .util_ import Param, sparse_matrix
 
-from scipy.linalg import inv, svd
+from scipy.linalg import inv, svd, pinv
 from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import svds
 from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import pdist, squareform
 from scipy.sparse.csgraph import minimum_spanning_tree, breadth_first_order
 from scipy.sparse import coo_matrix, csr_matrix
+
+from sklearn.decomposition import SparsePCA
+from hyperspy.learn.rpca import rpca_godec
 
 import multiprocess as mp
 from multiprocess import shared_memory
@@ -332,13 +335,54 @@ class LocalViews:
                 # LTSA
                 X_k = X[U_k,:]
                 
-                xbar_k = np.mean(X_k,axis=0)[np.newaxis,:]
-                X_k = X_k - xbar_k
-                X_k = X_k.T
-                if p == d:
-                    Q_k,Sigma_k,_ = svd(X_k)
+                if local_opts['algo'] == 'SparsePCA':
+                    xbar_k = np.median(X_k,axis=0)[np.newaxis,:]
+                    X_k = X_k - xbar_k
+                    alpha_ = 2
+                    flag_ = True
+                    while flag_ and (alpha_ > 1e-3):
+                        sparse_pca = SparsePCA(n_components=d, alpha=alpha_, random_state=42)
+                        sparse_pca.fit(X_k)
+                        Q_k = sparse_pca.components_
+                        flag_ = np.any(np.sum(Q_k**2, axis=1) < 1e-6)
+                        alpha_ = 0.5*alpha_
+                    
+                    if flag_: # fallback to pca
+                        X_k = X_k.T
+                        if p == d:
+                            Q_k,Sigma_k,_ = svd(X_k)
+                        else:
+                            Q_k,Sigma_k,_ = svds(X_k, d, which='LM')
+                    else:
+                        Q_k = pinv(Q_k)
                 else:
-                    Q_k,Sigma_k,_ = svds(X_k, d, which='LM')
+                    if local_opts['algo'] == 'RPCA-GODEC':
+                        power = local_opts['power']
+                        lambda1 = local_opts['lambda1_init']
+                        lambda1_decay = local_opts['lambda1_decay']
+                        lambda1_min = local_opts['lambda1_min']
+                        sparsity_frac_threshold = 1-local_opts['max_sparsity']
+                        flag_ = True
+                        tol = 1e-6
+                        while flag_ and (lambda1 > lambda1_min):
+                            X_k_hat, S_k_hat, _, _, _ = rpca_godec(X_k.T, d, power=power,
+                                                                     lambda1=lambda1, tol=tol,
+                                                                     random_state=42)
+                            nnz_frac = np.sum(np.abs(S_k_hat)>tol)/np.prod(S_k_hat.shape)
+                            # print(lambda1, nnz_frac, flush=True)
+                            # print(X_k, X_k_hat.T, S_k_hat.T)
+                            # print('#'*50)
+                            flag_ = nnz_frac < sparsity_frac_threshold
+                            lambda1 = lambda1_decay*lambda1
+                            
+                        X_k = X_k_hat.T
+                    xbar_k = np.mean(X_k,axis=0)[np.newaxis,:]
+                    X_k = X_k - xbar_k
+                    X_k = X_k.T
+                    if p == d:
+                        Q_k,Sigma_k,_ = svd(X_k)
+                    else:
+                        Q_k,Sigma_k,_ = svds(X_k, d, which='LM')
 
                 local_param.Psi[k,:,:] = Q_k[:,:d]
                 local_param.mu[k,:] = xbar_k
