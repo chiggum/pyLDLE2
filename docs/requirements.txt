@@ -10,3 +10,4 @@ scikit_learn==1.0.2
 scipy==1.7.3
 scs==3.2.0
 seaborn==0.11.2
+hyperspy==1.7.3
