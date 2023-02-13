@@ -14,12 +14,13 @@ requires = ["setuptools>=61.2",
             "scipy==1.7.3",
             "scs==3.2.0",
             "seaborn==0.11.2",
+            "hyperspy==1.7.3"
 ]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyLDLE2"
-version = "0.1.10"
+version = "0.1.11"
 authors = [
   { name="Dhruv Kohli, Alex Cloninger, Gal Mishne" },
 ]
