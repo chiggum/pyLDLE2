@@ -309,7 +309,7 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, c
                             init_algo_name='procrustes', align_w_parent_only=True,
                             refine_algo_name='rgd',
                             max_internal_iter=100, alpha=0.3, eps=1e-8,
-                            add_dim=False, wtd_alignment=False, repel_by=0., n_repel=0):
+                            add_dim=False, beta=None, repel_by=0., n_repel=0):
     """Sets and returns a dictionary of default_global_opts.
 
     Parameters
@@ -367,8 +367,9 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, c
           algorithm is 'sdp'.
     add_dim : bool
              add an extra dimension to intermediate views.
-    wtd_alignment: bool
-                   Switch for weighted alignment of intermediate views.
+    beta: float
+          Hyperparameter used for computing the alignment weights. If
+          None, the alignment is not weighted.
     repel_by : float
                If positive, the points which are far off are repelled
               away from each other by a force proportional to it.
@@ -386,8 +387,7 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, c
                'refine_algo_name': refine_algo_name, 
                'max_internal_iter': max_internal_iter,
                'alpha': alpha, 'eps': eps, 'add_dim': add_dim,
-               'wtd_alignment': wtd_alignment, 'repel_by': repel_by,
-               'n_repel': n_repel
+               'beta': beta, 'repel_by': repel_by, 'n_repel': n_repel
               }
 def get_default_vis_opts(save_dir='', cmap_interior='summer', cmap_boundary='jet', c=None):
     """Sets and returns a dictionary of default_vis_opts.

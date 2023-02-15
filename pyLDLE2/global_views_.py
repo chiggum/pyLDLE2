@@ -570,7 +570,7 @@ class GlobalViews:
                 err = compute_alignment_err(d, contrib_of_view, intermed_param, Utilde.count_nonzero(),
                                             far_off_points=global_opts['far_off_points'],
                                             repel_by=global_opts['repel_by'],
-                                            wtd_alignment=global_opts['wtd_alignment'])
+                                            beta=global_opts['beta'])
                 self.log('Alignment error: %0.6f' % err, log_time=True)
                 self.tracker['refine_err_at_iter'][it0] = err
                 

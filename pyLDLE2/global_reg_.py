@@ -178,7 +178,7 @@ def compute_CC(D, B, Lpinv_BT):
 
 def build_ortho_optim(d, Utilde, intermed_param, ret_D=False,
                       far_off_points=[], repel_by=0.,
-                      wtd_alignment=False):
+                      beta=None):
     M,n = Utilde.shape
     B_row_inds = []
     B_col_inds = []
@@ -195,10 +195,10 @@ def build_ortho_optim(d, Utilde, intermed_param, ret_D=False,
                                    'data_mask': Utilde_i})
         
         w = None
-        if wtd_alignment:
+        if beta:
             anom_scores = intermed_param.anom_score_({'view_index': i, 'data_mask': Utilde_i})
             if anom_scores is not None:
-                w = 1/np.sqrt(anom_scores + 1)
+                w = np.exp(-anom_scores/beta)
         
         if w is None:
             w = np.ones((Utilde_i.shape[0]))
@@ -222,6 +222,9 @@ def build_ortho_optim(d, Utilde, intermed_param, ret_D=False,
     B = csr_matrix((B_vals, (B_row_inds, B_col_inds)), shape=(M*d,n+M))
     W = csr_matrix((W_vals, (W_row_inds, W_col_inds)), shape=(M,n), dtype=float)
     
+    if beta:
+        print('min and max anom scores:', (-beta*np.log(np.array(W_vals))).min(),
+                                          (-beta*np.log(np.array(W_vals))).max())
     print('min and max weights:', np.array(W_vals).min(), np.array(W_vals).max())
 
     print('Computing Pseudoinverse of a matrix of L of size', n, '+', M, 'multiplied with B', flush=True)
@@ -251,10 +254,10 @@ def build_ortho_optim(d, Utilde, intermed_param, ret_D=False,
         return CC, Lpinv_BT
     
 
-def compute_alignment_err(d, Utilde, intermed_param, scale_num, far_off_points=[], repel_by=0.):
+def compute_alignment_err(d, Utilde, intermed_param, scale_num, far_off_points=[], repel_by=0., beta=None):
     CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=far_off_points,
-                                     repel_by=repel_by, wtd_alignment=False)
+                                     repel_by=repel_by, beta=beta)
     M,n = Utilde.shape
     
     ## Check if C is pd or psd
@@ -277,7 +280,7 @@ def spectral_alignment(y, is_visited_view, d, Utilde,
     CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=global_opts['far_off_points'],
                                      repel_by=global_opts['repel_by'],
-                                     wtd_alignment=global_opts['wtd_alignment'])
+                                     beta=global_opts['beta'])
         
     M,n = Utilde.shape
     n_clusters = len(seq_of_intermed_views_in_cluster)
@@ -407,7 +410,7 @@ def rgd_final(y, d, Utilde, C, intermed_param,
     CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=global_opts['far_off_points'],
                                      repel_by=global_opts['repel_by'],
-                                     wtd_alignment=global_opts['wtd_alignment'])
+                                     beta=global_opts['beta'])
     M,n = Utilde.shape
     n_proc = min(M,global_opts['n_proc'])
     barrier = mp.Barrier(n_proc)
@@ -516,7 +519,7 @@ def gpm_final(y, d, Utilde, C, intermed_param,
     CC, Lpinv_BT, D = build_ortho_optim(d, Utilde, intermed_param, ret_D=True,
                                         far_off_points=global_opts['far_off_points'],
                                         repel_by=global_opts['repel_by'],
-                                        wtd_alignment=global_opts['wtd_alignment'])
+                                        beta=global_opts['beta'])
     CC = D - CC
     M,n = Utilde.shape
     n_proc = min(M,global_opts['n_proc'])
@@ -621,7 +624,7 @@ def sdp_alignment(y, is_visited_view, d, Utilde,
     CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=global_opts['far_off_points'],
                                      repel_by=global_opts['repel_by'],
-                                     wtd_alignment=global_opts['wtd_alignment'])
+                                     beta=global_opts['beta'])
     M,n = Utilde.shape
     b = vec(CC)
     if solver is None:
