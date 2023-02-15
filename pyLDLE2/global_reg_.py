@@ -111,9 +111,10 @@ def procrustes_init(seq, rho, y, is_visited_view, d, Utilde, n_Utilde_Utilde,
     return y, is_visited_view
     
 # Ngoc-Diep Ho, Paul Van Dooren, On the pseudo-inverse of the Laplacian of a bipartite graph
-def compute_Lpinv_BT(Utilde, B):
-    M, n = Utilde.shape
-    B_ = Utilde.copy().transpose().astype('int')
+def compute_Lpinv_BT(W, B):
+    M, n = W.shape
+    # B_ = W.copy().transpose().astype('int')
+    B_ = W.copy().transpose().astype('float')
     D_1 = np.asarray(B_.sum(axis=1))
     D_2 = np.asarray(B_.sum(axis=0))
     D_1_inv_sqrt = np.sqrt(1/D_1)
@@ -175,27 +176,56 @@ def compute_CC(D, B, Lpinv_BT):
     CC = D - B.dot(Lpinv_BT)
     return 0.5*(CC + CC.T)
 
-def build_ortho_optim(d, Utilde, intermed_param, ret_D=False, far_off_points=[], repel_by=0.):
+def build_ortho_optim(d, Utilde, intermed_param, ret_D=False,
+                      far_off_points=[], repel_by=0.,
+                      wtd_alignment=False):
     M,n = Utilde.shape
     B_row_inds = []
     B_col_inds = []
     B_vals = []
     D = []
+    
+    W_row_inds = []
+    W_col_inds = []
+    W_vals = []
+    
     for i in range(M):
+        Utilde_i = Utilde[i,:].indices
         X_ = intermed_param.eval_({'view_index': i,
-                                   'data_mask': Utilde[i,:].indices})
+                                   'data_mask': Utilde_i})
+        
+        w = None
+        if wtd_alignment:
+            anom_scores = intermed_param.anom_score_({'view_index': i, 'data_mask': Utilde_i})
+            if anom_scores is not None:
+                w = 1/np.sqrt(anom_scores + 1)
+        
+        if w is None:
+            w = np.ones((Utilde_i.shape[0]))
+        
+        X_ = w[:,None] * X_
+        
         D.append(np.matmul(X_.T,X_))
+        
         row_inds = list(range(d*i,d*(i+1)))
-        col_inds = Utilde[i,:].indices.tolist()
+        col_inds = Utilde_i.tolist()
+        
+        W_row_inds += [i]*len(col_inds)
+        W_col_inds += col_inds
+        W_vals += (w**2).tolist()
+        
         B_row_inds += (row_inds + np.repeat(row_inds, len(col_inds)).tolist())
         B_col_inds += (np.repeat([n+i], d).tolist() + np.tile(col_inds, d).tolist())
         B_vals += (np.sum(-X_.T, axis=1).tolist() + X_.T.flatten().tolist())
     
     D = block_diag(D, format='csr')
     B = csr_matrix((B_vals, (B_row_inds, B_col_inds)), shape=(M*d,n+M))
+    W = csr_matrix((W_vals, (W_row_inds, W_col_inds)), shape=(M,n), dtype=float)
+    
+    print('min and max weights:', np.array(W_vals).min(), np.array(W_vals).max())
 
     print('Computing Pseudoinverse of a matrix of L of size', n, '+', M, 'multiplied with B', flush=True)
-    Lpinv_BT = compute_Lpinv_BT(Utilde, B)
+    Lpinv_BT = compute_Lpinv_BT(W, B)
 
     CC = compute_CC(D, B, Lpinv_BT)
     
@@ -224,7 +254,7 @@ def build_ortho_optim(d, Utilde, intermed_param, ret_D=False, far_off_points=[],
 def compute_alignment_err(d, Utilde, intermed_param, scale_num, far_off_points=[], repel_by=0.):
     CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=far_off_points,
-                                     repel_by=repel_by)
+                                     repel_by=repel_by, wtd_alignment=False)
     M,n = Utilde.shape
     
     ## Check if C is pd or psd
@@ -246,7 +276,8 @@ def spectral_alignment(y, is_visited_view, d, Utilde,
                       seq_of_intermed_views_in_cluster):
     CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=global_opts['far_off_points'],
-                                     repel_by=global_opts['repel_by'])
+                                     repel_by=global_opts['repel_by'],
+                                     wtd_alignment=global_opts['wtd_alignment'])
         
     M,n = Utilde.shape
     n_clusters = len(seq_of_intermed_views_in_cluster)
@@ -375,7 +406,8 @@ def rgd_final(y, d, Utilde, C, intermed_param,
              global_opts):
     CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=global_opts['far_off_points'],
-                                     repel_by=global_opts['repel_by'])
+                                     repel_by=global_opts['repel_by'],
+                                     wtd_alignment=global_opts['wtd_alignment'])
     M,n = Utilde.shape
     n_proc = min(M,global_opts['n_proc'])
     barrier = mp.Barrier(n_proc)
@@ -483,7 +515,8 @@ def gpm_final(y, d, Utilde, C, intermed_param,
              global_opts):
     CC, Lpinv_BT, D = build_ortho_optim(d, Utilde, intermed_param, ret_D=True,
                                         far_off_points=global_opts['far_off_points'],
-                                        repel_by=global_opts['repel_by'])
+                                        repel_by=global_opts['repel_by'],
+                                        wtd_alignment=global_opts['wtd_alignment'])
     CC = D - CC
     M,n = Utilde.shape
     n_proc = min(M,global_opts['n_proc'])
@@ -587,7 +620,8 @@ def sdp_alignment(y, is_visited_view, d, Utilde,
                   solver=None):
     CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=global_opts['far_off_points'],
-                                     repel_by=global_opts['repel_by'])
+                                     repel_by=global_opts['repel_by'],
+                                     wtd_alignment=global_opts['wtd_alignment'])
     M,n = Utilde.shape
     b = vec(CC)
     if solver is None:

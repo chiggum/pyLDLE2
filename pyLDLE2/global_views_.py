@@ -443,7 +443,7 @@ class GlobalViews:
     def compute_Utildeg(self, y, Utilde, C, global_opts):
         M,n = Utilde.shape
         k_ = min(global_opts['k']*global_opts['nu'], n-1)
-        neigh_distg, neigh_indg = nearest_neighbors(y, k_, 'euclidean')
+        neigh_distg, neigh_indg = nearest_neighbors(y, k_, global_opts['metric'])
         Ug = sparse_matrix(neigh_indg,
                            np.ones(neigh_indg.shape,
                                    dtype=bool))
@@ -567,7 +567,10 @@ class GlobalViews:
 
             if global_opts['compute_error'] or (it0 == max_iter0-1):
                 self.log('Computing error.')
-                err = compute_alignment_err(d, contrib_of_view, intermed_param, Utilde.count_nonzero())
+                err = compute_alignment_err(d, contrib_of_view, intermed_param, Utilde.count_nonzero(),
+                                            far_off_points=global_opts['far_off_points'],
+                                            repel_by=global_opts['repel_by'],
+                                            wtd_alignment=global_opts['wtd_alignment'])
                 self.log('Alignment error: %0.6f' % err, log_time=True)
                 self.tracker['refine_err_at_iter'][it0] = err
                 

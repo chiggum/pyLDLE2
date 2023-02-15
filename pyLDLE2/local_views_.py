@@ -8,6 +8,8 @@ from . import ipge_
 from .util_ import print_log, compute_zeta, to_dense
 from .util_ import Param, sparse_matrix
 
+from .l1pca_optimal_ import l1pca_optimal
+
 from scipy.linalg import inv, svd, pinv
 from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import svds
@@ -334,8 +336,13 @@ class LocalViews:
                 U_k = U[k,:].indices
                 # LTSA
                 X_k = X[U_k,:]
-                
-                if local_opts['algo'] == 'SparsePCA':
+                #print(k, flush=True)
+                if local_opts['algo'] == 'L1PCA':
+                    xbar_k = np.median(X_k,axis=0)[np.newaxis,:]
+                    X_k = X_k - xbar_k
+                    X_k = X_k.T
+                    Q_k, _, _ = l1pca_optimal(X_k, d)
+                elif local_opts['algo'] == 'SparsePCA':
                     xbar_k = np.median(X_k,axis=0)[np.newaxis,:]
                     X_k = X_k - xbar_k
                     alpha_ = 2

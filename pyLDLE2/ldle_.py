@@ -241,12 +241,12 @@ def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, metric='euclide
     delta : float
         A hyperparameter used in computing parameterizations
         of local views. The value must be in (0,1).
-    alpha: float
+    alpha : float
            Step size in Riemannian gradient descent when using
            Smooth-LTSA.
     max_iter: int
               Max number of Riemannian gradient descent steps.
-    reg: float
+    reg : float
          Desired regularization (Smoothness) in Smooth-LTSA.
     to_postprocess : bool
         If True the local parameterizations are postprocessed
@@ -256,15 +256,15 @@ def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, metric='euclide
         Threshold to use multiple processors or a single processor
         while postprocessing the local parameterizations. A small
         value such as 32 leads to faster postprocessing.
-    lambda1_init: float
+    lambda1_init : float
                   Initialization of lambda1 for RPCA-GODEC.
-    lambda1_decay: float
+    lambda1_decay : float
                    Decay of lambda1 for RPCA-GODEC.
-    lambda1_min: float
+    lambda1_min : float
                  Minimum allowed valued of lambda1 for RPCA-GODEC.
-    power: int
+    power : int
            Number of power iterations for initialization in RPCA-GODEC.
-    max_sparsity: float
+    max_sparsity : float
                   maximum fraction of the desired sparsity.
     """
     return {'k_nn': k_nn, 'k_tune': k_tune, 'k': k, 'metric': metric, 'radius': radius,
@@ -309,7 +309,7 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, c
                             init_algo_name='procrustes', align_w_parent_only=True,
                             refine_algo_name='rgd',
                             max_internal_iter=100, alpha=0.3, eps=1e-8,
-                            add_dim=False, repel_by=0., n_repel=0):
+                            add_dim=False, wtd_alignment=False, repel_by=0., n_repel=0):
     """Sets and returns a dictionary of default_global_opts.
 
     Parameters
@@ -365,14 +365,16 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, c
     eps : float
           The tolerance used by sdp solver when the init or refinement
           algorithm is 'sdp'.
-    add_dim: bool
+    add_dim : bool
              add an extra dimension to intermediate views.
-    repel_by: float
-              If positive, the points which are far off are repelled
+    wtd_alignment: bool
+                   Switch for weighted alignment of intermediate views.
+    repel_by : float
+               If positive, the points which are far off are repelled
               away from each other by a force proportional to it.
               Ignored when refinement algorithm is 'procrustes'.
-    n_repel: int
-             the number of far off points repelled from each other.
+    n_repel : int
+              The number of far off points repelled from each other.
     """
     return {'to_tear': to_tear, 'nu': nu, 'max_iter': max_iter,
                'color_tear': color_tear,
@@ -384,7 +386,8 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, c
                'refine_algo_name': refine_algo_name, 
                'max_internal_iter': max_internal_iter,
                'alpha': alpha, 'eps': eps, 'add_dim': add_dim,
-               'repel_by': repel_by, 'n_repel': n_repel
+               'wtd_alignment': wtd_alignment, 'repel_by': repel_by,
+               'n_repel': n_repel
               }
 def get_default_vis_opts(save_dir='', cmap_interior='summer', cmap_boundary='jet', c=None):
     """Sets and returns a dictionary of default_vis_opts.
@@ -469,6 +472,7 @@ class LDLE:
         print("local_opts['k_nn0'] =", self.local_opts['k_nn0'], "is created.")
         #############################################
         global_opts['k'] = self.local_opts['k']
+        global_opts['metric'] = self.local_opts['metric']
         global_opts['n_proc'] = n_proc
         global_opts['verbose'] = verbose
         global_opts['debug'] = debug

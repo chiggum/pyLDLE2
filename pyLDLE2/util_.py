@@ -72,6 +72,14 @@ class Param:
             if self.v is not None:
                 temp = temp + self.v[[k],:]
             return temp
+    
+    def anom_score_(self, opts):
+        k = opts['view_index']
+        mask = opts['data_mask']
+        if self.algo == 'LTSA':
+            temp = np.dot(np.dot(self.X[mask,:]-self.mu[k,:][np.newaxis,:],self.Psi[k,:,:]), self.Psi[k,:,:].T)
+            return np.linalg.norm(temp, axis=1)
+        return None
 
 
 # includes self as the first neighbor
