@@ -254,7 +254,7 @@ class IntermedViews:
                 k = np.argmin(np_cost)
                 cost_star = np_cost[k]
             
-            print('ctr=%d, total_len_S=%d, avg_len_S=%0.3f' % (ctr, total_len_S, total_len_S/ctr))
+            print('ctr=%d, total_len_S=%d, avg_len_S=%0.3f' % (ctr, total_len_S, total_len_S/(ctr+1e-12)))
             print('Remaining #nodes in views with sz < %d = %d' % (eta, np.sum(n_C[c]<eta)))
             self.log('Done with eta = %d.' % eta, log_time=True)
         del U_
