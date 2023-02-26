@@ -253,7 +253,7 @@ def build_ortho_optim(d, Utilde, intermed_param, ret_D=False,
     else:
         return CC, Lpinv_BT
     
-
+# unscaled alignment error
 def compute_alignment_err(d, Utilde, intermed_param, scale_num, far_off_points=[], repel_by=0., beta=None):
     CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=far_off_points,
@@ -267,8 +267,9 @@ def compute_alignment_err(d, Utilde, intermed_param, scale_num, far_off_points=[
     #print('Smallest singular value of C', sigma_min_C, flush=True)
     
     CC_mask = np.tile(np.eye(d, dtype=bool), (M,M))
-    scale_denom = Utilde.sum()
-    scale = (scale_num/scale_denom)**2
+    #scale_denom = Utilde.sum()
+    #scale = (scale_num/scale_denom)
+    scale = 1
     err = np.sum(CC[CC_mask]) * scale
     return err
 

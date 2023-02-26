@@ -6,7 +6,6 @@ from scipy.spatial.distance import pdist, squareform
 from sklearn.neighbors import NearestNeighbors, KNeighborsTransformer
 
 from scipy.sparse import csr_matrix
-from scipy.sparse.csgraph import dijkstra
 
 from . import local_views_
 from . import intermed_views_
@@ -460,6 +459,7 @@ class LDLE:
         self.local_opts = default_local_opts
         #############################################
         intermed_opts['n_proc'] = n_proc
+        intermed_opts['metric'] = self.local_opts['metric']
         intermed_opts['local_algo'] = self.local_opts['algo']
         intermed_opts['verbose'] = verbose
         intermed_opts['debug'] = debug
@@ -552,7 +552,7 @@ class LDLE:
         else:
             data = d_e.copy()
         
-        if ddX is None or self.local_opts['algo'] == 'LTSA':
+        if ddX is None or self.local_opts['algo'] != 'LDLE':
             neigh_dist, neigh_ind = nearest_neighbors(data,
                                                       k_nn=self.local_opts['k_nn0'],
                                                       metric=self.local_opts['metric'])
@@ -605,24 +605,8 @@ class LDLE:
             return
         
         # Construct Global view
-        # the far off points which are to be repelled from each other
-        np.random.seed(42)
-        far_off_points = []
-        dist_from_far_off_points = None
-        while len(far_off_points) < self.global_opts['n_repel']:
-            if len(far_off_points) == 0:
-                far_off_points = [np.random.randint(0,d_e.shape[0])]
-                dist_from_far_off_points = dijkstra(d_e, directed=False,
-                                                    indices=far_off_points[-1])
-            else:
-                far_off_points.append(np.argmax(dist_from_far_off_points))
-                dist_from_far_off_points = np.minimum(dist_from_far_off_points,
-                                                      dijkstra(d_e, directed=False,
-                                                               indices=far_off_points[-1]))
-        self.global_opts['far_off_points'] = far_off_points
-        # Global view
         GlobalViews = global_views_.GlobalViews(self.exit_at, self.verbose, self.debug)
-        GlobalViews.fit(self.d, IntermedViews.Utilde, IntermedViews.C, IntermedViews.c,
+        GlobalViews.fit(self.d, d_e, IntermedViews.Utilde, IntermedViews.C, IntermedViews.c,
                         IntermedViews.n_C, IntermedViews.intermed_param,
                         self.global_opts, self.vis, self.vis_opts)
         

@@ -336,6 +336,9 @@ class LocalViews:
                 U_k = U[k,:].indices
                 # LTSA
                 X_k = X[U_k,:]
+                #print('Summary:', k, U_k.shape, flush=True)
+                #print(U_k, flush=True)
+                
                 #print(k, flush=True)
                 if local_opts['algo'] == 'L1PCA':
                     xbar_k = np.median(X_k,axis=0)[np.newaxis,:]
@@ -386,7 +389,7 @@ class LocalViews:
                     xbar_k = np.mean(X_k,axis=0)[np.newaxis,:]
                     X_k = X_k - xbar_k
                     X_k = X_k.T
-                    if p == d:
+                    if d in X_k.shape:
                         Q_k,Sigma_k,_ = svd(X_k)
                     else:
                         Q_k,Sigma_k,_ = svds(X_k, d, which='LM')

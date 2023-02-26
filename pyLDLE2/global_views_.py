@@ -7,7 +7,7 @@ from .util_ import procrustes, print_log, nearest_neighbors, sparse_matrix, lexa
 from .global_reg_ import procrustes_init, spectral_alignment, sdp_alignment, procrustes_final, rgd_final, gpm_final, compute_alignment_err
 
 from scipy.linalg import svdvals
-from scipy.sparse.csgraph import minimum_spanning_tree, breadth_first_order
+from scipy.sparse.csgraph import minimum_spanning_tree, breadth_first_order, dijkstra
 from scipy.sparse import coo_matrix, csr_matrix, triu
 from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import pdist, squareform
@@ -46,7 +46,23 @@ class GlobalViews:
                                               self.local_start_time, 
                                               self.global_start_time)
             
-    def fit(self, d, Utilde, C, c, n_C, intermed_param, global_opts, vis, vis_opts):
+    def fit(self, d, d_e, Utilde, C, c, n_C, intermed_param, global_opts, vis, vis_opts):
+        # the far off points which are to be repelled from each other
+        np.random.seed(42)
+        far_off_points = []
+        dist_from_far_off_points = None
+        while len(far_off_points) < global_opts['n_repel']:
+            if len(far_off_points) == 0:
+                far_off_points = [np.random.randint(0,d_e.shape[0])]
+                dist_from_far_off_points = dijkstra(d_e, directed=False,
+                                                    indices=far_off_points[-1])
+            else:
+                far_off_points.append(np.argmax(dist_from_far_off_points))
+                dist_from_far_off_points = np.minimum(dist_from_far_off_points,
+                                                      dijkstra(d_e, directed=False,
+                                                               indices=far_off_points[-1]))
+        global_opts['far_off_points'] = far_off_points
+        
         if global_opts['main_algo'] == 'LDLE':
             # Compute |Utilde_{mm'}|
             n_Utilde_Utilde = Utilde.dot(Utilde.transpose())
@@ -487,6 +503,7 @@ class GlobalViews:
         self.tracker['refine_iter_start_at'] = np.zeros(max_iter0)
         self.tracker['refine_iter_done_at'] = np.zeros(max_iter0)
         self.tracker['refine_err_at_iter'] = np.zeros(max_iter0)
+        self.tracker['|E(Gamma_t)|'] = np.zeros(max_iter0)
         
         contrib_of_view = Utilde.copy()
         solver = None
@@ -573,6 +590,7 @@ class GlobalViews:
                                             beta=global_opts['beta'])
                 self.log('Alignment error: %0.6f' % err, log_time=True)
                 self.tracker['refine_err_at_iter'][it0] = err
+                self.tracker['|E(Gamma_t)|'][it0] = contrib_of_view.sum()
                 
             self.add_spacing_bw_clusters(d, seq_of_intermed_views_in_cluster,
                                          intermed_param, C)

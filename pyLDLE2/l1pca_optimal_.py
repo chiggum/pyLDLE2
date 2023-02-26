@@ -57,7 +57,10 @@ def compute_candidates(matrix, halfSphere = True):
 def l1pca_optimal(X, K):
     D = X.shape[0]
     N = X.shape[1]
-    U, S, V = svds(X.T, k=K, random_state=42)
+    if K in X.shape:
+        U, S, V = svd(X.T)
+    else:
+        U, S, V = svds(X.T, k=K, random_state=42)
     Q = U @ np.diag(S)
     B = compute_candidates(Q.T)
     P = B.shape[1]
