@@ -513,7 +513,7 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, None
     
-    def mobiusstrip3d(self, ar=4, RES=90):
+    def mobiusstrip3d(self, ar=2, RES=90):
         sideLx=np.sqrt(ar)
         sideLy=1/sideLx
         Rmax = sideLx/(2*np.pi)

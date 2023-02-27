@@ -241,10 +241,10 @@ def get_weak_global_distortion_info(ldle=None, ys=None, names=None, include_ldle
     max_dist = {}
     if include_ldle:
         print('Computing pairwise Euclidean distances in the LDLE embedding', flush=True)
-        y_ldle_d_e = ldle.GlobalViews.compute_pwise_dist_in_embedding(s_d_e, ldle.GlobalViews.y_final,
-                                                                    ldle.IntermedViews.Utilde,
+        y_ldle_d_e = ldle.GlobalViews.compute_pwise_dist_in_embedding(s_d_e, ldle.IntermedViews.Utilde,
                                                                     ldle.IntermedViews.C, ldle.global_opts,
-                                                                    ldle.GlobalViews.n_Utilde_Utilde)
+                                                                    ldle.GlobalViews.n_Utilde_Utilde,
+                                                                    y = ldle.GlobalViews.y_final)
         df_dict['LDLE'] = compute_distortion_at(y_ldle_d_e, s_d_e)
 
     for s in range(len(ys)):

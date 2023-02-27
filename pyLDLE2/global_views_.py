@@ -208,10 +208,13 @@ class GlobalViews:
                parents_of_intermed_views_in_cluster,\
                cluster_of_intermed_view
     
-    def compute_pwise_dist_in_embedding(self, s_d_e, y, Utilde, C, global_opts,
-                                     n_Utilde_Utilde, n_Utildeg_Utildeg=None):
+    # dist = y_d_e
+    def compute_pwise_dist_in_embedding(self, s_d_e, Utilde, C, global_opts,
+                                     n_Utilde_Utilde, n_Utildeg_Utildeg=None, y=None, dist=None,):
         M,n = Utilde.shape
-        dist = squareform(pdist(y))
+        
+        if dist is None:
+            dist = squareform(pdist(y))
 
         # Compute |Utildeg_{mm'}| if not provided
         if n_Utildeg_Utildeg is None:
@@ -221,6 +224,10 @@ class GlobalViews:
         # is connected to jth view if they are neighbors in the
         # ambient space but not in the embedding space
         tear = n_Utilde_Utilde-n_Utilde_Utilde.multiply(n_Utildeg_Utildeg)
+        # no tear then resturn dist
+        if np.sum(tear)==0:
+            return dist
+        
         # Keep track of visited views across clusters of manifolds
         is_visited = np.zeros(M, dtype=bool)
         n_visited = 0
