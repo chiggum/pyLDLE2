@@ -467,8 +467,7 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, None
     
-    def curvedtorus3d(self, n=10000, noise=0):
-        Rmax=0.25;
+    def curvedtorus3d(self, n=10000, noise=0, Rmax=0.25):
         rmax=1/(4*(np.pi**2)*Rmax);
         X = []
         thetav = []

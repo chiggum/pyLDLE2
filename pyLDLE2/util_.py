@@ -7,6 +7,36 @@ from scipy.spatial.distance import pdist, squareform
 from scipy.sparse.csgraph import floyd_warshall
 from sklearn.neighbors import NearestNeighbors
 import multiprocess as mp
+import os
+import pickle
+
+def path_exists(path):
+    return os.path.exists(path)
+
+def makedirs(dirpath):
+    if path_exists(dirpath):
+        return
+    os.makedirs(dirpath)
+
+def read(fpath, verbose=False):
+    if not path_exists(fpath):
+        if verbose:
+            print(fpath, 'does not exist.')
+        return None
+    with open(fpath, "rb") as f:
+        data = pickle.load(f)
+    if verbose:
+        print('Read data from', fpath, flush=True)
+    return data
+    
+def save(dirpath, fname, data, verbose=False):
+    if not path_exists(dirpath):
+        os.makedirs(dirpath)
+    fpath = dirpath + '/' + fname
+    with open(fpath, "wb") as f:
+        pickle.dump(data, f)
+    if verbose:
+        print('Saved data in', fpath, flush=True)
 
 def print_log(s, log_time, local_start_time, global_start_time):
     print(s)
@@ -77,14 +107,20 @@ class Param:
         k = opts['view_index']
         mask = opts['data_mask']
         if self.algo == 'LTSA':
-            temp = np.dot(np.dot(self.X[mask,:]-self.mu[k,:][np.newaxis,:],self.Psi[k,:,:]), self.Psi[k,:,:].T)
-            return np.linalg.norm(temp, axis=1)
+            #temp = np.dot(np.dot(self.X[mask,:]-self.mu[k,:][np.newaxis,:],self.Psi[k,:,:]), self.Psi[k,:,:].T)
+            #return np.linalg.norm(temp, axis=1)
+#             mu = np.mean(self.X[mask,:], axis=0)
+#             temp = self.X[mask,:] - mu[None,:]
+#             return np.linalg.norm(temp, 2, axis=1)**2
+            mu = np.mean(self.X[mask,:], axis=0)
+            temp = self.X[mask,:] - mu[None,:]
+            return np.linalg.norm(temp, 1, axis=1)
         return None
 
 
 # includes self as the first neighbor
 # data is either X or distance matrix d_e
-def nearest_neighbors(data, k_nn, metric, n_jobs=-1):
+def nearest_neighbors(data, k_nn, metric, n_jobs=-1, sort_results=True):
     n = data.shape[0]
     if k_nn > 1:
         neigh = NearestNeighbors(n_neighbors=k_nn-1, metric=metric, n_jobs=n_jobs)
@@ -92,6 +128,11 @@ def nearest_neighbors(data, k_nn, metric, n_jobs=-1):
         neigh_dist, neigh_ind = neigh.kneighbors()
         neigh_dist = np.insert(neigh_dist, 0, np.zeros(n), axis=1)
         neigh_ind = np.insert(neigh_ind, 0, np.arange(n), axis=1)
+        if sort_results:
+            inds = np.argsort(neigh_dist, axis=-1)
+            for i in range(neigh_ind.shape[0]):
+                neigh_ind[i,:] = neigh_ind[i,inds[i,:]]
+                neigh_dist[i,:] = neigh_dist[i,inds[i,:]]
     else:
         neigh_dist = np.zeros((n,1))
         neigh_ind = np.arange(n).reshape((n,1)).astype('int')
@@ -200,7 +241,7 @@ def lexargmax(x):
     return idx[0]
 
 def compute_distortion_at(y_d_e, s_d_e):
-    scale_factors = y_d_e/(s_d_e+1e-12)
+    scale_factors = (y_d_e+1e-12)/(s_d_e+1e-12)
     np.fill_diagonal(scale_factors,1)
     max_distortion = np.max(scale_factors)/np.min(scale_factors)
     print('Max distortion is:', max_distortion, flush=True)
@@ -339,27 +380,54 @@ def get_weak_global_distortion_info(ldle=None, ys=None, names=None, include_ldle
 #             y_d_e2[j,i] = y_d_e2[i,j]
 #     return y_d_e2
 
-def get_path_lengths_in_embedding_space(s_d_e, pred, y_d_e, verbose=True):
+def get_path_lengths_in_embedding_space(s_d_e, pred, y_d_e, n_proc=8, verbose=True):
     n = pred.shape[0]
     inds = np.arange(n)
-    def get_path_length(j):
-        path_length = np.zeros(n)
-        k = np.repeat(j, n)
-        pred_ = pred[inds, k]
-        mask = pred_ != -9999
-        while np.any(mask):
-            path_length[mask] += y_d_e[k[mask], pred_[mask]]
-            k[mask] = pred_[mask]
-            pred_ = pred[inds,k]
-            mask = pred_ != -9999
-        return path_length
-        
-    n = y_d_e.shape[0]
     y_d_e2 = np.zeros((n,n))
-    print_freq = n//20
-    for i in range(n):
-        if verbose and np.mod(i, print_freq) == 0:
-            print('Processed', i, 'points.', flush=True)
-        y_d_e2[:,i] = get_path_length(i)
-        y_d_e2[i,:] = y_d_e2[:,i]
+    
+    def target_proc(start_ind, end_ind, q_, y_d_e, s_d_e, pred):
+        def get_path_length(i, j):
+            path_length = 0
+            k = j
+            while pred[i, k] != -9999:
+                path_length += y_d_e[k, pred[i, k]]
+                k = pred[i, k]
+            return path_length
+
+        y_d_e2_ = np.zeros((end_ind-start_ind+1, n))
+        for i in range(start_ind, end_ind):
+            for j in range(i+1,n):
+                y_d_e2_[i-start_ind,j] = get_path_length(i,j)
+
+        q_.put((start_ind, end_ind, y_d_e2_))
+
+    q_ = mp.Queue()
+    chunk_sz = int((n*(n-1))/(2*n_proc))
+    proc = []
+    start_ind = 0
+    end_ind = 1
+    for p_num in range(n_proc):
+        if p_num == n_proc-1:
+            end_ind = n
+        else:
+            while (n-1)*(end_ind-start_ind) - (end_ind*(end_ind-1))/2 + (start_ind*(start_ind-1))/2 < chunk_sz:
+                end_ind += 1
+
+        proc.append(mp.Process(target=target_proc,
+                               args=(start_ind, end_ind, q_,y_d_e, s_d_e, pred),
+                               daemon=True))
+        proc[-1].start()
+        start_ind = end_ind
+
+    print('All processes started', flush=True)
+    for p_num in range(n_proc):
+        start_ind, end_ind, y_d_e2_ = q_.get()
+        for i in range(start_ind, end_ind):
+            y_d_e2[i,i+1:] = y_d_e2_[i-start_ind,i+1:]
+            y_d_e2[i+1:,i] = y_d_e2[i,i+1:]
+
+    q_.close()
+    for p_num in range(n_proc):
+        proc[p_num].join()
+    
     return y_d_e2

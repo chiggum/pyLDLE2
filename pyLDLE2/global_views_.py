@@ -4,10 +4,10 @@ import numpy as np
 import copy
 
 from .util_ import procrustes, print_log, nearest_neighbors, sparse_matrix, lexargmax
-from .global_reg_ import procrustes_init, spectral_alignment, sdp_alignment, procrustes_final, rgd_final, gpm_final, compute_alignment_err
+from .global_reg_ import procrustes_init, spectral_alignment, sdp_alignment, procrustes_final, rgd_final, gpm_final, compute_alignment_err, compute_far_off_points
 
 from scipy.linalg import svdvals
-from scipy.sparse.csgraph import minimum_spanning_tree, breadth_first_order, dijkstra
+from scipy.sparse.csgraph import minimum_spanning_tree, breadth_first_order
 from scipy.sparse import coo_matrix, csr_matrix, triu
 from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import pdist, squareform
@@ -47,22 +47,6 @@ class GlobalViews:
                                               self.global_start_time)
             
     def fit(self, d, d_e, Utilde, C, c, n_C, intermed_param, global_opts, vis, vis_opts):
-        # the far off points which are to be repelled from each other
-        np.random.seed(42)
-        far_off_points = []
-        dist_from_far_off_points = None
-        while len(far_off_points) < global_opts['n_repel']:
-            if len(far_off_points) == 0:
-                far_off_points = [np.random.randint(0,d_e.shape[0])]
-                dist_from_far_off_points = dijkstra(d_e, directed=False,
-                                                    indices=far_off_points[-1])
-            else:
-                far_off_points.append(np.argmax(dist_from_far_off_points))
-                dist_from_far_off_points = np.minimum(dist_from_far_off_points,
-                                                      dijkstra(d_e, directed=False,
-                                                               indices=far_off_points[-1]))
-        global_opts['far_off_points'] = far_off_points
-        
         if global_opts['main_algo'] == 'LDLE':
             # Compute |Utilde_{mm'}|
             n_Utilde_Utilde = Utilde.dot(Utilde.transpose())
@@ -85,7 +69,7 @@ class GlobalViews:
                                   vis_opts, title='Before_Init')
             
             # Compute initial embedding
-            y_init, color_of_pts_on_tear_init = self.compute_init_embedding(d, Utilde, n_Utilde_Utilde, intermed_param,
+            y_init, color_of_pts_on_tear_init = self.compute_init_embedding(d, d_e, Utilde, n_Utilde_Utilde, intermed_param,
                                                                             seq_of_intermed_views_in_cluster,
                                                                             parents_of_intermed_views_in_cluster,
                                                                             C, c, vis, vis_opts, global_opts)
@@ -95,7 +79,7 @@ class GlobalViews:
             
             if global_opts['refine_algo_name']:
                 y_final,\
-                color_of_pts_on_tear_final = self.compute_final_embedding(y_init, d, Utilde, C, intermed_param,
+                color_of_pts_on_tear_final = self.compute_final_embedding(y_init, d, d_e, Utilde, C, intermed_param,
                                                                           n_Utilde_Utilde,
                                                                           seq_of_intermed_views_in_cluster,
                                                                           parents_of_intermed_views_in_cluster, 
@@ -139,11 +123,11 @@ class GlobalViews:
             W_data_ = np.zeros(end_ind-start_ind)
             for i in range(start_ind, end_ind):
                 m = W_rows[i]
-                mp = W_cols[i]
-                Utilde_mmp = Utilde[m,:].multiply(Utilde[mp,:]).nonzero()[1]
+                mpp = W_cols[i]
+                Utilde_mmp = Utilde[m,:].multiply(Utilde[mpp,:]).nonzero()[1]
                 # Compute V_{mm'}, V_{m'm}, Vbar_{mm'}, Vbar_{m'm}
                 V_mmp = intermed_param.eval_({'view_index': m, 'data_mask': Utilde_mmp})
-                V_mpm = intermed_param.eval_({'view_index': mp, 'data_mask': Utilde_mmp})
+                V_mpm = intermed_param.eval_({'view_index': mpp, 'data_mask': Utilde_mmp})
                 Vbar_mmp = V_mmp - np.mean(V_mmp,0)[np.newaxis,:]
                 Vbar_mpm = V_mpm - np.mean(V_mpm,0)[np.newaxis,:]
                 # Compute ambiguity as the minimum singular value of
@@ -210,12 +194,15 @@ class GlobalViews:
     
     # dist = y_d_e
     def compute_pwise_dist_in_embedding(self, s_d_e, Utilde, C, global_opts,
-                                     n_Utilde_Utilde, n_Utildeg_Utildeg=None, y=None, dist=None,):
+                                     n_Utilde_Utilde=None, n_Utildeg_Utildeg=None, y=None, dist=None,):
         M,n = Utilde.shape
         
         if dist is None:
             dist = squareform(pdist(y))
 
+        if n_Utilde_Utilde is None:
+            n_Utilde_Utilde = Utilde.dot(Utilde.transpose())
+            n_Utilde_Utilde.setdiag(0)
         # Compute |Utildeg_{mm'}| if not provided
         if n_Utildeg_Utildeg is None:
             _, n_Utildeg_Utildeg = self.compute_Utildeg(y, Utilde, C, global_opts)
@@ -246,13 +233,13 @@ class GlobalViews:
                     # on the opposite side of the tear
                     Utilde_m = Utilde[m,:]
                     for i in range(len(to_tear_mth_view_with)):
-                        mp = to_tear_mth_view_with[i]
-                        temp_i = Utilde_m.multiply(Utilde[mp,:])
+                        mpp = to_tear_mth_view_with[i]
+                        temp_i = Utilde_m.multiply(Utilde[mpp,:])
                         # Compute points on the overlap of m and m'th view
                         # which are in mth cluster and in m'th cluster. If
                         # both sets are non-empty then assign them same color.
                         temp_m = C[m,:].multiply(temp_i).nonzero()[1]
-                        temp_mp = C[mp,:].multiply(temp_i).nonzero()[1]
+                        temp_mp = C[mpp,:].multiply(temp_i).nonzero()[1]
                         dist[np.ix_(temp_m,temp_mp)] = s_d_e[np.ix_(temp_m,temp_mp)]
                         dist[np.ix_(temp_mp,temp_m)] = s_d_e[np.ix_(temp_mp,temp_m)]
                         pts_on_tear[temp_m] = True
@@ -262,11 +249,38 @@ class GlobalViews:
         # contracting dist.T, dist with min as the binary operation
         print('Computing min(original dist, min(one-hop distances))', flush=True)
         print('#pts on tear', np.sum(pts_on_tear))
-        print_freq = int(n/10)
-        for i in range(n):
-            if np.mod(i, print_freq) == 0:
-                print('Processed', i, 'points.', flush=True)
-            dist[i,:] = np.minimum(dist[i,:],np.min(dist[pts_on_tear,:] + dist[i,pts_on_tear][:,None], axis=0))
+#         print_freq = int(n/10)
+#         for i in range(n):
+#             if np.mod(i, print_freq) == 0:
+#                 print('Processed', i, 'points.', flush=True)
+#             dist[i,:] = np.minimum(dist[i,:],np.min(dist[pts_on_tear,:] + dist[i,pts_on_tear][:,None], axis=0))
+        
+        n_proc = global_opts['n_proc']
+        chunk_sz = int(n/n_proc)
+        def target_proc(p_num, q_, dist, pts_on_tear):
+            start_ind = p_num*chunk_sz
+            if p_num == (n_proc-1):
+                end_ind = n
+            else:
+                end_ind = (p_num+1)*chunk_sz
+            dist_ = np.zeros((end_ind-start_ind,n))
+            for i in range(start_ind, end_ind):
+                dist_[i-start_ind,:] = np.minimum(dist[i,:],np.min(dist[pts_on_tear,:] + dist[i,pts_on_tear][:,None], axis=0))
+            q_.put((start_ind, end_ind, dist_))
+        
+        q_ = mp.Queue()
+        proc = []
+        for p_num in range(n_proc):
+            proc.append(mp.Process(target=target_proc, args=(p_num,q_, dist, pts_on_tear)))
+            proc[-1].start()
+        
+        for p_num in range(n_proc):
+            start_ind, end_ind, dist_ = q_.get()
+            dist[start_ind:end_ind,:] = dist_
+        q_.close()
+        
+        for p_num in range(n_proc):
+            proc[p_num].join()
 
         return dist
     
@@ -304,14 +318,14 @@ class GlobalViews:
                     # on the opposite side of the tear
                     Utilde_m = Utilde[m,:]
                     for i in range(len(to_tear_mth_view_with)):
-                        mp = to_tear_mth_view_with[i]
-                        temp_i = Utilde_m.multiply(Utilde[mp,:])
+                        mpp = to_tear_mth_view_with[i]
+                        temp_i = Utilde_m.multiply(Utilde[mpp,:])
                         # Compute points on the overlap of m and m'th view
                         # which are in mth cluster and in m'th cluster. If
                         # both sets are non-empty then assign them same color.
                         temp0 = np.isnan(color_of_pts_on_tear)
                         temp_m = C[m,:].multiply(temp_i).multiply(temp0)
-                        temp_mp = C[mp,:].multiply(temp_i).multiply(temp0)
+                        temp_mp = C[mpp,:].multiply(temp_i).multiply(temp0)
                         if temp_m.sum() and temp_mp.sum():
                             color_of_pts_on_tear[(temp_m+temp_mp).nonzero()[1]] = cur_color
                             cur_color += 1
@@ -394,7 +408,7 @@ class GlobalViews:
             # rightmost point of the current cluster
             offset = np.max(y[pts_in_cluster_i,0])
     
-    def compute_init_embedding(self, d, Utilde, n_Utilde_Utilde, intermed_param,
+    def compute_init_embedding(self, d, d_e, Utilde, n_Utilde_Utilde, intermed_param,
                                seq_of_intermed_views_in_cluster,
                                parents_of_intermed_views_in_cluster,
                                C, c, vis, vis_opts, global_opts,
@@ -407,6 +421,7 @@ class GlobalViews:
         y = np.zeros((n,d))
 
         n_clusters = len(seq_of_intermed_views_in_cluster)
+        global_opts['far_off_points'] = compute_far_off_points(d_e, global_opts, force_compute=True)
 
         # Boolean array to keep track of already visited views
         is_visited_view = np.zeros(M, dtype=bool)
@@ -477,7 +492,7 @@ class GlobalViews:
         n_Utildeg_Utildeg.setdiag(False)
         return Utildeg, n_Utildeg_Utildeg
 
-    def compute_final_embedding(self, y, d, Utilde, C, intermed_param, n_Utilde_Utilde,
+    def compute_final_embedding(self, y, d, d_e, Utilde, C, intermed_param, n_Utilde_Utilde,
                                 seq_of_intermed_views_in_cluster,
                                 parents_of_intermed_views_in_cluster, 
                                 cluster_of_intermed_view, global_opts,
@@ -507,6 +522,7 @@ class GlobalViews:
         max_iter1 = global_opts['max_internal_iter']
         refine_algo = global_opts['refine_algo_name']
         
+        self.y_spec_refined_y_2 = []
         self.tracker['refine_iter_start_at'] = np.zeros(max_iter0)
         self.tracker['refine_iter_done_at'] = np.zeros(max_iter0)
         self.tracker['refine_err_at_iter'] = np.zeros(max_iter0)
@@ -519,6 +535,8 @@ class GlobalViews:
             self.tracker['refine_iter_start_at'][it0] = time.time()
             self.log('Refining with ' + refine_algo + ' algorithm for ' + str(max_iter1) + ' iterations.')
             self.log('Refinement iteration: %d' % it0, log_time=True)
+            
+            global_opts['far_off_points'] = compute_far_off_points(d_e, global_opts)
             
             if global_opts['to_tear']:
                 # Compute which points contribute to which views
@@ -615,6 +633,8 @@ class GlobalViews:
             if self.debug:
                 self.y_refined_at.append(y)
                 self.color_of_pts_on_tear_at.append(color_of_pts_on_tear)
+                if refine_algo == 'spectral':
+                    self.y_spec_refined_y_2.append(y_2)
                 
              
             # Visualize the current embedding
@@ -623,5 +643,9 @@ class GlobalViews:
                               vis_opts, title='Iter_%d' % it0,
                               color_of_pts_on_tear=color_of_pts_on_tear,
                               contrib_of_view=contrib_of_view)
-
+            # visualize the alternate embedding by spectral method
+            if refine_algo == 'spectral':
+                self.vis_embedding(y_2, vis, vis_opts,
+                                   color_of_pts_on_tear=color_of_pts_on_tear,
+                                   title='Alt. embed. Iter_%d' % it0)
         return y , color_of_pts_on_tear

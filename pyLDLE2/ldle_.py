@@ -308,7 +308,8 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, c
                             init_algo_name='procrustes', align_w_parent_only=True,
                             refine_algo_name='rgd',
                             max_internal_iter=100, alpha=0.3, eps=1e-8,
-                            add_dim=False, beta=None, repel_by=0., n_repel=0):
+                            add_dim=False, beta=None, repel_by=0., n_repel=0,
+                            far_off_points_type='fixed'):
     """Sets and returns a dictionary of default_global_opts.
 
     Parameters
@@ -375,6 +376,9 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, c
               Ignored when refinement algorithm is 'procrustes'.
     n_repel : int
               The number of far off points repelled from each other.
+    far_off_points_type : 'fixed' or 'random'
+              Whether to use the same points for repulsion or 
+              randomize over refinement iterations.
     """
     return {'to_tear': to_tear, 'nu': nu, 'max_iter': max_iter,
                'color_tear': color_tear,
@@ -386,7 +390,8 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, c
                'refine_algo_name': refine_algo_name, 
                'max_internal_iter': max_internal_iter,
                'alpha': alpha, 'eps': eps, 'add_dim': add_dim,
-               'beta': beta, 'repel_by': repel_by, 'n_repel': n_repel
+               'beta': beta, 'repel_by': repel_by, 'n_repel': n_repel,
+               'far_off_points_type': far_off_points_type
               }
 def get_default_vis_opts(save_dir='', cmap_interior='summer', cmap_boundary='jet', c=None):
     """Sets and returns a dictionary of default_vis_opts.
@@ -571,6 +576,11 @@ class LDLE:
         # self.scale = np.min(neigh_dist[neigh_dist > 0])
         d_e = sparse_matrix(neigh_ind, neigh_dist)
         d_e = d_e.maximum(d_e.transpose())
+        
+        # to compute far off points
+        d_e_small = sparse_matrix(neigh_ind[:,:self.local_opts['k']],
+                                  neigh_dist[:,:self.local_opts['k']])
+        d_e_small = d_e_small.maximum(d_e_small.transpose())
 
         neigh_ind = neigh_ind[:,:self.local_opts['k_nn']]
         neigh_dist = neigh_dist[:,:self.local_opts['k_nn']]
@@ -587,6 +597,7 @@ class LDLE:
             
         if self.debug:
             self.d_e = d_e
+            self.d_e_small = d_e_small
             self.neigh_ind = neigh_ind
             self.neigh_dist = neigh_dist
         
@@ -606,7 +617,7 @@ class LDLE:
         
         # Construct Global view
         GlobalViews = global_views_.GlobalViews(self.exit_at, self.verbose, self.debug)
-        GlobalViews.fit(self.d, d_e, IntermedViews.Utilde, IntermedViews.C, IntermedViews.c,
+        GlobalViews.fit(self.d, d_e_small, IntermedViews.Utilde, IntermedViews.C, IntermedViews.c,
                         IntermedViews.n_C, IntermedViews.intermed_param,
                         self.global_opts, self.vis, self.vis_opts)
         

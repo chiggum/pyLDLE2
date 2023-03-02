@@ -9,11 +9,33 @@ from scipy.sparse import linalg as slinalg
 from scipy.sparse import csr_matrix, csc_matrix, block_diag, vstack, bmat
 from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import pdist, squareform
+from scipy.sparse.csgraph import dijkstra
 
 import multiprocess as mp
 from multiprocess import shared_memory
 
 import scs
+
+def compute_far_off_points(d_e, global_opts, force_compute=False):
+    if force_compute:
+        if global_opts['far_off_points_type'] != 'random':
+            np.random.seed(seed)
+    elif global_opts['far_off_points_type'] == 'fixed':
+        return global_opts['far_off_points']
+    
+    far_off_points = []
+    dist_from_far_off_points = None
+    while len(far_off_points) < global_opts['n_repel']:
+        if len(far_off_points) == 0:
+            far_off_points = [np.random.randint(0,d_e.shape[0])]
+            dist_from_far_off_points = dijkstra(d_e, directed=False,
+                                                indices=far_off_points[-1])
+        else:
+            far_off_points.append(np.argmax(dist_from_far_off_points))
+            dist_from_far_off_points = np.minimum(dist_from_far_off_points,
+                                                  dijkstra(d_e, directed=False,
+                                                           indices=far_off_points[-1]))
+    return far_off_points
 
 # Computes Z_s for the case when to_tear is True.
 # Input Z_s is the Z_s for the case when to_tear is False.
@@ -109,9 +131,8 @@ def procrustes_init(seq, rho, y, is_visited_view, d, Utilde, n_Utilde_Utilde,
         C_s = C[s,:].indices
         y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
     return y, is_visited_view
-    
-# Ngoc-Diep Ho, Paul Van Dooren, On the pseudo-inverse of the Laplacian of a bipartite graph
-def compute_Lpinv_BT(W, B):
+
+def compute_Lpinv_helpers(W):
     M, n = W.shape
     # B_ = W.copy().transpose().astype('int')
     B_ = W.copy().transpose().astype('float')
@@ -135,8 +156,15 @@ def compute_Lpinv_BT(W, B):
     U2 = U12[:,m_1:]
     V1 = V[:,:m_1]
     V2 = V[:,m_1:]
-    
-    B_n = B - B.mean(axis=1)
+    return [D_1_inv_sqrt, D_2_inv_sqrt, U1, U2, V1, V2, Sigma_1, Sigma_2]
+
+def compute_Lpinv_MT(Lpinv_helpers, B):
+    D_1_inv_sqrt, D_2_inv_sqrt, U1, U2, V1, V2, Sigma_1, Sigma_2 = Lpinv_helpers
+    n = D_1_inv_sqrt.shape[0]
+    B_mean = B.mean(axis=1)
+    if len(B_mean.shape) == 1:
+        B_mean = B_mean[:,None]
+    B_n = B - B_mean
     B_n = np.asarray(B_n)
     B1T = D_1_inv_sqrt * (B_n[:, :n].T)
     B2T = D_2_inv_sqrt.T * (B_n[:, n:].T)
@@ -157,6 +185,11 @@ def compute_Lpinv_BT(W, B):
     temp = np.concatenate((temp1, temp2), axis=0)
     temp = temp - np.mean(temp, axis=0, keepdims=True)
     return temp
+
+# Ngoc-Diep Ho, Paul Van Dooren, On the pseudo-inverse of the Laplacian of a bipartite graph
+def compute_Lpinv_BT(W, B):
+    D_1_inv_sqrt, D_2_inv_sqrt, U1, U2, V1, V2, Sigma_1, Sigma_2 = compute_Lpinv_helpers(W)
+    return compute_Lpinv_MT(Lpinv_helpers, B)
 
 # conjugate gradient based approach
 def compute_Lpinv_BT_cg(Utilde, B):
@@ -194,16 +227,18 @@ def build_ortho_optim(d, Utilde, intermed_param, ret_D=False,
         X_ = intermed_param.eval_({'view_index': i,
                                    'data_mask': Utilde_i})
         
-        w = None
+        p_ki = None
         if beta:
             anom_scores = intermed_param.anom_score_({'view_index': i, 'data_mask': Utilde_i})
             if anom_scores is not None:
-                w = np.exp(-anom_scores/beta)
+                w = -anom_scores/beta
+                p_ki = np.exp(w - np.max(w))
+                p_ki *= (Utilde_i.shape[0]/np.sum(p_ki))
         
-        if w is None:
-            w = np.ones((Utilde_i.shape[0]))
+        if p_ki is None:
+            p_ki = np.ones((Utilde_i.shape[0]))
         
-        X_ = w[:,None] * X_
+        X_ = p_ki[:,None] * X_
         
         D.append(np.matmul(X_.T,X_))
         
@@ -212,7 +247,7 @@ def build_ortho_optim(d, Utilde, intermed_param, ret_D=False,
         
         W_row_inds += [i]*len(col_inds)
         W_col_inds += col_inds
-        W_vals += (w**2).tolist()
+        W_vals += p_ki.tolist()
         
         B_row_inds += (row_inds + np.repeat(row_inds, len(col_inds)).tolist())
         B_col_inds += (np.repeat([n+i], d).tolist() + np.tile(col_inds, d).tolist())
@@ -222,17 +257,17 @@ def build_ortho_optim(d, Utilde, intermed_param, ret_D=False,
     B = csr_matrix((B_vals, (B_row_inds, B_col_inds)), shape=(M*d,n+M))
     W = csr_matrix((W_vals, (W_row_inds, W_col_inds)), shape=(M,n), dtype=float)
     
-    if beta:
-        print('min and max anom scores:', (-beta*np.log(np.array(W_vals))).min(),
-                                          (-beta*np.log(np.array(W_vals))).max())
+#     if beta:
+#         print('min and max anom scores:', (-beta*np.log(np.array(W_vals))).min(),
+#                                           (-beta*np.log(np.array(W_vals))).max())
     print('min and max weights:', np.array(W_vals).min(), np.array(W_vals).max())
 
+    n_repel = len(far_off_points)
     print('Computing Pseudoinverse of a matrix of L of size', n, '+', M, 'multiplied with B', flush=True)
-    Lpinv_BT = compute_Lpinv_BT(W, B)
-
+    Lpinv_helpers = compute_Lpinv_helpers(W)
+    Lpinv_BT = compute_Lpinv_MT(Lpinv_helpers, B)
     CC = compute_CC(D, B, Lpinv_BT)
     
-    n_repel = len(far_off_points)
     if n_repel > 0:
         L__row_inds = []
         L__col_inds = []
@@ -246,8 +281,9 @@ def build_ortho_optim(d, Utilde, intermed_param, ret_D=False,
             temp_arr[i] = -1
         L_ = csr_matrix((L__vals, (L__row_inds, L__col_inds)), shape=(n+M,n+M))
         L_ = -repel_by*L_
-        CC = CC + (Lpinv_BT.T).dot(L_.dot(Lpinv_BT))
-    
+        L__Lpinv_BT = L_.dot(Lpinv_BT)
+        CC = CC + (Lpinv_BT.T).dot(L__Lpinv_BT)
+        Lpinv_BT -= compute_Lpinv_MT(Lpinv_helpers, L__Lpinv_BT.T)
     if ret_D:
         return CC, Lpinv_BT, D
     else:
@@ -289,10 +325,17 @@ def spectral_alignment(y, is_visited_view, d, Utilde,
     print('Computing eigh(C,k=d)', flush=True)
     np.random.seed(42)
     v0 = np.random.uniform(0,1,CC.shape[0])
-    # To find smallest eigenvalues, using shift-inverted algo with mode=normal and which='LM'
-    W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, sigma=0.0)
-    # or just pass which='SM' without using sigma
-    # W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, which='SM')
+    if (global_opts['n_repel'] == 0) or (global_opts['repel_by'] == 0):
+        # To find smallest eigenvalues, using shift-inverted algo with mode=normal and which='LM'
+        W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, sigma=0.0)
+        # or just pass which='SM' without using sigma
+        # W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, which='SM')
+    else:
+        # To find smallest eigenvalues, using shift-inverted algo with mode=normal and which='LM'
+        CC_frob = np.linalg.norm(CC)
+        W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, sigma=-2*CC_frob)
+        # or just pass which='SM' without using sigma
+        # W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, which='SA')
     print('Done.', flush=True)
     Wstar = np.sqrt(M)*V_.T
     Tstar = np.zeros((d, M*d))
@@ -319,7 +362,6 @@ def spectral_alignment(y, is_visited_view, d, Utilde,
     for i in range(n_clusters):
         seq = seq_of_intermed_views_in_cluster[i]
         s0 = seq[0]
-        print(Zstar[:,n+s0])
         Zstar[:,n+seq] -= Zstar[:,n+s0][:,None]
     
     for i in range(n_clusters):
@@ -509,7 +551,6 @@ def rgd_final(y, d, Utilde, C, intermed_param,
         intermed_param.v[s,:] = np.matmul(intermed_param.v[s,:][np.newaxis,:], T_s) + v_s
         C_s = C[s,:].indices
         y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
-
     return y
 
 def gpm_final(y, d, Utilde, C, intermed_param,
