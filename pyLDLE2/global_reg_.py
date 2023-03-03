@@ -19,7 +19,7 @@ import scs
 def compute_far_off_points(d_e, global_opts, force_compute=False):
     if force_compute:
         if global_opts['far_off_points_type'] != 'random':
-            np.random.seed(seed)
+            np.random.seed(42)
     elif global_opts['far_off_points_type'] == 'fixed':
         return global_opts['far_off_points']
     

@@ -99,6 +99,7 @@ class GlobalViews:
             self.n_Utilde_Utilde = n_Utilde_Utilde
             self.seq_of_intermed_views_in_cluster = seq_of_intermed_views_in_cluster
             self.parents_of_intermed_views_in_cluster = parents_of_intermed_views_in_cluster
+            self.cluster_of_intermed_view = cluster_of_intermed_view
     
     # Motivated from graph lateration
     def compute_seq_of_intermediate_views(self, Utilde, n_C, n_Utilde_Utilde,
@@ -496,7 +497,7 @@ class GlobalViews:
                                 seq_of_intermed_views_in_cluster,
                                 parents_of_intermed_views_in_cluster, 
                                 cluster_of_intermed_view, global_opts,
-                                vis, vis_opts):
+                                vis, vis_opts, reset=True):
         M,n = Utilde.shape
         y = y.copy()
         n_clusters = len(seq_of_intermed_views_in_cluster)
@@ -507,13 +508,6 @@ class GlobalViews:
         np.random.seed(42) # for reproducbility
 
         old_time = time.time()
-        # If to tear the closed manifolds
-        if global_opts['to_tear']:
-            # Compute |Utildeg_{mm'}|
-            _, n_Utildeg_Utildeg = self.compute_Utildeg(y, Utilde, C, global_opts)
-        else:
-            n_Utildeg_Utildeg = None
-        
         
         CC = None
         Lpinv_BT = None
@@ -521,20 +515,38 @@ class GlobalViews:
         max_iter0 = global_opts['max_iter']
         max_iter1 = global_opts['max_internal_iter']
         refine_algo = global_opts['refine_algo_name']
-        
-        self.y_spec_refined_y_2 = []
-        self.tracker['refine_iter_start_at'] = np.zeros(max_iter0)
-        self.tracker['refine_iter_done_at'] = np.zeros(max_iter0)
-        self.tracker['refine_err_at_iter'] = np.zeros(max_iter0)
-        self.tracker['|E(Gamma_t)|'] = np.zeros(max_iter0)
-        
+        patience_ctr = global_opts['patience']
+        err_tol = global_opts['err_tol']
+        prev_err = None
         contrib_of_view = Utilde.copy()
         solver = None
+        
+        if reset:
+            self.y_spec_refined_y_2 = []
+            self.tracker['refine_iter_start_at'] = []
+            self.tracker['refine_iter_done_at'] = []
+            self.tracker['refine_err_at_iter'] = []
+            self.tracker['|E(Gamma_t)|'] = []
+            self.it0 = 0
+            self.refinement_converged = False
+        else:
+            self.log('Reset is False. Starting from where left off', log_time=True)
+            if self.refinement_converged:
+                self.log('Refinement had already converged.', log_time=True)
+                return self.y_final, self.color_of_pts_on_tear_final
+        
+        # If to tear the closed manifolds
+        if global_opts['to_tear']:
+            # Compute |Utildeg_{mm'}|
+            _, n_Utildeg_Utildeg = self.compute_Utildeg(y, Utilde, C, global_opts)
+        else:
+            n_Utildeg_Utildeg = None
+        
         # Refine global embedding y
         for it0 in range(max_iter0):
-            self.tracker['refine_iter_start_at'][it0] = time.time()
+            self.tracker['refine_iter_start_at'].append(time.time())
             self.log('Refining with ' + refine_algo + ' algorithm for ' + str(max_iter1) + ' iterations.')
-            self.log('Refinement iteration: %d' % it0, log_time=True)
+            self.log('Refinement iteration: %d' % self.it0, log_time=True)
             
             global_opts['far_off_points'] = compute_far_off_points(d_e, global_opts)
             
@@ -605,7 +617,7 @@ class GlobalViews:
                                        solver=solver)
                 
             self.log('Done.', log_time=True)
-            self.tracker['refine_iter_done_at'][it0] = time.time()
+            self.tracker['refine_iter_done_at'].append(time.time())
 
             if global_opts['compute_error'] or (it0 == max_iter0-1):
                 self.log('Computing error.')
@@ -614,8 +626,14 @@ class GlobalViews:
                                             repel_by=global_opts['repel_by'],
                                             beta=global_opts['beta'])
                 self.log('Alignment error: %0.6f' % err, log_time=True)
-                self.tracker['refine_err_at_iter'][it0] = err
-                self.tracker['|E(Gamma_t)|'][it0] = contrib_of_view.sum()
+                self.tracker['refine_err_at_iter'].append(err)
+                self.tracker['|E(Gamma_t)|'].append(contrib_of_view.sum())
+                if prev_err is not None:
+                    if np.abs(err-prev_err) < err_tol:
+                        patience_ctr -= 1
+                    else:
+                        patience_ctr = global_opts['patience']
+                prev_err = err
                 
             self.add_spacing_bw_clusters(d, seq_of_intermed_views_in_cluster,
                                          intermed_param, C)
@@ -648,4 +666,8 @@ class GlobalViews:
                 self.vis_embedding(y_2, vis, vis_opts,
                                    color_of_pts_on_tear=color_of_pts_on_tear,
                                    title='Alt. embed. Iter_%d' % it0)
+            self.it0 += 1
+            if global_opts['compute_error'] and (patience_ctr <= 0):
+                self.refinement_converged = True
+                break
         return y , color_of_pts_on_tear
