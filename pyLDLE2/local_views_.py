@@ -171,7 +171,6 @@ class LocalViews:
                 self.log('Done.', log_time=True)
             #############################################
         else:
-            self.log('Constructing local views using ' + local_opts['algo'])
             # Local views in the ambient space
             if local_opts['U_method'] == 'k_nn':
                 U = sparse_matrix(neigh_ind[:,:local_opts['k']],
