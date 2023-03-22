@@ -47,7 +47,8 @@ class GlobalViews:
                                               self.global_start_time)
             
     def fit(self, d, d_e, Utilde, C, c, n_C, intermed_param, global_opts, vis, vis_opts):
-        if global_opts['main_algo'] == 'LDLE':
+        print('Using', global_opts['align_transform'], 'transforms for alignment.')
+        if global_opts['align_transform'] == 'rigid':
             # Compute |Utilde_{mm'}|
             n_Utilde_Utilde = Utilde.dot(Utilde.transpose())
             n_Utilde_Utilde.setdiag(0)
@@ -79,7 +80,7 @@ class GlobalViews:
             
             if global_opts['refine_algo_name']:
                 y_final,\
-                color_of_pts_on_tear_final = self.compute_final_embedding(y_init, d, d_e, Utilde, C, intermed_param,
+                color_of_pts_on_tear_final = self.compute_final_embedding(y_init, d, d_e, Utilde, C, c, intermed_param,
                                                                           n_Utilde_Utilde,
                                                                           seq_of_intermed_views_in_cluster,
                                                                           parents_of_intermed_views_in_cluster, 
@@ -88,8 +89,9 @@ class GlobalViews:
                 self.y_final = y_final
                 self.color_of_pts_on_tear_final = color_of_pts_on_tear_final
             
-        elif global_opts['main_algo'] == 'LTSA':
-            print('Using LTSA Global Alignment...')
+        elif global_opts['align_transform'] == 'affine':
+            # TODO
+            print('TODO: Need to implement', flush = True)
 #             self.y_final = self.compute_final_global_embedding_ltsap_based()
 #             self.color_of_pts_on_tear_final = None
         
@@ -286,7 +288,7 @@ class GlobalViews:
         return dist
     
     def compute_color_of_pts_on_tear(self, y, Utilde, C, global_opts,
-                                     n_Utilde_Utilde, n_Utildeg_Utildeg=None):
+                                        n_Utilde_Utilde, n_Utildeg_Utildeg=None):
         M,n = Utilde.shape
 
         # Compute |Utildeg_{mm'}| if not provided
@@ -310,7 +312,7 @@ class GlobalViews:
             seq, rho = breadth_first_order(n_Utilde_Utilde, s0, directed=False) #(ignores edge weights)
             is_visited[seq] = True
             n_visited = np.sum(is_visited)
-
+            
             # Iterate over views
             for m in seq:
                 to_tear_mth_view_with = tear[m,:].nonzero()[1].tolist()
@@ -320,20 +322,19 @@ class GlobalViews:
                     Utilde_m = Utilde[m,:]
                     for i in range(len(to_tear_mth_view_with)):
                         mpp = to_tear_mth_view_with[i]
-                        temp_i = Utilde_m.multiply(Utilde[mpp,:])
-                        # Compute points on the overlap of m and m'th view
-                        # which are in mth cluster and in m'th cluster. If
-                        # both sets are non-empty then assign them same color.
                         temp0 = np.isnan(color_of_pts_on_tear)
+                        temp_i = Utilde_m.multiply(Utilde[mpp,:])
                         temp_m = C[m,:].multiply(temp_i).multiply(temp0)
                         temp_mp = C[mpp,:].multiply(temp_i).multiply(temp0)
-                        if temp_m.sum() and temp_mp.sum():
-                            color_of_pts_on_tear[(temp_m+temp_mp).nonzero()[1]] = cur_color
+                        if temp_m.sum():
+                            color_of_pts_on_tear[(temp_m).nonzero()[1]] = cur_color
                             cur_color += 1
-                        
+                        if temp_mp.sum():
+                            color_of_pts_on_tear[(temp_mp).nonzero()[1]] = cur_color
+                            cur_color += 1
         return color_of_pts_on_tear
     
-    def vis_embedding_(self, d, intermed_param, C, Utilde,
+    def vis_embedding_(self, d, intermed_param, c, C, Utilde,
                       n_Utilde_Utilde, global_opts, vis,
                       vis_opts, title='', color_of_pts_on_tear=None,
                       contrib_of_view=None):
@@ -362,9 +363,36 @@ class GlobalViews:
         else:
             color_of_pts_on_tear = None
             
-        vis.global_embedding(y, vis_opts['c'], vis_opts['cmap_interior'],
-                              color_of_pts_on_tear, vis_opts['cmap_boundary'],
-                              title)
+        
+        if color_of_pts_on_tear is not None:
+            pts_on_tear = np.nonzero(~np.isnan(color_of_pts_on_tear))[0]
+            y_ = []
+            ind_ = []
+            #color_of_pts_on_tear = np.zeros(n)+np.nan
+            color_of_pts_on_tear_ = []
+            for i in range(pts_on_tear.shape[0]):
+                k = pts_on_tear[i]
+                for m in Utilde[:,k].nonzero()[0].tolist():
+                    if m == c[k]:
+                        continue
+                    y_.append(intermed_param.eval_({'view_index': m, 'data_mask': np.array([k])}))
+                    ind_.append(k)
+                    color_of_pts_on_tear_.append(color_of_pts_on_tear[k])
+            ind_ = np.array(ind_)
+            color_of_pts_on_tear_ = np.array(color_of_pts_on_tear_)
+            y_ = np.concatenate(y_, axis=0)
+            c_ = vis_opts['c'][ind_]
+            # comment the following three lines if only the boundary is needed
+            y_ = np.concatenate([y,y_], axis=0)
+            color_of_pts_on_tear_ = np.concatenate([color_of_pts_on_tear, color_of_pts_on_tear_], axis=0)
+            c_ = np.concatenate([vis_opts['c'],c_], axis=0)
+            vis.global_embedding(y_,c_, vis_opts['cmap_interior'],
+                                  color_of_pts_on_tear_, vis_opts['cmap_boundary'],
+                                  title)
+        else:
+            vis.global_embedding(y, vis_opts['c'], vis_opts['cmap_interior'],
+                                  color_of_pts_on_tear, vis_opts['cmap_boundary'],
+                                  title)
         plt.show()
         return color_of_pts_on_tear, y
     
@@ -473,10 +501,10 @@ class GlobalViews:
                                 intermed_param, C)
         
         # Visualize the initial embedding
-        color_of_pts_on_tear, y = self.vis_embedding_(d, intermed_param, C, Utilde,
+        color_of_pts_on_tear, y = self.vis_embedding_(d, intermed_param, c, C, Utilde,
                                                   n_Utilde_Utilde, global_opts, vis,
                                                   vis_opts, title='Init')
-
+        intermed_param.y = y
         return y, color_of_pts_on_tear
 
     def compute_Utildeg(self, y, Utilde, C, global_opts):
@@ -493,7 +521,7 @@ class GlobalViews:
         n_Utildeg_Utildeg.setdiag(False)
         return Utildeg, n_Utildeg_Utildeg
 
-    def compute_final_embedding(self, y, d, d_e, Utilde, C, intermed_param, n_Utilde_Utilde,
+    def compute_final_embedding(self, y, d, d_e, Utilde, C, c, intermed_param, n_Utilde_Utilde,
                                 seq_of_intermed_views_in_cluster,
                                 parents_of_intermed_views_in_cluster, 
                                 cluster_of_intermed_view, global_opts,
@@ -656,11 +684,12 @@ class GlobalViews:
                 
              
             # Visualize the current embedding
-            _, y = self.vis_embedding_(d, intermed_param, C, Utilde,
+            _, y = self.vis_embedding_(d, intermed_param, c, C, Utilde,
                               n_Utilde_Utilde, global_opts, vis,
                               vis_opts, title='Iter_%d' % it0,
                               color_of_pts_on_tear=color_of_pts_on_tear,
                               contrib_of_view=contrib_of_view)
+            intermed_param.y = y
             # visualize the alternate embedding by spectral method
             if refine_algo == 'spectral':
                 self.vis_embedding(y_2, vis, vis_opts,

@@ -6,7 +6,7 @@ from .util_ import procrustes, issparse, sparse_matrix, nearest_neighbors
 
 import scipy
 from scipy.sparse import linalg as slinalg
-from scipy.sparse import csr_matrix, csc_matrix, block_diag, vstack, bmat
+from scipy.sparse import csr_matrix, csc_matrix, lil_matrix, block_diag, vstack, bmat
 from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import pdist, squareform
 from scipy.sparse.csgraph import dijkstra
@@ -17,12 +17,11 @@ from multiprocess import shared_memory
 import scs
 
 def compute_far_off_points(d_e, global_opts, force_compute=False):
-    if force_compute:
-        if global_opts['far_off_points_type'] != 'random':
-            np.random.seed(42)
-    elif global_opts['far_off_points_type'] == 'fixed':
+    if 'reuse' in global_opts['far_off_points_type'] and (not force_compute):
         return global_opts['far_off_points']
-    
+
+    if global_opts['far_off_points_type'] != 'random':
+        np.random.seed(42)
     far_off_points = []
     dist_from_far_off_points = None
     while len(far_off_points) < global_opts['n_repel']:
@@ -36,6 +35,7 @@ def compute_far_off_points(d_e, global_opts, force_compute=False):
                                                   dijkstra(d_e, directed=False,
                                                            indices=far_off_points[-1]))
     return far_off_points
+    
 
 # Computes Z_s for the case when to_tear is True.
 # Input Z_s is the Z_s for the case when to_tear is False.
@@ -209,7 +209,7 @@ def compute_CC(D, B, Lpinv_BT):
     CC = D - B.dot(Lpinv_BT)
     return 0.5*(CC + CC.T)
 
-def build_ortho_optim(d, Utilde, intermed_param, ret_D=False,
+def build_ortho_optim(d, Utilde, intermed_param,
                       far_off_points=[], repel_by=0.,
                       beta=None):
     M,n = Utilde.shape
@@ -218,48 +218,54 @@ def build_ortho_optim(d, Utilde, intermed_param, ret_D=False,
     B_vals = []
     D = []
     
-    W_row_inds = []
-    W_col_inds = []
-    W_vals = []
+    if (beta is not None) and (beta['align'] is not None):
+        W_row_inds = []
+        W_col_inds = []
+        W_vals = []
+        for i in range(M):
+            Utilde_i = Utilde[i,:].indices
+            w_ki = intermed_param.alignment_wts({'view_index': i,
+                                                  'data_mask': Utilde_i,
+                                                  'beta': beta['align']})
+            col_inds = Utilde_i.tolist()
+            W_row_inds += [i]*len(col_inds)
+            W_col_inds += col_inds
+            W_vals += w_ki.tolist()
+        W_row_inds = np.array(W_row_inds)
+        W_col_inds = np.array(W_col_inds)
+        W_vals = np.array(W_vals)
+        for k in range(n):
+            mask = W_col_inds == k
+            temp = W_vals[mask]
+            temp = np.exp(temp - temp.max())
+            temp *= temp.shape[0]/np.sum(temp)
+            W_vals[mask] = temp
+        W = csr_matrix((W_vals, (W_row_inds, W_col_inds)), shape=(M,n), dtype=float)
+    else:
+        W = Utilde.astype(float)
+        W_vals = W.data
+        
     
     for i in range(M):
         Utilde_i = Utilde[i,:].indices
         X_ = intermed_param.eval_({'view_index': i,
                                    'data_mask': Utilde_i})
-        
-        p_ki = None
-        if beta:
-            anom_scores = intermed_param.anom_score_({'view_index': i, 'data_mask': Utilde_i})
-            if anom_scores is not None:
-                w = -anom_scores/beta
-                p_ki = np.exp(w - np.max(w))
-                p_ki *= (Utilde_i.shape[0]/np.sum(p_ki))
-        
-        if p_ki is None:
-            p_ki = np.ones((Utilde_i.shape[0]))
-        
-        X_ = p_ki[:,None] * X_
-        
+        sqrt_p_ki = np.sqrt(np.array(W[i,:].data).flatten()[:,None])
+        X_ = sqrt_p_ki * X_
         D.append(np.matmul(X_.T,X_))
         
         row_inds = list(range(d*i,d*(i+1)))
         col_inds = Utilde_i.tolist()
         
-        W_row_inds += [i]*len(col_inds)
-        W_col_inds += col_inds
-        W_vals += p_ki.tolist()
-        
         B_row_inds += (row_inds + np.repeat(row_inds, len(col_inds)).tolist())
         B_col_inds += (np.repeat([n+i], d).tolist() + np.tile(col_inds, d).tolist())
+        
+        X_ = sqrt_p_ki * X_
         B_vals += (np.sum(-X_.T, axis=1).tolist() + X_.T.flatten().tolist())
     
     D = block_diag(D, format='csr')
     B = csr_matrix((B_vals, (B_row_inds, B_col_inds)), shape=(M*d,n+M))
-    W = csr_matrix((W_vals, (W_row_inds, W_col_inds)), shape=(M,n), dtype=float)
     
-#     if beta:
-#         print('min and max anom scores:', (-beta*np.log(np.array(W_vals))).min(),
-#                                           (-beta*np.log(np.array(W_vals))).max())
     print('min and max weights:', np.array(W_vals).min(), np.array(W_vals).max())
 
     n_repel = len(far_off_points)
@@ -276,22 +282,29 @@ def build_ortho_optim(d, Utilde, intermed_param, ret_D=False,
         for i in range(n_repel):
             L__row_inds += [far_off_points[i]]*n_repel
             L__col_inds += far_off_points
-            temp_arr[i] = n_repel
-            L__vals += temp_arr
-            temp_arr[i] = -1
+            if (beta is not None) and (beta['repel'] is not None):
+                p_llp = intermed_param.repulsion_wts({'pt_index': far_off_points[i],
+                                                      'repelling_pts_indices': far_off_points,
+                                                      'beta': beta['repel']})
+                p_llp_sum = np.sum(p_llp)
+                p_llp *= -1
+                p_llp[i] += p_llp_sum
+                L__vals += p_llp.tolist()
+            else:
+                temp_arr[i] = n_repel-1
+                L__vals += temp_arr
+                temp_arr[i] = -1
+                
         L_ = csr_matrix((L__vals, (L__row_inds, L__col_inds)), shape=(n+M,n+M))
         L_ = -repel_by*L_
         L__Lpinv_BT = L_.dot(Lpinv_BT)
         CC = CC + (Lpinv_BT.T).dot(L__Lpinv_BT)
         Lpinv_BT -= compute_Lpinv_MT(Lpinv_helpers, L__Lpinv_BT.T)
-    if ret_D:
-        return CC, Lpinv_BT, D
-    else:
-        return CC, Lpinv_BT
+    return CC, Lpinv_BT, D, B
     
 # unscaled alignment error
 def compute_alignment_err(d, Utilde, intermed_param, scale_num, far_off_points=[], repel_by=0., beta=None):
-    CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param,
+    CC, Lpinv_BT, _, _ = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=far_off_points,
                                      repel_by=repel_by, beta=beta)
     M,n = Utilde.shape
@@ -314,7 +327,7 @@ def compute_alignment_err(d, Utilde, intermed_param, scale_num, far_off_points=[
 def spectral_alignment(y, is_visited_view, d, Utilde,
                       C, intermed_param, global_opts, 
                       seq_of_intermed_views_in_cluster):
-    CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param,
+    CC, Lpinv_BT, _, _ = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=global_opts['far_off_points'],
                                      repel_by=global_opts['repel_by'],
                                      beta=global_opts['beta'])
@@ -450,7 +463,7 @@ def rgd_final(y, d, Utilde, C, intermed_param,
              parents_of_intermed_views_in_cluster,
              cluster_of_intermed_view,
              global_opts):
-    CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param,
+    CC, Lpinv_BT, _, _ = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=global_opts['far_off_points'],
                                      repel_by=global_opts['repel_by'],
                                      beta=global_opts['beta'])
@@ -553,15 +566,16 @@ def rgd_final(y, d, Utilde, C, intermed_param,
         y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
     return y
 
+
 def gpm_final(y, d, Utilde, C, intermed_param,
              n_Utilde_Utilde, n_Utildeg_Utildeg,
              parents_of_intermed_views_in_cluster,
              cluster_of_intermed_view,
              global_opts):
-    CC, Lpinv_BT, D = build_ortho_optim(d, Utilde, intermed_param, ret_D=True,
-                                        far_off_points=global_opts['far_off_points'],
-                                        repel_by=global_opts['repel_by'],
-                                        beta=global_opts['beta'])
+    CC, Lpinv_BT, D, _ = build_ortho_optim(d, Utilde, intermed_param,
+                                            far_off_points=global_opts['far_off_points'],
+                                            repel_by=global_opts['repel_by'],
+                                            beta=global_opts['beta'])
     CC = D - CC
     M,n = Utilde.shape
     n_proc = min(M,global_opts['n_proc'])
@@ -663,7 +677,7 @@ def sdp_alignment(y, is_visited_view, d, Utilde,
                   C, intermed_param, global_opts, 
                   seq_of_intermed_views_in_cluster,
                   solver=None):
-    CC, Lpinv_BT = build_ortho_optim(d, Utilde, intermed_param,
+    CC, Lpinv_BT, _, _ = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=global_opts['far_off_points'],
                                      repel_by=global_opts['repel_by'],
                                      beta=global_opts['beta'])

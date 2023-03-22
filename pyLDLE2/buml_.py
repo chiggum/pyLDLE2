@@ -179,7 +179,7 @@ def double_manifold_k_nn(data, ddX, k_nn, metric, n_proc=1):
     return neigh_dist, neigh_ind
     
 
-def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, metric='euclidean', radius=0.5,
+def get_default_local_opts(algo='LPCA', k_nn=49, k_tune=7, k=28, metric='euclidean', radius=0.5,
                            U_method='k_nn', gl_type='unnorm', N=100, scale_by='gamma',
                            Atilde_method='LDLE_1', alpha=1, max_iter=300, reg=0.,
                            p=0.99, tau=50, delta=0.9, to_postprocess= True,
@@ -191,11 +191,11 @@ def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, metric='euclide
     ----------
     algo : str
            The algorithm to use for the construction of
-           local views. Options are 'LDLE', 'LTSA', 'SparsePCA',
-           and 'RPCA-GODEC'. LTSA uses the hyperparameter k and 
+           local views. Options are 'LDLE', 'LPCA', 'L1PCA', 'SparsePCA',
+           and 'RPCA-GODEC'. LPCA uses the hyperparameter k and 
            k_nn only and is not affected by the value of the
-           others. Smooth-LTSA additionally uses alpha,
-           max_iter, reg. Currently, Smooth-LTSA is very slow.
+           others. Smooth-LPCA additionally uses alpha,
+           max_iter, reg. Currently, Smooth-LPCA is very slow.
     k_nn : int
            For k-nearest neighbor graph construction.
     k_tune : int
@@ -242,11 +242,11 @@ def get_default_local_opts(algo='LDLE', k_nn=49, k_tune=7, k=28, metric='euclide
         of local views. The value must be in (0,1).
     alpha : float
            Step size in Riemannian gradient descent when using
-           Smooth-LTSA.
+           Smooth-LPCA.
     max_iter: int
               Max number of Riemannian gradient descent steps.
     reg : float
-         Desired regularization (Smoothness) in Smooth-LTSA.
+         Desired regularization (Smoothness) in Smooth-LPCA.
     to_postprocess : bool
         If True the local parameterizations are postprocessed
         to fix anamolous parameterizations leading to high
@@ -303,21 +303,22 @@ def get_default_intermed_opts(algo='best', n_times=4, eta_min=5, eta_max=25, len
     return {'algo': algo, 'n_times': n_times, 'eta_min': eta_min,
             'eta_max': eta_max, 'len_S_thresh': len_S_thresh}
     
-def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, color_tear=True,
+def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_iter=20, color_tear=True,
                             vis_before_init=False, compute_error=False,
                             init_algo_name='procrustes', align_w_parent_only=True,
                             refine_algo_name='rgd',
                             max_internal_iter=100, alpha=0.3, eps=1e-8,
-                            add_dim=False, beta=None, repel_by=0., n_repel=0,
-                            far_off_points_type='fixed', patience=5, err_tol=1e-4):
+                            add_dim=False, beta={'align':None, 'repel': 1},
+                            repel_by=0., n_repel=0,
+                            far_off_points_type='reuse_fixed', patience=5, err_tol=1e-4):
     """Sets and returns a dictionary of default_global_opts.
 
     Parameters
     ----------
-    main_algo : str
-                The algorithm to use for the alignment of intermediate
-                views. Options are 'LDLE' and 'LTSA'. If 'LTSA' is
-                chosen then none of the following hypermateters are used.
+    align_transform : str
+                    The algorithm to use for the alignment of intermediate
+                    views. Options are 'rigid' and 'affine'. If 'affine' is
+                    chosen then none of the following hypermateters are used.
     to_tear : bool
               If True the tearing of the manifold is allowed.
     nu : int
@@ -367,9 +368,10 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, c
           algorithm is 'sdp'.
     add_dim : bool
              add an extra dimension to intermediate views.
-    beta: float
-          Hyperparameter used for computing the alignment weights. If
-          None, the alignment is not weighted.
+    beta: dict
+          Hyperparameters used for computing the alignment weights and
+          the repulsion weights. Form is {'align': float, 'repel': float}.
+          Default is {'align': None, 'repel': None} i.e. unweighted.
     repel_by : float
                If positive, the points which are far off are repelled
               away from each other by a force proportional to it.
@@ -378,7 +380,9 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, c
               The number of far off points repelled from each other.
     far_off_points_type : 'fixed' or 'random'
               Whether to use the same points for repulsion or 
-              randomize over refinement iterations.
+              randomize over refinement iterations. If 'reuse' is
+              in the string then the points to be repelled are the
+              same across iterations.
     patience: int
               The number of iteration to wait for error below tolerance
               to persist before stopping the refinement.
@@ -389,7 +393,7 @@ def get_default_global_opts(main_algo='LDLE', to_tear=True, nu=3, max_iter=20, c
                'color_tear': color_tear,
                'vis_before_init': vis_before_init,
                'compute_error': compute_error,
-               'main_algo': main_algo, 
+               'align_transform': align_transform, 
                'init_algo_name': init_algo_name,
                'align_w_parent_only': align_w_parent_only,
                'refine_algo_name': refine_algo_name, 
@@ -419,8 +423,8 @@ def get_default_vis_opts(save_dir='', cmap_interior='summer', cmap_boundary='jet
              'c': c}
 
 
-class LDLE:
-    """Low Dimensional Local Eigenmaps and its variations.
+class BUML:
+    """Bottom-up manifold learning.
     
     Parameters
     ----------

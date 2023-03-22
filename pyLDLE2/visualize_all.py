@@ -8,6 +8,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     with open(fpath, "rb") as f:
         all_data = pickle.load(f)
     X, labelsMat, ldle = all_data[:3]
+    ldle.GlobalViews = all_data[3]['gv']
 
     ldle.vis = visualize_.Visualize(ldle.vis_opts['save_dir'])
 

@@ -49,7 +49,7 @@ def print_log(s, log_time, local_start_time, global_start_time):
 
 class Param:
     def __init__(self,
-                 algo = 'LDLE',
+                 algo = 'LPCA',
                  **kwargs):
         self.algo = algo
         self.T = None
@@ -67,10 +67,11 @@ class Param:
         self.Psi_i = None
         self.phi = None
         
-        # For LTSA
+        # For LPCA and its variants
         self.Psi = None
         self.mu = None
         self.X = None
+        self.y = None
         
         self.add_dim = False
         
@@ -81,7 +82,7 @@ class Param:
         if self.algo == 'LDLE':
             temp = self.Psi_gamma[k,:][np.newaxis,:]*self.phi[np.ix_(mask,self.Psi_i[k,:])]
             n = self.phi.shape[0]
-        elif self.algo == 'LTSA':
+        elif self.algo == 'LPCA':
             temp = np.dot(self.X[mask,:]-self.mu[k,:][np.newaxis,:],self.Psi[k,:,:])
             n = self.X.shape[0]
         
@@ -106,7 +107,7 @@ class Param:
     def anom_score_(self, opts):
         k = opts['view_index']
         mask = opts['data_mask']
-        if self.algo == 'LTSA':
+        if self.algo == 'LPCA':
             #temp = np.dot(np.dot(self.X[mask,:]-self.mu[k,:][np.newaxis,:],self.Psi[k,:,:]), self.Psi[k,:,:].T)
             #return np.linalg.norm(temp, axis=1)
 #             mu = np.mean(self.X[mask,:], axis=0)
@@ -116,6 +117,32 @@ class Param:
             temp = self.X[mask,:] - mu[None,:]
             return np.linalg.norm(temp, 1, axis=1)
         return None
+    def alignment_wts(self, opts):
+        beta = opts['beta']
+        if beta is None:
+            return None
+        k = opts['view_index']
+        mask = opts['data_mask']
+        mu = np.mean(self.X[mask,:], axis=0)
+        temp = self.X[mask,:] - mu[None,:]
+        w = -np.linalg.norm(temp, 1, axis=1)/beta
+        return w
+        #p = np.exp(w - np.max(w))
+        #p *= (temp.shape[0]/np.sum(p))
+        #return p
+    def repulsion_wts(self, opts):
+        beta = opts['beta']
+        if beta is None:
+            return None
+        k = opts['pt_index']
+        far_off_pts = opts['repelling_pts_indices']
+        temp = self.y[far_off_pts,:] - self.y[k,:][None,:]
+        w = np.linalg.norm(temp, 2, axis=1)**2
+        #temp0 = self.X[far_off_pts,:] - self.X[k,:][None,:]
+        #w0 = np.linalg.norm(temp0, 2, axis=1)**2
+        #p = 1.0*((w-w0)<0)
+        p = 1/(w + 1e-6)
+        return p
 
 
 # includes self as the first neighbor

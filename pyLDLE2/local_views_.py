@@ -52,6 +52,7 @@ class LocalViews:
                                               self.global_start_time)
             
     def fit(self, d, X, d_e, neigh_dist, neigh_ind, ddX, local_opts):
+        print('Computing local views using', local_opts['algo'], flush=True)
         if local_opts['algo'] == 'LDLE':
             self.log('Constructing ' + local_opts['gl_type'] + ' graph Laplacian + its eigendecomposition.')
             GL = gl_.GL(debug=self.debug)
@@ -185,10 +186,10 @@ class LocalViews:
                     neigh_dist_.append(np.ones(np.sum(mask), dtype=bool))
                 U = sparse_matrix(np.array(neigh_ind_), np.array(neigh_dist_))
                     
-            if local_opts['algo'] == 'Smooth-LTSA':
-                local_param_pre = self.compute_Smooth_LTSAP(d, X, d_e, U, local_opts)
+            if local_opts['algo'] == 'Smooth-RATS':
+                local_param_pre = self.compute_Smooth_LPCA(d, X, d_e, U, local_opts)
             else:
-                local_param_pre = self.compute_LTSAP(d, X, d_e, U, local_opts)
+                local_param_pre = self.compute_LPCA(d, X, d_e, U, local_opts)
             self.log('Done.', log_time=True)
             if local_opts['to_postprocess']:
                 self.log('Posprocessing local parameterizations.')
@@ -313,12 +314,12 @@ class LocalViews:
         print("max distortion is %f" % (np.max(local_param.zeta)))
         return local_param
     
-    def compute_LTSAP(self, d, X, d_e, U, local_opts, print_prop = 0.25):
+    def compute_LPCA(self, d, X, d_e, U, local_opts, print_prop = 0.25):
         n = U.shape[0]
         p = X.shape[1]
         print_freq = int(print_prop * n)
         
-        local_param = Param('LTSA')
+        local_param = Param('LPCA')
         local_param.X = X
         local_param.Psi = np.zeros((n,p,d))
         local_param.mu = np.zeros((n,p))
@@ -334,7 +335,7 @@ class LocalViews:
 
             for k in range(start_ind, end_ind):
                 U_k = U[k,:].indices
-                # LTSA
+                # LPCA
                 X_k = X[U_k,:]
                 #print('Summary:', k, U_k.shape, flush=True)
                 #print(U_k, flush=True)
@@ -431,8 +432,8 @@ class LocalViews:
         print("max distortion is %f" % (np.max(local_param.zeta)))
         return local_param
     
-    def compute_Smooth_LTSAP(self, d, X, d_e, U, local_opts, print_prop = 0.25):
-        local_param_ = self.compute_LTSAP(d, X, d_e, U, local_opts)
+    def compute_Smooth_LPCA(self, d, X, d_e, U, local_opts, print_prop = 0.25):
+        local_param_ = self.compute_LPCA(d, X, d_e, U, local_opts)
         zeta0 = local_param_.zeta.copy()
         del local_param_
         
@@ -478,7 +479,7 @@ class LocalViews:
                 R = R * signs[:, np.newaxis]
                 return Q, R
         
-        local_param = Param('LTSA')
+        local_param = Param('LPCA')
         local_param.X = X
         local_param.Psi = np.zeros((n,p,d))
         local_param.mu = np.zeros((n,p))
