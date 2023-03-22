@@ -5,4 +5,4 @@ Manifolds with Boundary
    :maxdepth: 2
 
    manifolds_with_boundary_ldle
-   manifolds_with_boundary_ltsa
+   manifolds_with_boundary_lpca

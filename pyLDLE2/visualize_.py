@@ -821,7 +821,7 @@ class Visualize:
             if not k_not_available:
                 break
     
-    def local_views_ltsa(self, X, local_param, U, k=None, save_subdir='', figsize=(15,10), s=20):
+    def local_views_lpca(self, X, local_param, U, k=None, save_subdir='', figsize=(15,10), s=20):
         assert X.shape[1] <= 3, 'X.shape[1] must be either 2 or 3.'
         is_3d_data = X.shape[1] == 3
         n = U.shape[0]

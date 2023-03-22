@@ -25,7 +25,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
 
     print('Eigenvalues')
     local_algo = buml_obj.local_opts['algo']
-    if local_algo == 'buml_obj':
+    if local_algo == 'LDLE':
         buml_obj.vis.eigenvalues(buml_obj.LocalViews.GL.lmbda, figsize=figsize1)
     else:
         print('Local views were constructed using', local_algo)
@@ -34,7 +34,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('Eigenvectors on data', flush=True)
     print('#'*50, flush=True)
     local_algo = buml_obj.local_opts['algo']
-    if local_algo == 'buml_obj':
+    if local_algo == 'LDLE':
         n_eigvevs = 3
         for k in range(n_eigvevs):
             if X.shape[1] <= 3:
@@ -48,7 +48,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('Eigenvectors on embedding', flush=True)
     print('#'*50, flush=True)
     local_algo = buml_obj.local_opts['algo']
-    if local_algo == 'buml_obj':
+    if local_algo == 'LDLE':
         n_eigvevs = 3
         for k in range(n_eigvevs):
             if buml_obj.d <= 3:
@@ -63,7 +63,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('gamma on  data', flush=True)
     print('#'*50, flush=True)
     local_algo = buml_obj.local_opts['algo']
-    if local_algo == 'buml_obj':
+    if local_algo == 'LDLE':
         if buml_obj.debug:
             n_eigvevs = 3
             for k in range(n_eigvevs):
@@ -82,7 +82,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('gamma on embedding', flush=True)
     print('#'*50, flush=True)
     local_algo = buml_obj.local_opts['algo']
-    if local_algo == 'buml_obj':
+    if local_algo == 'LDLE':
         if buml_obj.debug:
             n_eigvevs = 3
             for k in range(n_eigvevs):
@@ -102,7 +102,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('No. of eigenvectors with small gradients at each point - possibly identifies boundary', flush=True)
     print('#'*50, flush=True)
     local_algo = buml_obj.local_opts['algo']
-    if local_algo == 'buml_obj':
+    if local_algo == 'LDLE':
         if buml_obj.debug:
             if X.shape[1] <= 3:
                 for thresh in threshs:
@@ -119,7 +119,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('Same visualization as above but plots based on the embedding', flush=True)
     print('#'*50, flush=True)
     local_algo = buml_obj.local_opts['algo']
-    if local_algo == 'buml_obj':
+    if local_algo == 'LDLE':
         if buml_obj.debug:
             if buml_obj.d <= 3:
                 for thresh in threshs:
@@ -176,7 +176,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('3. Deviation of the chosen eigenvectors from being orthogonal and having same length.', flush=True)
     print('#'*50, flush=True)
     local_algo = buml_obj.local_opts['algo']
-    if local_algo == 'buml_obj':
+    if local_algo == 'LDLE':
         if buml_obj.debug:
             if X.shape[1] <= 3:
                 for k_ in range(n_views):
@@ -199,7 +199,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
                         k = None
                     else:
                         k = int(k_*X.shape[0]/n_views)
-                    buml_obj.vis.local_views_ltsa(X, buml_obj.LocalViews.local_param_post, 
+                    buml_obj.vis.local_views_lpca(X, buml_obj.LocalViews.local_param_post, 
                                               buml_obj.LocalViews.U.toarray(),
                                                k=k, figsize=figsize3, save_subdir='data_space')
             else:
@@ -211,9 +211,9 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('Same visualization as above but plots based on the embedding.', flush=True)
     print('#'*50, flush=True)
     local_algo = buml_obj.local_opts['algo']
-    if local_algo == 'buml_obj':
+    if local_algo == 'LDLE':
         if buml_obj.debug:
-            if X.shape[1] <= 3:
+            if buml_obj.d <= 3:
                 for k_ in range(n_views):
                     if interact:
                         k = None
@@ -229,13 +229,13 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
             print('buml_obj.debug is False, thus intermediary data was not saved.')
     else:
         if buml_obj.debug:
-            if X.shape[1] <= 3:
+            if buml_obj.d <= 3:
                 for k_ in range(n_views):
                     if interact:
                         k = None
                     else:
                         k = int(k_*X.shape[0]/n_views)
-                    buml_obj.vis.local_views_ltsa(buml_obj.GlobalViews.y_final,
+                    buml_obj.vis.local_views_lpca(buml_obj.GlobalViews.y_final,
                                               buml_obj.LocalViews.local_param_post,
                                               buml_obj.LocalViews.U.toarray(),
                                               k=k, figsize=figsize3, save_subdir='embedding_space')
@@ -248,7 +248,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('Chosen eigenvectors indices for local views', flush=True)
     print('#'*50, flush=True)
     local_algo = buml_obj.local_opts['algo']
-    if local_algo == 'buml_obj':
+    if local_algo == 'LDLE':
         if (X.shape[1] <= 3) and (buml_obj.d ==2):
             buml_obj.vis.chosen_eigevec_inds_for_local_views(X,
                                                          buml_obj.LocalViews.local_param_post.Psi_i,
@@ -262,7 +262,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('Same visualization but plots based on embedding', flush=True)
     print('#'*50, flush=True)
     local_algo = buml_obj.local_opts['algo']
-    if local_algo == 'buml_obj':
+    if local_algo == 'LDLE':
         if buml_obj.d == 2:
             buml_obj.vis.chosen_eigevec_inds_for_local_views(buml_obj.GlobalViews.y_final,
                                                          buml_obj.LocalViews.local_param_post.Psi_i,
@@ -310,7 +310,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('3. Deviation of the chosen eigenvectors from being orthogonal and having same length.', flush=True)
     print('#'*50, flush=True)
     local_algo = buml_obj.local_opts['algo']
-    if local_algo == 'buml_obj':
+    if local_algo == 'LDLE':
         if buml_obj.debug:
             if X.shape[1] <= 3:
                 for k in range(n_views):
@@ -332,7 +332,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('Same visualization as above but plots based on the embedding', flush=True)
     print('#'*50, flush=True)
     local_algo = buml_obj.local_opts['algo']
-    if local_algo == 'buml_obj':
+    if local_algo == 'LDLE':
         if buml_obj.debug:
             if buml_obj.d <= 3:
                 for k in range(n_views):
@@ -355,7 +355,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('Chosen eigenvectors indices for intermediate views', flush=True)
     print('#'*50, flush=True)
     local_algo = buml_obj.local_opts['algo']
-    if local_algo == 'buml_obj':
+    if local_algo == 'LDLE':
         if (X.shape[1]<=3) and (buml_obj.d == 2):
             buml_obj.vis.chosen_eigevec_inds_for_intermediate_views(X,
                                                                 buml_obj.IntermedViews.intermed_param.Psi_i,
@@ -369,7 +369,7 @@ def visualize(fpath, threshs=[5,10,15], n_views=4, figsize1=(8,8),
     print('Same visualization but plots based on embedding', flush=True)
     print('#'*50, flush=True)
     local_algo = buml_obj.local_opts['algo']
-    if local_algo == 'buml_obj':
+    if local_algo == 'LDLE':
         if buml_obj.d == 2:
             buml_obj.vis.chosen_eigevec_inds_for_intermediate_views(buml_obj.GlobalViews.y_final,
                                                                 buml_obj.IntermedViews.intermed_param.Psi_i,

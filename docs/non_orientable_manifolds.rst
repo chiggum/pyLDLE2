@@ -5,4 +5,4 @@ Non-Orientable Manifolds
    :maxdepth: 2
 
    non_orientable_manifolds_ldle
-   non_orientable_manifolds_ltsa
+   non_orientable_manifolds_lpca

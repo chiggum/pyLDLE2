@@ -5,4 +5,4 @@ Real world examples
    :maxdepth: 2
 
    real_world_examples_ldle
-   real_world_examples_ltsa
+   real_world_examples_lpca

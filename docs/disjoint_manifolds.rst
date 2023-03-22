@@ -5,4 +5,4 @@ Disjoint Manifolds
    :maxdepth: 2
 
    disjoint_manifolds_ldle
-   disjoint_manifolds_ltsa
+   disjoint_manifolds_lpca

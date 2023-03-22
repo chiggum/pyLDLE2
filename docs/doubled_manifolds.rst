@@ -1,7 +1,7 @@
 Doubled Manifolds
 =================
 
-Local views are constructed using LDLE only. Not applicable with LTSA.
+Local views are constructed using LDLE only. Not applicable with LPCA.
 
 .. toctree::
    :maxdepth: 2

@@ -5,4 +5,4 @@ Noisy Manifolds
    :maxdepth: 2
    
    noisy_manifolds_ldle
-   noisy_manifolds_ltsa
+   noisy_manifolds_lpca
