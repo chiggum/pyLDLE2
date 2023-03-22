@@ -512,19 +512,19 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, None
     
-    def mobiusstrip3d(self, ar=2, RES=90):
+    def mobiusstrip3d(self, ar=4, RES=90):
         sideLx=np.sqrt(ar)
         sideLy=1/sideLx
         Rmax = sideLx/(2*np.pi)
-        RESx=int(sideLx*RES+1+50)
+        RESx=int(sideLx*RES+1)
         RESy=int(sideLy*RES+1)
         x=np.linspace(0,sideLx,RESx)[:-1] #remove 2pi
         y=np.linspace(-sideLy/2,sideLy/2,RESy)
         xv, yv = np.meshgrid(x, y)
         xv = xv.flatten('F')[:,np.newaxis]/Rmax
         yv = yv.flatten('F')[:,np.newaxis]
-        X=np.concatenate([(1+0.5*yv*np.cos(0.5*xv))*np.cos(xv),
-                         (1+0.5*yv*np.cos(0.5*xv))*np.sin(xv),
+        X=np.concatenate([(Rmax+0.5*yv*np.cos(0.5*xv))*np.cos(xv),
+                         (Rmax+0.5*yv*np.cos(0.5*xv))*np.sin(xv),
                          0.5*yv*np.sin(0.5*xv)], axis=1)   
         labelsMat = np.concatenate([xv, yv], axis=1)
         print('X.shape = ', X.shape)
