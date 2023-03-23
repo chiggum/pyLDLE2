@@ -39,3 +39,10 @@ Citations
       year={2015},
       publisher={SIAM}
     }
+    
+    @article{ling2021generalized,
+      title={Generalized power method for generalized orthogonal Procrustes problem: global convergence and optimization landscape analysis},
+      author={Ling, Shuyang},
+      journal={arXiv preprint arXiv:2106.15493},
+      year={2021}
+    }
