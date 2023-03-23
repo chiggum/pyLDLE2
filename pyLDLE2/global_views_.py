@@ -380,14 +380,20 @@ class GlobalViews:
                     color_of_pts_on_tear_.append(color_of_pts_on_tear[k])
             ind_ = np.array(ind_)
             color_of_pts_on_tear_ = np.array(color_of_pts_on_tear_)
-            y_ = np.concatenate(y_, axis=0)
-            c_ = vis_opts['c'][ind_]
-            # comment the following three lines if only the boundary is needed
-            y_ = np.concatenate([y,y_], axis=0)
-            color_of_pts_on_tear_ = np.concatenate([color_of_pts_on_tear, color_of_pts_on_tear_], axis=0)
-            c_ = np.concatenate([vis_opts['c'],c_], axis=0)
-            vis.global_embedding(y_,c_, vis_opts['cmap_interior'],
-                                  color_of_pts_on_tear_, vis_opts['cmap_boundary'],
+            if len(y_):
+                y_ = np.concatenate(y_, axis=0)
+                c_ = vis_opts['c'][ind_]
+                color_of_pts_on_tear_ = np.concatenate([color_of_pts_on_tear, color_of_pts_on_tear_], axis=0)
+            
+                # comment the following three lines if only the boundary is needed
+                y_ = np.concatenate([y,y_], axis=0)
+                c_ = np.concatenate([vis_opts['c'],c_], axis=0)
+                vis.global_embedding(y_,c_, vis_opts['cmap_interior'],
+                                      color_of_pts_on_tear_, vis_opts['cmap_boundary'],
+                                      title)
+            else:
+                vis.global_embedding(y, vis_opts['c'], vis_opts['cmap_interior'],
+                                  color_of_pts_on_tear, vis_opts['cmap_boundary'],
                                   title)
         else:
             vis.global_embedding(y, vis_opts['c'], vis_opts['cmap_interior'],
