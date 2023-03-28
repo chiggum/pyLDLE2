@@ -104,19 +104,6 @@ class Param:
                 temp = temp + self.v[[k],:]
             return temp
     
-    def anom_score_(self, opts):
-        k = opts['view_index']
-        mask = opts['data_mask']
-        if self.algo == 'LPCA':
-            #temp = np.dot(np.dot(self.X[mask,:]-self.mu[k,:][np.newaxis,:],self.Psi[k,:,:]), self.Psi[k,:,:].T)
-            #return np.linalg.norm(temp, axis=1)
-#             mu = np.mean(self.X[mask,:], axis=0)
-#             temp = self.X[mask,:] - mu[None,:]
-#             return np.linalg.norm(temp, 2, axis=1)**2
-            mu = np.mean(self.X[mask,:], axis=0)
-            temp = self.X[mask,:] - mu[None,:]
-            return np.linalg.norm(temp, 1, axis=1)
-        return None
     def alignment_wts(self, opts):
         beta = opts['beta']
         if beta is None:
@@ -138,10 +125,10 @@ class Param:
         far_off_pts = opts['repelling_pts_indices']
         temp = self.y[far_off_pts,:] - self.y[k,:][None,:]
         w = np.linalg.norm(temp, 2, axis=1)**2
-        #temp0 = self.X[far_off_pts,:] - self.X[k,:][None,:]
-        #w0 = np.linalg.norm(temp0, 2, axis=1)**2
-        #p = 1.0*((w-w0)<0)
-        p = 1/(w + 1e-6)
+        temp0 = self.X[far_off_pts,:] - self.X[k,:][None,:]
+        w0 = np.linalg.norm(temp0, 2, axis=1)**2
+        p = 1.0*((w-w0)<0)
+        #p = 1/(w + 1e-12)
         return p
 
 

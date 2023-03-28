@@ -334,27 +334,27 @@ class GlobalViews:
                             cur_color += 1
         return color_of_pts_on_tear
     
-    def vis_embedding_(self, d, intermed_param, c, C, Utilde,
+    def vis_embedding_(self, y, d, intermed_param, c, C, Utilde,
                       n_Utilde_Utilde, global_opts, vis,
                       vis_opts, title='', color_of_pts_on_tear=None,
                       contrib_of_view=None):
         M,n = Utilde.shape
-        y = np.zeros((n,d))
-        for s in range(M):
-            if global_opts['to_tear']:
-                if contrib_of_view is None:
-                    C_s = C[s,:].indices
-                else:
-                    C_s = contrib_of_view[s,:].indices
-                y[C_s,:] += intermed_param.eval_({'view_index': s, 'data_mask': C_s})
-            else:
-                Utilde_s = Utilde[s,:].indices
-                y[Utilde_s,:] += intermed_param.eval_({'view_index': s, 'data_mask': Utilde_s})
+#         y = np.zeros((n,d))
+#         for s in range(M):
+#             if global_opts['to_tear']:
+#                 if contrib_of_view is None:
+#                     C_s = C[s,:].indices
+#                 else:
+#                     C_s = contrib_of_view[s,:].indices
+#                 y[C_s,:] += intermed_param.eval_({'view_index': s, 'data_mask': C_s})
+#             else:
+#                 Utilde_s = Utilde[s,:].indices
+#                 y[Utilde_s,:] += intermed_param.eval_({'view_index': s, 'data_mask': Utilde_s})
         
-        if global_opts['to_tear'] and (contrib_of_view is not None):
-            y = y/np.asarray(contrib_of_view.sum(0).T)
-        elif not global_opts['to_tear']:
-            y = y/np.asarray(Utilde.sum(0).T)
+#         if global_opts['to_tear'] and (contrib_of_view is not None):
+#             y = y/np.asarray(contrib_of_view.sum(0).T)
+#         elif not global_opts['to_tear']:
+#             y = y/np.asarray(Utilde.sum(0).T)
 
         if global_opts['color_tear']:
             if (color_of_pts_on_tear is None) and global_opts['to_tear']:
@@ -481,7 +481,7 @@ class GlobalViews:
                 self.y_seq_init = y
         
         if 'spectral' == init_algo:
-            y, y_2,\
+            y_2, y,\
             is_visited_view = spectral_alignment(y, is_visited_view, d, Utilde,
                                                  C, intermed_param, global_opts,
                                                  seq_of_intermed_views_in_cluster)
@@ -490,7 +490,7 @@ class GlobalViews:
                 self.y_spec_init_2 = y_2
                 
         if 'sdp' == init_algo:
-            y, y_2,\
+            y_2, y,\
             is_visited_view, _ = sdp_alignment(y, is_visited_view, d, Utilde,
                                                C, intermed_param, global_opts,
                                                seq_of_intermed_views_in_cluster)
@@ -508,7 +508,7 @@ class GlobalViews:
                                 intermed_param, C)
         
         # Visualize the initial embedding
-        color_of_pts_on_tear, y = self.vis_embedding_(d, intermed_param, c, C, Utilde,
+        color_of_pts_on_tear, y = self.vis_embedding_(y, d, intermed_param, c, C, Utilde,
                                                   n_Utilde_Utilde, global_opts, vis,
                                                   vis_opts, title='Init')
         intermed_param.y = y
@@ -557,7 +557,8 @@ class GlobalViews:
         solver = None
         
         if reset:
-            self.y_spec_refined_y_2 = []
+            self.y_refined_at = []
+            self.y_2_refined_at = []
             self.tracker['refine_iter_start_at'] = []
             self.tracker['refine_iter_done_at'] = []
             self.tracker['refine_err_at_iter'] = []
@@ -584,6 +585,7 @@ class GlobalViews:
             self.log('Refinement iteration: %d' % self.it0, log_time=True)
             
             global_opts['far_off_points'] = compute_far_off_points(d_e, global_opts)
+            #global_opts['repel_by'] = 0.75*global_opts['repel_by']
             
             if global_opts['to_tear']:
                 # Compute which points contribute to which views
@@ -625,26 +627,27 @@ class GlobalViews:
                 y = procrustes_final(y, d, Utilde, C, intermed_param, n_Utilde_Utilde, n_Utildeg_Utildeg,
                                      seq_of_intermed_views_in_cluster, parents_of_intermed_views_in_cluster,
                                      cluster_of_intermed_view, global_opts)
+                y_2 = None
                     
             elif refine_algo == 'rgd':
-                y = rgd_final(y, d, contrib_of_view, C, intermed_param,
+                y_2, y = rgd_final(y, d, contrib_of_view, C, intermed_param,
                                n_Utilde_Utilde, n_Utildeg_Utildeg,
                                parents_of_intermed_views_in_cluster,
                                cluster_of_intermed_view,
                                global_opts)
             elif refine_algo == 'gpm':
-                y = gpm_final(y, d, contrib_of_view, C, intermed_param,
+                y_2, y = gpm_final(y, d, contrib_of_view, C, intermed_param,
                                n_Utilde_Utilde, n_Utildeg_Utildeg,
                                parents_of_intermed_views_in_cluster,
                                cluster_of_intermed_view,
                                global_opts)
             elif refine_algo == 'spectral':
-                y, y_2,\
+                y_2, y,\
                 is_visited_view = spectral_alignment(y, is_visited_view, d, contrib_of_view,
                                                      C, intermed_param, global_opts,
                                                      seq_of_intermed_views_in_cluster)
             elif refine_algo == 'sdp':
-                y, y_2,\
+                y_2, y,\
                 is_visited_view,\
                 solver = sdp_alignment(y, is_visited_view, d, contrib_of_view,
                                        C, intermed_param, global_opts,
@@ -686,19 +689,19 @@ class GlobalViews:
             if self.debug:
                 self.y_refined_at.append(y)
                 self.color_of_pts_on_tear_at.append(color_of_pts_on_tear)
-                if refine_algo == 'spectral':
-                    self.y_spec_refined_y_2.append(y_2)
-                
+                self.y_2_refined_at.append(y_2)
+            
+            intermed_param.y = y_2
              
             # Visualize the current embedding
-            _, y = self.vis_embedding_(d, intermed_param, c, C, Utilde,
+            _, y = self.vis_embedding_(y, d, intermed_param, c, C, Utilde,
                               n_Utilde_Utilde, global_opts, vis,
                               vis_opts, title='Iter_%d' % it0,
                               color_of_pts_on_tear=color_of_pts_on_tear,
                               contrib_of_view=contrib_of_view)
-            intermed_param.y = y
+            
             # visualize the alternate embedding by spectral method
-            if refine_algo == 'spectral':
+            if refine_algo != 'procrustes':
                 self.vis_embedding(y_2, vis, vis_opts,
                                    color_of_pts_on_tear=color_of_pts_on_tear,
                                    title='Alt. embed. Iter_%d' % it0)
@@ -706,4 +709,4 @@ class GlobalViews:
             if global_opts['compute_error'] and (patience_ctr <= 0):
                 self.refinement_converged = True
                 break
-        return y , color_of_pts_on_tear
+        return y_2, color_of_pts_on_tear
