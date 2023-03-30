@@ -123,12 +123,15 @@ class Param:
             return None
         k = opts['pt_index']
         far_off_pts = opts['repelling_pts_indices']
-        temp = self.y[far_off_pts,:] - self.y[k,:][None,:]
-        w = np.linalg.norm(temp, 2, axis=1)**2
-        temp0 = self.X[far_off_pts,:] - self.X[k,:][None,:]
-        w0 = np.linalg.norm(temp0, 2, axis=1)**2
-        p = 1.0*((w-w0)<0)
-        #p = 1/(w + 1e-12)
+        if self.y is not None:
+            temp = self.y[far_off_pts,:] - self.y[k,:][None,:]
+            w = np.linalg.norm(temp, 2, axis=1)**2
+            #temp0 = self.X[far_off_pts,:] - self.X[k,:][None,:]
+            #w0 = np.linalg.norm(temp0, 2, axis=1)**2
+            #p = 1.0*((w-w0)<0)
+            p = 1/(w + 1e-6)
+        else:
+            p = np.ones(len(far_off_pts))
         return p
 
 

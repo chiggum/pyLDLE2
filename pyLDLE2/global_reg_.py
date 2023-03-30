@@ -144,6 +144,12 @@ def compute_Lpinv_helpers(W):
     # TODO: U12 is dense of size nxM
     print('Computing svd', flush=True)
     U12,SS,VT = scipy.linalg.svd(B_tilde.todense(), full_matrices=False)
+#     U12,SS,VT = slinalg.svds(B_tilde, k=M-1, which='LM', random_state=42)
+#     U12_,SS_,VT_ = slinalg.svds(B_tilde, k=1, which='SM', random_state=42)
+#     U12 = np.concatenate([U12, U12_], axis=1)
+#     SS = np.concatenate([SS, SS_])
+#     VT = np.concatenate([VT, VT_], axis=0)
+    
     print('Done', flush=True)
     # U12,SS,VT = slinalg.svds(B_tilde, k=M, solver='propack')
     V = VT.T
@@ -272,21 +278,23 @@ def build_ortho_optim(d, Utilde, intermed_param,
     print('Computing Pseudoinverse of a matrix of L of size', n, '+', M, 'multiplied with B', flush=True)
     Lpinv_helpers = compute_Lpinv_helpers(W)
     
-    if n_repel == 0:
-        Lpinv_BT = compute_Lpinv_MT(Lpinv_helpers, B)
-        CC = compute_CC(D, B, Lpinv_BT)
-    else:
+    Lpinv_BT = compute_Lpinv_MT(Lpinv_helpers, B)
+    CC = compute_CC(D, B, Lpinv_BT)
+    if n_repel > 0:
         temp_arr = (-np.ones(n_repel)).tolist()
         L_r = np.zeros((n_repel, n_repel))
-        max_val = -1
+        L__row_inds = []
+        L__col_inds = []
+        L__vals = []
         for i in range(n_repel):
+            L__row_inds += [far_off_points[i]]*n_repel
+            L__col_inds += far_off_points
             if (beta is not None) and (beta['repel'] is not None):
                 p_llp = intermed_param.repulsion_wts({'pt_index': far_off_points[i],
                                                       'repelling_pts_indices': far_off_points,
                                                       'beta': beta['repel']})
                 p_llp[i] = 0
                 p_llp_sum = np.sum(p_llp)
-                max_val == max(max_val, np.max(p_llp))
                 p_llp *= -1
                 p_llp[i] = p_llp_sum
                 L_r[i,:] = p_llp
@@ -294,45 +302,46 @@ def build_ortho_optim(d, Utilde, intermed_param,
                 temp_arr[i] = n_repel-1
                 L_r[i,:] = temp_arr
                 temp_arr[i] = -1
+            L__vals += L_r[i,:].tolist()
         
-        Lambda_r, U_r = scipy.linalg.eigh(L_r)
-        #print(Lambda_r, flush=True)
-        Lambda_r = np.maximum(Lambda_r, 0)
-        L_rX_small = U_r*(np.sqrt(Lambda_r)[None,:])
+        # Lambda_r, U_r = scipy.linalg.eigh(L_r)
+        # Lambda_r = np.maximum(Lambda_r, 0) # L_r is psd
+        # L_rX_small = U_r*(np.sqrt(Lambda_r)[None,:])
+
+        # L_rX_row_inds = np.repeat(far_off_points, n_repel)
+        # L_rX_col_inds = np.tile(np.arange(n_repel), n_repel)
+        # L_rX_vals = np.sqrt(repel_by)*L_rX_small.flatten()
+        # L_rX = csr_matrix((L_rX_vals, (L_rX_row_inds, L_rX_col_inds)),
+        #                  shape=(n+M, n_repel))
+
+        # L_rX_row_inds = []
+        # L_rX_col_inds = []
+        # L_rX_vals = []
+        # edge_ctr = 0
+        # for i in range(n_repel):
+        #     for j in range(i+1,n_repel):
+        #         L_rX_row_inds += [i, j]
+        #         L_rX_col_inds += [edge_ctr, edge_ctr]
+        #         edge_wt = np.sqrt(repel_by)*np.sqrt(-L_r[i,j])
+        #         L_rX_vals += [-edge_wt, edge_wt]
+        #         edge_ctr += 1
+        # L_rX = csr_matrix((L_rX_vals, (L_rX_row_inds, L_rX_col_inds)),
+        #                  shape=(n+M, edge_ctr))
+        # Lpinv_L_rX = compute_Lpinv_MT(Lpinv_helpers, L_rX.T)
+        # L_rXT_Lpinv_L_rX = L_rX.T.dot(Lpinv_L_rX)
+        # I_minus_L_rXT_Lpinv_L_rX = np.eye(L_rX.shape[1])-L_rXT_Lpinv_L_rX
+        # Lpinv_L_rX_I_minus_L_rXT_Lpinv_L_rXinv = Lpinv_L_rX.dot(np.linalg.inv(I_minus_L_rXT_Lpinv_L_rX))
+        # temp_mat = Lpinv_L_rX_I_minus_L_rXT_Lpinv_L_rXinv.dot(Lpinv_L_rX.T)
+
+        # Lpinv_BT = compute_Lpinv_MT(Lpinv_helpers, B) + B.dot(temp_mat.T).T
+        # CC = compute_CC(D, B, Lpinv_BT)
         
-        L_rX_row_inds = np.repeat(far_off_points, n_repel)
-        L_rX_col_inds = np.tile(np.arange(n_repel).tolist(), n_repel)
-        L_rX_vals = np.sqrt(repel_by)*L_rX_small.flatten()
-        L_rX = csr_matrix((L_rX_vals, (L_rX_row_inds, L_rX_col_inds)),
-                          shape=(n+M, n_repel))
-        
-        # L_rX_L_rXT_sum = np.sum(L_rX_vals**2)
-        Lpinv_L_rX = compute_Lpinv_MT(Lpinv_helpers, L_rX.T)
-        L_rXT_Lpinv_L_rX = L_rX.T.dot(Lpinv_L_rX)
-        I_minus_L_rXT_Lpinv_L_rX = np.eye(len(far_off_points))-L_rXT_Lpinv_L_rX
-        Lpinv_L_rX_I_minus_L_rXT_Lpinv_L_rXinv = Lpinv_L_rX.dot(np.linalg.inv(I_minus_L_rXT_Lpinv_L_rX))
-        temp_mat = Lpinv_L_rX_I_minus_L_rXT_Lpinv_L_rXinv.dot(Lpinv_L_rX.T)
-        
-        Lpinv_BT = compute_Lpinv_MT(Lpinv_helpers, B) + B.dot(temp_mat.T).T
-        CC = compute_CC(D, B, Lpinv_BT)
-        
-#         D_rT_Lpinv_BT = B.dot(Lpinv_D_r).T
-#         temp1 = Lpinv_D_r_I_minus_D_rT_Lpinv_D_rinv.dot(D_rT_Lpinv_BT)
-#         # temp2 = (1/D_r_D_rT_sum)*np.tile(B.T.sum(axis=0), (n+M,1)) # this is zero because B1_{n+m} = 0
-#         #Lpinv_BT = Lpinv_BT + temp1 - temp2
-#         L_minus_D_r_D_rTpinv_BT = Lpinv_BT + temp1
-        
-#         L_r_L_minus_D_r_D_rTpinv_BT = L_r.dot(L_minus_D_r_D_rTpinv_BT)
-#         CC = compute_CC(D, B, L_minus_D_r_D_rTpinv_BT)
-#         CC = CC + (L_minus_D_r_D_rTpinv_BT.T).dot(L_r_L_minus_D_r_D_rTpinv_BT)
-        
-#         Lpinv_BT = L_minus_D_r_D_rTpinv_BT
-#         Lpinv_BT -= compute_Lpinv_MT(Lpinv_helpers, L_r_L_minus_D_r_D_rTpinv_BT.T)
-#         D_rT_Lpinv_M = (L_r_L_minus_D_r_D_rTpinv_BT.T).dot(Lpinv_D_r).T
-#         temp1 = Lpinv_D_r_I_minus_D_rT_Lpinv_D_rinv.dot(D_rT_Lpinv_M)
-#         temp2 = (1/D_r_D_rT_sum)*np.tile(L_r_L_minus_D_r_D_rTpinv_BT.sum(axis=0), (n+M,1)) 
-#         Lpinv_BT -= (temp1 - temp2)
-        
+        L_ = csr_matrix((L__vals, (L__row_inds, L__col_inds)), shape=(n+M,n+M))
+        L_ = -repel_by*L_
+        L__Lpinv_BT = L_.dot(Lpinv_BT)
+        CC = CC + (Lpinv_BT.T).dot(L__Lpinv_BT)
+        Lpinv_BT -= compute_Lpinv_MT(Lpinv_helpers, L__Lpinv_BT.T)
+
     return CC, Lpinv_BT, D, B
     
 # unscaled alignment error
