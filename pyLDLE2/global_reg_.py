@@ -340,7 +340,7 @@ def build_ortho_optim(d, Utilde, intermed_param,
         L_ = -repel_by*L_
         L__Lpinv_BT = L_.dot(Lpinv_BT)
         CC = CC + (Lpinv_BT.T).dot(L__Lpinv_BT)
-        Lpinv_BT -= compute_Lpinv_MT(Lpinv_helpers, L__Lpinv_BT.T)
+        #Lpinv_BT -= compute_Lpinv_MT(Lpinv_helpers, L__Lpinv_BT.T)
 
     return CC, Lpinv_BT, D, B
     

@@ -129,7 +129,7 @@ class Param:
             #temp0 = self.X[far_off_pts,:] - self.X[k,:][None,:]
             #w0 = np.linalg.norm(temp0, 2, axis=1)**2
             #p = 1.0*((w-w0)<0)
-            p = 1/(w + 1e-6)
+            p = 1/(w + 1e-12)
         else:
             p = np.ones(len(far_off_pts))
         return p
@@ -402,7 +402,7 @@ def get_path_lengths_in_embedding_space(s_d_e, pred, y_d_e, n_proc=8, verbose=Tr
     inds = np.arange(n)
     y_d_e2 = np.zeros((n,n))
     
-    def target_proc(start_ind, end_ind, q_, y_d_e, s_d_e, pred):
+    def target_proc(pairs_to_proc, start_ind, end_ind, q_, y_d_e, s_d_e, pred):
         def get_path_length(i, j):
             path_length = 0
             k = j
@@ -411,27 +411,27 @@ def get_path_lengths_in_embedding_space(s_d_e, pred, y_d_e, n_proc=8, verbose=Tr
                 k = pred[i, k]
             return path_length
 
-        y_d_e2_ = np.zeros((end_ind-start_ind+1, n))
-        for i in range(start_ind, end_ind):
-            for j in range(i+1,n):
-                y_d_e2_[i-start_ind,j] = get_path_length(i,j)
+        my_data = np.zeros(end_ind-start_ind)
+        for ind in range(start_ind, end_ind):
+            i,j = pairs_to_proc[ind]
+            my_data[ind-start_ind] = get_path_length(i,j)
 
-        q_.put((start_ind, end_ind, y_d_e2_))
+        q_.put((start_ind, end_ind, my_data))
 
+    pairs_to_proc = list(itertools.combinations(np.arange(n), 2))
     q_ = mp.Queue()
-    chunk_sz = int((n*(n-1))/(2*n_proc))
+    chunk_sz = len(pairs_to_proc)//n_proc
     proc = []
     start_ind = 0
     end_ind = 1
     for p_num in range(n_proc):
         if p_num == n_proc-1:
-            end_ind = n
+            end_ind = len(pairs_to_proc)
         else:
-            while (n-1)*(end_ind-start_ind) - (end_ind*(end_ind-1))/2 + (start_ind*(start_ind-1))/2 < chunk_sz:
-                end_ind += 1
+            end_ind = (p_num+1)*chunk_sz
 
         proc.append(mp.Process(target=target_proc,
-                               args=(start_ind, end_ind, q_,y_d_e, s_d_e, pred),
+                               args=(pairs_to_proc, start_ind, end_ind, q_, y_d_e, s_d_e, pred),
                                daemon=True))
         proc[-1].start()
         start_ind = end_ind
@@ -439,9 +439,10 @@ def get_path_lengths_in_embedding_space(s_d_e, pred, y_d_e, n_proc=8, verbose=Tr
     print('All processes started', flush=True)
     for p_num in range(n_proc):
         start_ind, end_ind, y_d_e2_ = q_.get()
-        for i in range(start_ind, end_ind):
-            y_d_e2[i,i+1:] = y_d_e2_[i-start_ind,i+1:]
-            y_d_e2[i+1:,i] = y_d_e2[i,i+1:]
+        for ind in range(start_ind, end_ind):
+            i,j = pairs_to_proc[ind]
+            y_d_e2[i,j] = y_d_e2_[ind-start_ind]
+            y_d_e2[j,i] = y_d_e2[i,j]
 
     q_.close()
     for p_num in range(n_proc):

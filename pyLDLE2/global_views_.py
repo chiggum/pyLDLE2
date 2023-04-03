@@ -663,9 +663,11 @@ class GlobalViews:
                                             far_off_points=global_opts['far_off_points'],
                                             repel_by=global_opts['repel_by'],
                                             beta=global_opts['beta'])
-                self.log('Alignment error: %0.6f' % err, log_time=True)
                 self.tracker['refine_err_at_iter'].append(err)
-                self.tracker['|E(Gamma_t)|'].append(contrib_of_view.sum())
+                E_Gamma_t = contrib_of_view.sum()
+                self.tracker['|E(Gamma_t)|'].append(E_Gamma_t)
+                err = err/E_Gamma_t
+                self.log('Alignment error: %0.6f' % (err), log_time=True)
                 if prev_err is not None:
                     if np.abs(err-prev_err) < err_tol:
                         patience_ctr -= 1
@@ -691,7 +693,7 @@ class GlobalViews:
                 self.color_of_pts_on_tear_at.append(color_of_pts_on_tear)
                 self.y_2_refined_at.append(y_2)
             
-            intermed_param.y = y_2
+            intermed_param.y = y
              
             # Visualize the current embedding
             _, y = self.vis_embedding_(y, d, intermed_param, c, C, Utilde,
@@ -709,4 +711,4 @@ class GlobalViews:
             if global_opts['compute_error'] and (patience_ctr <= 0):
                 self.refinement_converged = True
                 break
-        return y_2, color_of_pts_on_tear
+        return y, color_of_pts_on_tear
