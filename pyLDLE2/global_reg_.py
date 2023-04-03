@@ -144,12 +144,6 @@ def compute_Lpinv_helpers(W):
     # TODO: U12 is dense of size nxM
     print('Computing svd', flush=True)
     U12,SS,VT = scipy.linalg.svd(B_tilde.todense(), full_matrices=False)
-#     U12,SS,VT = slinalg.svds(B_tilde, k=M-1, which='LM', random_state=42)
-#     U12_,SS_,VT_ = slinalg.svds(B_tilde, k=1, which='SM', random_state=42)
-#     U12 = np.concatenate([U12, U12_], axis=1)
-#     SS = np.concatenate([SS, SS_])
-#     VT = np.concatenate([VT, VT_], axis=0)
-    
     print('Done', flush=True)
     # U12,SS,VT = slinalg.svds(B_tilde, k=M, solver='propack')
     V = VT.T
@@ -304,43 +298,10 @@ def build_ortho_optim(d, Utilde, intermed_param,
                 temp_arr[i] = -1
             L__vals += L_r[i,:].tolist()
         
-        # Lambda_r, U_r = scipy.linalg.eigh(L_r)
-        # Lambda_r = np.maximum(Lambda_r, 0) # L_r is psd
-        # L_rX_small = U_r*(np.sqrt(Lambda_r)[None,:])
-
-        # L_rX_row_inds = np.repeat(far_off_points, n_repel)
-        # L_rX_col_inds = np.tile(np.arange(n_repel), n_repel)
-        # L_rX_vals = np.sqrt(repel_by)*L_rX_small.flatten()
-        # L_rX = csr_matrix((L_rX_vals, (L_rX_row_inds, L_rX_col_inds)),
-        #                  shape=(n+M, n_repel))
-
-        # L_rX_row_inds = []
-        # L_rX_col_inds = []
-        # L_rX_vals = []
-        # edge_ctr = 0
-        # for i in range(n_repel):
-        #     for j in range(i+1,n_repel):
-        #         L_rX_row_inds += [i, j]
-        #         L_rX_col_inds += [edge_ctr, edge_ctr]
-        #         edge_wt = np.sqrt(repel_by)*np.sqrt(-L_r[i,j])
-        #         L_rX_vals += [-edge_wt, edge_wt]
-        #         edge_ctr += 1
-        # L_rX = csr_matrix((L_rX_vals, (L_rX_row_inds, L_rX_col_inds)),
-        #                  shape=(n+M, edge_ctr))
-        # Lpinv_L_rX = compute_Lpinv_MT(Lpinv_helpers, L_rX.T)
-        # L_rXT_Lpinv_L_rX = L_rX.T.dot(Lpinv_L_rX)
-        # I_minus_L_rXT_Lpinv_L_rX = np.eye(L_rX.shape[1])-L_rXT_Lpinv_L_rX
-        # Lpinv_L_rX_I_minus_L_rXT_Lpinv_L_rXinv = Lpinv_L_rX.dot(np.linalg.inv(I_minus_L_rXT_Lpinv_L_rX))
-        # temp_mat = Lpinv_L_rX_I_minus_L_rXT_Lpinv_L_rXinv.dot(Lpinv_L_rX.T)
-
-        # Lpinv_BT = compute_Lpinv_MT(Lpinv_helpers, B) + B.dot(temp_mat.T).T
-        # CC = compute_CC(D, B, Lpinv_BT)
-        
         L_ = csr_matrix((L__vals, (L__row_inds, L__col_inds)), shape=(n+M,n+M))
         L_ = -repel_by*L_
         L__Lpinv_BT = L_.dot(Lpinv_BT)
         CC = CC + (Lpinv_BT.T).dot(L__Lpinv_BT)
-        #Lpinv_BT -= compute_Lpinv_MT(Lpinv_helpers, L__Lpinv_BT.T)
 
     return CC, Lpinv_BT, D, B
     
@@ -366,7 +327,7 @@ def compute_alignment_err(d, Utilde, intermed_param, scale_num, far_off_points=[
 
 # Kunal N Chaudhury, Yuehaw Khoo, and Amit Singer, Global registration
 # of multiple point clouds using semidefinite programming
-def spectral_alignment(y, is_visited_view, d, Utilde,
+def spectral_alignment(y, d, Utilde,
                       C, intermed_param, global_opts, 
                       seq_of_intermed_views_in_cluster):
     CC, Lpinv_BT, _, _ = build_ortho_optim(d, Utilde, intermed_param,
@@ -376,13 +337,17 @@ def spectral_alignment(y, is_visited_view, d, Utilde,
         
     M,n = Utilde.shape
     n_clusters = len(seq_of_intermed_views_in_cluster)
+    # v0 = np.zeros(M*d)
+    # for s in range(M):
+    #     v0[s*d:(s+1)*d] = intermed_param.T[s,:,0]
+    # v0 = v0/np.sqrt(M)
     
     print('Computing eigh(C,k=d)', flush=True)
     np.random.seed(42)
     v0 = np.random.uniform(0,1,CC.shape[0])
     if (global_opts['n_repel'] == 0) or (global_opts['repel_by'] == 0):
         # To find smallest eigenvalues, using shift-inverted algo with mode=normal and which='LM'
-        W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, sigma=0.0)
+        W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, sigma=0)
         # or just pass which='SM' without using sigma
         # W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, which='SM')
     else:
@@ -414,10 +379,10 @@ def spectral_alignment(y, is_visited_view, d, Utilde,
             Tstar[:,m*d:(m+1)*d] = np.matmul(temp_, Q)
     
     Zstar = Tstar.dot(Lpinv_BT.transpose())
-    for i in range(n_clusters):
-        seq = seq_of_intermed_views_in_cluster[i]
-        s0 = seq[0]
-        Zstar[:,n+seq] -= Zstar[:,n+s0][:,None]
+#     for i in range(n_clusters):
+#         seq = seq_of_intermed_views_in_cluster[i]
+#         s0 = seq[0]
+#         Zstar[:,n+seq] -= Zstar[:,n+s0][:,None]
     
     for i in range(n_clusters):
         seq = seq_of_intermed_views_in_cluster[i]
@@ -431,80 +396,70 @@ def spectral_alignment(y, is_visited_view, d, Utilde,
             intermed_param.v[s,:] = np.matmul(intermed_param.v[s,:], T_s) + v_s
             C_s = C[s,:].indices
             y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
-            is_visited_view[s] = 1
     
-    return y, Zstar[:,:n].T, is_visited_view
+    return y, Zstar[:,:n].T
 
-def procrustes_final(y, d, Utilde, C, intermed_param, n_Utilde_Utilde, n_Utildeg_Utildeg,
-                     seq_of_intermed_views_in_cluster, parents_of_intermed_views_in_cluster,
-                     cluster_of_intermed_view, global_opts):
+def procrustes_final(y, d, Utilde, C, intermed_param,
+                     seq_of_intermed_views_in_cluster, global_opts):
     M,n = Utilde.shape
     # Traverse over intermediate views in a random order
     seq = np.random.permutation(M)
     is_first_view_in_cluster = np.zeros(M, dtype=bool)
+    # is_first_view_in_cluster[i] = True if the ith view is the first
+    # view in some cluster of views
     for i in range(len(seq_of_intermed_views_in_cluster)):
         is_first_view_in_cluster[seq_of_intermed_views_in_cluster[i][0]] = True
+        
+    y_due_to_all_views = []
+    for k in range(n):
+        y_due_to_all_views.append({})
+        
+    for s in range(M):
+        Utilde_s = Utilde[s,:].nonzero()[1]
+        y_Utilde_s = intermed_param.eval_({'view_index': s, 'data_mask': Utilde_s})
+        for k in range(len(Utilde_s)):
+            y_due_to_all_views[Utilde_s[k]][s] = y_Utilde_s[k,:]
 
     # For a given seq, refine the global embedding
     for it1 in range(global_opts['max_internal_iter']):
         for s in seq.tolist():
-            # Never refine s_0th intermediate view
-            if is_first_view_in_cluster[s]:
-                C_s = C[s,:].indices
-                y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
-                continue
+            # # Never refine s_0th intermediate view
+            # if is_first_view_in_cluster[s]:
+            #     continue
 
-            Utilde_s = Utilde[s,:]
-
-            # If to tear apart closed manifolds
-            if global_opts['to_tear']:
-                # Find more views to align sth view with
-                Z_s = n_Utilde_Utilde[s,:].multiply(n_Utildeg_Utildeg[s,:])
-            # otherwise
-            else:
-                # Align sth view with all the views which have
-                # an overlap with sth view in the ambient space
-                Z_s = n_Utilde_Utilde[s,:]
-
-            Z_s = Z_s.nonzero()[1].tolist()
-
-            if len(Z_s) == 0:
-                Z_s = parents_of_intermed_views_in_cluster[cluster_of_intermed_view[s]][s]
-                Z_s = [Z_s]
-
-            # Compute centroid mu_s
-            # n_Utilde_s_Z_s[k] = #views in Z_s which contain
-            # kth point if kth point is in the sth view, else zero
-            n_Utilde_s_Z_s = np.zeros(n, dtype=int)
-            mu_s = np.zeros((n,d))
-            for mp in Z_s:
-                Utilde_s_mp = Utilde_s.multiply(Utilde[mp,:]).nonzero()[1]
-                n_Utilde_s_Z_s[Utilde_s_mp] += 1
-                mu_s[Utilde_s_mp,:] += intermed_param.eval_({'view_index': mp, 'data_mask': Utilde_s_mp})
-
-            temp = n_Utilde_s_Z_s > 0
-            mu_s = mu_s[temp,:] / n_Utilde_s_Z_s[temp,np.newaxis]
+            Utilde_s = Utilde[s,:].nonzero()[1]
+            mu_s = []
+            Utilde_s_ = []
+            for k_ in range(len(Utilde_s)):
+                k = Utilde_s[k_]
+                if len(y_due_to_all_views[k]) == 1:
+                    continue
+                Utilde_s_.append(k)
+                mu = np.array(list(y_due_to_all_views[k].values())).sum(axis=0)
+                mu = (mu - y_due_to_all_views[k][s])/(len(y_due_to_all_views[k])-1)
+                mu_s.append(mu)
+            mu_s = np.array(mu_s)
+            Utilde_s_ = np.array(Utilde_s_)
 
             # Compute T_s and v_s by aligning the embedding of the overlap
             # between sth view and the views in Z_s, with the centroid mu_s
-            V_s_Z_s = intermed_param.eval_({'view_index': s, 'data_mask': temp})
-            
+            V_s_Z_s = intermed_param.eval_({'view_index': s, 'data_mask': Utilde_s_})
             T_s, v_s = procrustes(V_s_Z_s, mu_s)
 
             # Update T_s, v_s
             intermed_param.T[s,:,:] = np.matmul(intermed_param.T[s,:,:], T_s)
             intermed_param.v[s,:] = np.matmul(intermed_param.v[s,:][np.newaxis,:], T_s) + v_s
 
-            # Compute global embedding of points in sth cluster
-            C_s = C[s,:].indices
-            y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
+            y_Utilde_s = intermed_param.eval_({'view_index': s, 'data_mask': Utilde_s})
+            for k in range(len(Utilde_s)):
+                y_due_to_all_views[Utilde_s[k]][s] = y_Utilde_s[k,:]
+    
+    y = np.zeros((n,d))
+    for k in range(n):
+        y[k,:] = np.array(list(y_due_to_all_views[k].values())).mean(axis=0)
     return y
 
-def rgd_final(y, d, Utilde, C, intermed_param,
-             n_Utilde_Utilde, n_Utildeg_Utildeg,
-             parents_of_intermed_views_in_cluster,
-             cluster_of_intermed_view,
-             global_opts):
+def rgd_final(y, d, Utilde, C, intermed_param, global_opts):
     CC, Lpinv_BT, _, _ = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=global_opts['far_off_points'],
                                      repel_by=global_opts['repel_by'],
@@ -609,11 +564,7 @@ def rgd_final(y, d, Utilde, C, intermed_param,
     return y, Zstar[:,:n].T
 
 
-def gpm_final(y, d, Utilde, C, intermed_param,
-             n_Utilde_Utilde, n_Utildeg_Utildeg,
-             parents_of_intermed_views_in_cluster,
-             cluster_of_intermed_view,
-             global_opts):
+def gpm_final(y, d, Utilde, C, intermed_param, global_opts):
     CC, Lpinv_BT, D, _ = build_ortho_optim(d, Utilde, intermed_param,
                                             far_off_points=global_opts['far_off_points'],
                                             repel_by=global_opts['repel_by'],
@@ -715,7 +666,7 @@ def vec(A):
     A = np.multiply(A, np.sqrt(2)*(1-np.eye(N))+np.eye(N))
     return np.array(A[np.triu_indices(N)]).flatten()
 
-def sdp_alignment(y, is_visited_view, d, Utilde,
+def sdp_alignment(y, d, Utilde,
                   C, intermed_param, global_opts, 
                   seq_of_intermed_views_in_cluster,
                   solver=None):
@@ -791,6 +742,5 @@ def sdp_alignment(y, is_visited_view, d, Utilde,
             intermed_param.v[s,:] = np.matmul(intermed_param.v[s,:], T_s) + v_s
             C_s = C[s,:].indices
             y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
-            is_visited_view[s] = 1
     
-    return y, Zstar[:,:n].T, is_visited_view, solver
+    return y, Zstar[:,:n].T, solver
