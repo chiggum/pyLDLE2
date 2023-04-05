@@ -14,6 +14,8 @@ from scipy.sparse.csgraph import dijkstra
 import multiprocess as mp
 from multiprocess import shared_memory
 
+from sklearn.manifold._locally_linear import null_space
+
 import scs
 
 def compute_far_off_points(d_e, global_opts, force_compute=False):
@@ -337,17 +339,21 @@ def spectral_alignment(y, d, Utilde,
         
     M,n = Utilde.shape
     n_clusters = len(seq_of_intermed_views_in_cluster)
-    # v0 = np.zeros(M*d)
-    # for s in range(M):
-    #     v0[s*d:(s+1)*d] = intermed_param.T[s,:,0]
-    # v0 = v0/np.sqrt(M)
+    CC0 = np.zeros((M*d,d))
+    for s in range(M):
+        CC0[s*d:(s+1)*d,:] = intermed_param.T[s,:,:]
+    CC0 = CC0/np.sqrt(M)
+    v0 = CC0[:,0]
     
     print('Computing eigh(C,k=d)', flush=True)
-    np.random.seed(42)
-    v0 = np.random.uniform(0,1,CC.shape[0])
+    #np.random.seed(42)
+    #v0 = np.random.uniform(0,1,CC.shape[0])
     if (global_opts['n_repel'] == 0) or (global_opts['repel_by'] == 0):
         # To find smallest eigenvalues, using shift-inverted algo with mode=normal and which='LM'
-        W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, sigma=0)
+        W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, sigma=-1e-3)
+        #print(W_, flush=True)
+        
+        # W_,V_ = scipy.sparse.linalg.lobpcg(CC, CC0.T, largest=False)
         # or just pass which='SM' without using sigma
         # W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, which='SM')
     else:
@@ -361,6 +367,7 @@ def spectral_alignment(y, d, Utilde,
     Tstar = np.zeros((d, M*d))
     
     for i in range(n_clusters):
+        # the first view in each cluster is not rotated
         seq = seq_of_intermed_views_in_cluster[i]
         s0 = seq[0]
         U_,S_,VT_ = scipy.linalg.svd(Wstar[:,d*s0:d*(s0+1)])
@@ -370,7 +377,7 @@ def spectral_alignment(y, d, Utilde,
             Q = np.matmul(U_, VT_)
         Q = Q.T
         
-        for m in range(seq.shape[0]):
+        for m in range(M):
             U_,S_,VT_ = scipy.linalg.svd(Wstar[:,d*m:d*(m+1)])
             temp_ = np.matmul(U_,VT_)
             if (global_opts['init_algo_name'] != 'spectral') and (np.linalg.det(temp_) < 0): # remove reflection
@@ -379,25 +386,68 @@ def spectral_alignment(y, d, Utilde,
             Tstar[:,m*d:(m+1)*d] = np.matmul(temp_, Q)
     
     Zstar = Tstar.dot(Lpinv_BT.transpose())
-#     for i in range(n_clusters):
-#         seq = seq_of_intermed_views_in_cluster[i]
-#         s0 = seq[0]
-#         Zstar[:,n+seq] -= Zstar[:,n+s0][:,None]
     
+    # the first view in each cluster is not translated
     for i in range(n_clusters):
         seq = seq_of_intermed_views_in_cluster[i]
-        for m in range(seq.shape[0]):
-            s = seq[m]
-            T_s = Tstar[:,s*d:(s+1)*d].T
-            v_s = Zstar[:,n+s][np.newaxis,:]
-            #T_s = Tstar[:,s*d:(s+1)*d].T
-            #v_s = Zstar[:,n+s][np.newaxis,:]
-            intermed_param.T[s,:,:] = np.matmul(intermed_param.T[s,:,:], T_s)
-            intermed_param.v[s,:] = np.matmul(intermed_param.v[s,:], T_s) + v_s
-            C_s = C[s,:].indices
-            y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
-    
+        s0 = seq[0]
+        temp = Zstar[:,n+s0][:,None].copy()
+        Zstar[:,n+seq] -= temp
+        C_seq = C[seq,:].sum(axis=0).nonzero()[1]
+        Zstar[:,C_seq] -= temp
+        
+    for s in range(M):
+        T_s = Tstar[:,s*d:(s+1)*d].T
+        v_s = Zstar[:,n+s]
+        intermed_param.T[s,:,:] = np.matmul(intermed_param.T[s,:,:], T_s)
+        intermed_param.v[s,:] = np.matmul(intermed_param.v[s,:][np.newaxis,:], T_s) + v_s
+        C_s = C[s,:].indices
+        y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
     return y, Zstar[:,:n].T
+
+def ltsa_alignment(y, d, Utilde,
+                  C, intermed_param, global_opts, 
+                  seq_of_intermed_views_in_cluster):
+    M,n = Utilde.shape
+    Theta_mean = []
+    Theta_pinv_normalized = []
+    CC = np.zeros((n,n))
+    for i in range(M):
+        Utilde_i = Utilde[i,:].indices
+        Theta_i = intermed_param.eval_({'view_index': i, 'data_mask': Utilde_i}).T
+        Theta_mean.append(np.mean(Theta_i, axis=1))
+        Theta_i = Theta_i - Theta_mean[-1][:,None]
+        Theta_i_pinv = scipy.linalg.pinv(Theta_i)
+        Theta_i_pinv = Theta_i_pinv - np.mean(Theta_i_pinv, axis=0)[None,:]
+        W_i = -1/len(Utilde_i) - Theta_i_pinv.dot(Theta_i)
+        W_i[np.diag_indices_from(W_i)] += 1
+        
+        CC[np.ix_(Utilde_i, Utilde_i)] += W_i
+        Theta_pinv_normalized.append(Theta_i_pinv)
+    
+    np.random.seed(42)
+    v0 = np.random.uniform(0,1,CC.shape[0])
+    if (global_opts['n_repel'] == 0) or (global_opts['repel_by'] == 0):
+        # To find smallest eigenvalues, using shift-inverted algo with mode=normal and which='LM'
+        # W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d+1, v0=v0, sigma=-1e-3)
+        # or just pass which='SM' without using sigma
+        # W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, which='SM')
+        
+        Zstar, _ = null_space(CC, d, k_skip=1, eigen_solver='auto', random_state=42)
+    else:
+        print('Not implemented yet.', flush=True)
+        
+    for s in range(M):
+        intermed_param.v[s,:] -= Theta_mean[s]
+        Utilde_s = Utilde[s,:].indices
+        Y_s = Zstar[Utilde_s,:].T
+        T_s = np.matmul(Y_s, Theta_pinv_normalized[s]).T
+        v_s = np.mean(Y_s, axis=1)[None,:]
+        intermed_param.T[s,:,:] = np.matmul(intermed_param.T[s,:,:], T_s)
+        intermed_param.v[s,:] = np.matmul(intermed_param.v[s,:][np.newaxis,:], T_s) + v_s
+        C_s = C[s,:].indices
+        y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
+    return y, Zstar
 
 def procrustes_final(y, d, Utilde, C, intermed_param,
                      seq_of_intermed_views_in_cluster, global_opts):
@@ -459,7 +509,7 @@ def procrustes_final(y, d, Utilde, C, intermed_param,
         y[k,:] = np.array(list(y_due_to_all_views[k].values())).mean(axis=0)
     return y
 
-def rgd_final(y, d, Utilde, C, intermed_param, global_opts):
+def rgd_alignment(y, d, Utilde, C, intermed_param, global_opts):
     CC, Lpinv_BT, _, _ = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=global_opts['far_off_points'],
                                      repel_by=global_opts['repel_by'],
@@ -564,7 +614,7 @@ def rgd_final(y, d, Utilde, C, intermed_param, global_opts):
     return y, Zstar[:,:n].T
 
 
-def gpm_final(y, d, Utilde, C, intermed_param, global_opts):
+def gpm_alignment(y, d, Utilde, C, intermed_param, global_opts):
     CC, Lpinv_BT, D, _ = build_ortho_optim(d, Utilde, intermed_param,
                                             far_off_points=global_opts['far_off_points'],
                                             repel_by=global_opts['repel_by'],
@@ -667,7 +717,7 @@ def vec(A):
     return np.array(A[np.triu_indices(N)]).flatten()
 
 def sdp_alignment(y, d, Utilde,
-                  C, intermed_param, global_opts, 
+                  C, intermed_param, global_opts,
                   seq_of_intermed_views_in_cluster,
                   solver=None):
     CC, Lpinv_BT, _, _ = build_ortho_optim(d, Utilde, intermed_param,
@@ -718,29 +768,38 @@ def sdp_alignment(y, d, Utilde,
     
     B = B.T
     Tstar = np.zeros((d,M*d))
-    for s in range(M):
-        [U,_,Vt] = scipy.linalg.svd(B[:,s*d:(s+1)*d])
-        Tstar[:,s*d:(s+1)*d] = np.dot(U,Vt)
-    
-    Zstar = Tstar.dot(Lpinv_BT.transpose())
     
     n_clusters = len(seq_of_intermed_views_in_cluster)
     for i in range(n_clusters):
+        # the first view in each cluster is not rotated
         seq = seq_of_intermed_views_in_cluster[i]
         s0 = seq[0]
-        T0T = Tstar[:,s0*d:(s0+1)*d]
-        v0 = Zstar[:,n+s0][np.newaxis,:]
-        v0TOT = np.matmul(v0, T0T)
-        is_visited_view[s0] = 1
-        for m in range(1, seq.shape[0]):
-            s = seq[m]
-            T_s = np.matmul(Tstar[:,s*d:(s+1)*d].T, T0T)
-            v_s = np.matmul(Zstar[:,n+s][np.newaxis,:], T0T) - v0TOT
-            #T_s = Tstar[:,s*d:(s+1)*d].T
-            #v_s = Zstar[:,n+s][np.newaxis,:]
-            intermed_param.T[s,:,:] = np.matmul(intermed_param.T[s,:,:], T_s)
-            intermed_param.v[s,:] = np.matmul(intermed_param.v[s,:], T_s) + v_s
-            C_s = C[s,:].indices
-            y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
+        U_,S_,VT_ = scipy.linalg.svd(B[:,d*s0:d*(s0+1)])
+        Q =  np.matmul(U_,VT_)
+        Q = Q.T
+        
+        for m in range(M):
+            U_,S_,VT_ = scipy.linalg.svd(B[:,d*m:d*(m+1)])
+            temp_ = np.matmul(U_,VT_)
+            Tstar[:,m*d:(m+1)*d] = np.matmul(temp_, Q)
+    
+    Zstar = Tstar.dot(Lpinv_BT.transpose())
+    
+    # the first view in each cluster is not translated
+    for i in range(n_clusters):
+        seq = seq_of_intermed_views_in_cluster[i]
+        s0 = seq[0]
+        temp = Zstar[:,n+s0][:,None].copy()
+        Zstar[:,n+seq] -= temp
+        C_seq = C[seq,:].sum(axis=0).nonzero()[1]
+        Zstar[:,C_seq] -= temp
+    
+    for s in range(M):
+        T_s = Tstar[:,s*d:(s+1)*d].T
+        v_s = Zstar[:,n+s]
+        intermed_param.T[s,:,:] = np.matmul(intermed_param.T[s,:,:], T_s)
+        intermed_param.v[s,:] = np.matmul(intermed_param.v[s,:][np.newaxis,:], T_s) + v_s
+        C_s = C[s,:].indices
+        y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
     
     return y, Zstar[:,:n].T, solver

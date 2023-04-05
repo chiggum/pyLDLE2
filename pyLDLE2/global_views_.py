@@ -4,13 +4,13 @@ import numpy as np
 import copy
 
 from .util_ import procrustes, print_log, nearest_neighbors, sparse_matrix, lexargmax
-from .global_reg_ import procrustes_init, spectral_alignment, sdp_alignment, procrustes_final, rgd_final, gpm_final, compute_alignment_err, compute_far_off_points
+from .global_reg_ import procrustes_init, spectral_alignment, ltsa_alignment, sdp_alignment, procrustes_final, rgd_alignment, gpm_alignment, compute_alignment_err, compute_far_off_points
 
 from scipy.linalg import svdvals
 from scipy.sparse.csgraph import minimum_spanning_tree, breadth_first_order
 from scipy.sparse import coo_matrix, csr_matrix, triu
 from sklearn.neighbors import NearestNeighbors
-from scipy.spatial.distance import pdist, squareform
+from scipy.spatial.distance import pdist, cdist, squareform
 from matplotlib import pyplot as plt
 
 import multiprocess as mp
@@ -196,25 +196,24 @@ class GlobalViews:
                cluster_of_intermed_view
     
     # dist = y_d_e
-    def compute_pwise_dist_in_embedding(self, s_d_e, Utilde, C, global_opts,
-                                     n_Utilde_Utilde=None, n_Utildeg_Utildeg=None, y=None, dist=None,):
+    def compute_pwise_dist_in_embedding(self, s_d_e, Utilde, C, global_opts, y=None, dist=None,):
         M,n = Utilde.shape
+        assert ((y is not None) or (dist is not None))
         
         if dist is None:
             dist = squareform(pdist(y))
 
-        if n_Utilde_Utilde is None:
-            n_Utilde_Utilde = Utilde.dot(Utilde.transpose())
-            n_Utilde_Utilde.setdiag(0)
-        # Compute |Utildeg_{mm'}| if not provided
-        if n_Utildeg_Utildeg is None:
-            _, n_Utildeg_Utildeg = self.compute_Utildeg(y, Utilde, C, global_opts)
+        n_Utilde_Utilde = Utilde.dot(Utilde.transpose())
+        n_Utilde_Utilde.setdiag(False)
+        Utildeg = self.compute_Utildeg(y, C, global_opts)
+        n_Utildeg_Utildeg = Utildeg.dot(Utildeg.transpose())
+        n_Utildeg_Utildeg.setdiag(False)
 
         # Compute the tear: a graph between views where ith view
         # is connected to jth view if they are neighbors in the
         # ambient space but not in the embedding space
         tear = n_Utilde_Utilde-n_Utilde_Utilde.multiply(n_Utildeg_Utildeg)
-        # no tear then resturn dist
+        # no tear then return dist
         if np.sum(tear)==0:
             return dist
         
@@ -243,8 +242,18 @@ class GlobalViews:
                         # both sets are non-empty then assign them same color.
                         temp_m = C[m,:].multiply(temp_i).nonzero()[1]
                         temp_mp = C[mpp,:].multiply(temp_i).nonzero()[1]
-                        dist[np.ix_(temp_m,temp_mp)] = s_d_e[np.ix_(temp_m,temp_mp)]
-                        dist[np.ix_(temp_mp,temp_m)] = s_d_e[np.ix_(temp_mp,temp_m)]
+                        
+                        y_m_temp_m = intermed_param.eval_({'view_index': m, 'data_mask': temp_m})
+                        y_m_temp_mpp = intermed_param.eval_({'view_index': m, 'data_mask': temp_mpp})
+                        y_mpp_temp_m = intermed_param.eval_({'view_index': mpp, 'data_mask': temp_m})
+                        y_mpp_temp_mpp = intermed_param.eval_({'view_index': mpp, 'data_mask': temp_mpp})
+                        
+                        dist_m = cdist(y_m_temp_m, y_m_temp_mpp)
+                        dist_mpp = cdist(y_mpp_temp_m, y_mpp_temp_mpp)
+                        dist_ = np.minimum(dist_m, dist_mpp)
+                        
+                        dist[np.ix_(temp_m,temp_mp)] = dist_
+                        dist[np.ix_(temp_mp,temp_m)] = dist_.T
                         pts_on_tear[temp_m] = True
                         pts_on_tear[temp_mp] = True
 
@@ -342,23 +351,6 @@ class GlobalViews:
                       vis_opts, title='', color_of_pts_on_tear=None,
                       Utilde_t=None):
         M,n = Utilde.shape
-#         y = np.zeros((n,d))
-#         for s in range(M):
-#             if global_opts['to_tear']:
-#                 if Utilde_t is None:
-#                     C_s = C[s,:].indices
-#                 else:
-#                     C_s = Utilde_t[s,:].indices
-#                 y[C_s,:] += intermed_param.eval_({'view_index': s, 'data_mask': C_s})
-#             else:
-#                 Utilde_s = Utilde[s,:].indices
-#                 y[Utilde_s,:] += intermed_param.eval_({'view_index': s, 'data_mask': Utilde_s})
-        
-#         if global_opts['to_tear'] and (Utilde_t is not None):
-#             y = y/np.asarray(Utilde_t.sum(0).T)
-#         elif not global_opts['to_tear']:
-#             y = y/np.asarray(Utilde.sum(0).T)
-
         if global_opts['color_tear']:
             if (color_of_pts_on_tear is None) and global_opts['to_tear']:
                 color_of_pts_on_tear = self.compute_color_of_pts_on_tear(y, Utilde, C, global_opts,
@@ -366,7 +358,6 @@ class GlobalViews:
         else:
             color_of_pts_on_tear = None
             
-        
         if color_of_pts_on_tear is not None:
             pts_on_tear = np.nonzero(~np.isnan(color_of_pts_on_tear))[0]
             y_ = []
@@ -590,9 +581,9 @@ class GlobalViews:
                                      seq_of_intermed_views_in_cluster, global_opts)
                     
             elif refine_algo == 'rgd':
-                y_2, y = rgd_final(y, d, Utilde_t, C, intermed_param, global_opts)
+                y_2, y = rgd_alignment(y, d, Utilde_t, C, intermed_param, global_opts)
             elif refine_algo == 'gpm':
-                y_2, y = gpm_final(y, d, Utilde_t, C, intermed_param, global_opts)
+                y_2, y = gpm_alignment(y, d, Utilde_t, C, intermed_param, global_opts)
             elif refine_algo == 'spectral':
                 y_2, y = spectral_alignment(y, d, Utilde_t,
                                              C, intermed_param, global_opts,
@@ -603,6 +594,10 @@ class GlobalViews:
                                        C, intermed_param, global_opts,
                                        seq_of_intermed_views_in_cluster,
                                        solver=solver)
+            elif refine_algo == 'ltsa':
+                y_2, y = ltsa_alignment(y, d, Utilde_t,
+                                         C, intermed_param, global_opts,
+                                         seq_of_intermed_views_in_cluster)
                 
             self.log('Done.', log_time=True)
             self.tracker['refine_iter_done_at'].append(time.time())
