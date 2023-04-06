@@ -6,8 +6,9 @@ import copy
 from .util_ import procrustes, print_log, nearest_neighbors, sparse_matrix, lexargmax
 from .global_reg_ import procrustes_init, spectral_alignment, ltsa_alignment, sdp_alignment, procrustes_final, rgd_alignment, gpm_alignment, compute_alignment_err, compute_far_off_points
 
+import scipy
 from scipy.linalg import svdvals
-from scipy.sparse.csgraph import minimum_spanning_tree, breadth_first_order
+from scipy.sparse.csgraph import minimum_spanning_tree, breadth_first_order, laplacian
 from scipy.sparse import coo_matrix, csr_matrix, triu
 from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import pdist, cdist, squareform
@@ -135,7 +136,8 @@ class GlobalViews:
                 Vbar_mpm = V_mpm - np.mean(V_mpm,0)[np.newaxis,:]
                 # Compute ambiguity as the minimum singular value of
                 # the d x d matrix Vbar_{mm'}^TVbar_{m'm}
-                W_data_[i-start_ind] = svdvals(np.dot(Vbar_mmp.T,Vbar_mpm))[-1]
+                svdvals_ = svdvals(np.dot(Vbar_mmp.T,Vbar_mpm))
+                W_data_[i-start_ind] = svdvals_[-1]
             q_.put((start_ind, end_ind, W_data_))
         
         q_ = mp.Queue()
@@ -297,7 +299,7 @@ class GlobalViews:
         return dist
     
     def compute_color_of_pts_on_tear(self, y, Utilde, C, global_opts,
-                                        n_Utilde_Utilde, Utildeg=None):
+                                    n_Utilde_Utilde, Utildeg=None):
         M,n = Utilde.shape
 
         # Compute |Utildeg_{mm'}| if not provided
@@ -324,7 +326,7 @@ class GlobalViews:
             seq, rho = breadth_first_order(n_Utilde_Utilde, s0, directed=False) #(ignores edge weights)
             is_visited[seq] = True
             n_visited = np.sum(is_visited)
-            
+
             # Iterate over views
             for m in seq:
                 to_tear_mth_view_with = tear[m,:].nonzero()[1].tolist()
@@ -346,6 +348,76 @@ class GlobalViews:
                             cur_color += 1
         return color_of_pts_on_tear
     
+        # def compute_color_of_pts_on_tear(self, y, Utilde, C, global_opts,
+        #                                 n_Utilde_Utilde, Utildeg=None):
+        # M,n = Utilde.shape
+
+        # # Compute |Utildeg_{mm'}| if not provided
+        # if Utildeg is None:
+        #     Utildeg = self.compute_Utildeg(y, C, global_opts)
+
+        # # Compute the tear: a graph between views where ith view
+        # # is connected to jth view if they are neighbors in the
+        # # ambient space but not in the embedding space
+        # # tear = Utilde -  Utilde.multiply(Utildeg)
+        # # tear = tear.dot(tear.T)
+        # tear_G0 = n_Utilde_Utilde.multiply(Utildeg.dot(Utildeg.T))
+        # tear_G1 = n_Utilde_Utilde - tear_G0
+        # tear_G1.eliminate_zeros()
+
+        # views_on_tear = tear_G1.sum(axis=1)
+        # tear_G2 = tear_G0.multiply(views_on_tear).multiply(views_on_tear.T)
+        # tear_G2.eliminate_zeros()
+
+        # G1_row_inds = []
+        # G1_col_inds = []
+        # G2_row_inds = []
+        # G2_col_inds = []
+
+        # tear_G1_row, tear_G1_col = tear_G1.nonzero()
+        # tear_G2_row, tear_G2_col = tear_G2.nonzero()
+
+        # pts_on_tear = np.zeros(n, dtype=bool)
+
+        # for ind in range(len(tear_G1_row)):
+        #     i = tear_G1_row[ind]
+        #     j = tear_G1_col[ind]
+        #     pts_on_overlap = Utilde[i,:].multiply(Utilde[j,:]).multiply(C[i,:]+C[j,:])
+        #     pts_on_overlap = pts_on_overlap.nonzero()[1]
+        #     n_ = len(pts_on_overlap)
+        #     if n_ > 0:
+        #         pts_on_tear[pts_on_overlap] = True
+        #         G1_row_inds += np.repeat(pts_on_overlap, n_).tolist()
+        #         G1_col_inds += np.tile(pts_on_overlap, n_).tolist()
+
+        # G1 = csr_matrix((np.ones(len(G1_row_inds)), (G1_row_inds, G1_col_inds)),
+        #                 shape=(n,n), dtype=float)
+        # G1 = laplacian(G1)
+
+        # pts_on_tear2 = np.zeros(n, dtype=bool)
+        # for ind in range(len(tear_G2_row)):
+        #     i = tear_G2_row[ind]
+        #     j = tear_G2_col[ind]
+        #     pts_on_tear_in_ij = (C[i,:]+C[j,:]).multiply(pts_on_tear)
+        #     pts_on_tear_in_ij = pts_on_tear_in_ij.nonzero()[1]
+        #     n_ = len(pts_on_tear_in_ij)
+        #     if n_ > 0:
+        #         pts_on_tear2[pts_on_tear_in_ij] = True
+        #         G2_row_inds += np.repeat(pts_on_tear_in_ij, n_).tolist()
+        #         G2_col_inds += np.tile(pts_on_tear_in_ij, n_).tolist()
+
+        # G2 = csr_matrix((np.ones(len(G2_row_inds)), (G2_row_inds, G2_col_inds)),
+        #                 shape=(n,n), dtype=float)
+        # G2 = laplacian(G2)
+        # G2 = global_opts['color_diversity']*G2
+        # G1 = (1-global_opts['color_diversity'])*G1
+
+        # np.random.seed(42)
+        # v0 = np.random.uniform(0,1,n)
+        # _, color_of_pts_on_tear = scipy.sparse.linalg.eigsh(G2-G1, k=1, v0=v0)
+        # color_of_pts_on_tear[~pts_on_tear] = np.nan
+        # return color_of_pts_on_tear
+    
     def vis_embedding_(self, y, d, intermed_param, c, C, Utilde,
                       n_Utilde_Utilde, global_opts, vis,
                       vis_opts, title='', color_of_pts_on_tear=None,
@@ -357,6 +429,11 @@ class GlobalViews:
                                                                          n_Utilde_Utilde)
         else:
             color_of_pts_on_tear = None
+            
+        # vis.global_embedding(y, vis_opts['c'], vis_opts['cmap_interior'],
+        #                           color_of_pts_on_tear, vis_opts['cmap_boundary'],
+        #                           title)
+        # plt.show()
             
         if color_of_pts_on_tear is not None:
             pts_on_tear = np.nonzero(~np.isnan(color_of_pts_on_tear))[0]
@@ -570,7 +647,6 @@ class GlobalViews:
             self.log('Refinement iteration: %d' % self.it0, log_time=True)
             
             global_opts['far_off_points'] = compute_far_off_points(d_e, global_opts)
-            #global_opts['repel_by'] = 0.75*global_opts['repel_by']
             
             if global_opts['to_tear']:
                 Utilde_t = Utildeg.multiply(Utilde)

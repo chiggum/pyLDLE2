@@ -340,8 +340,10 @@ def spectral_alignment(y, d, Utilde,
     M,n = Utilde.shape
     n_clusters = len(seq_of_intermed_views_in_cluster)
     CC0 = np.zeros((M*d,d))
+    # for s in range(M):
+    #     CC0[s*d:(s+1)*d,:] = intermed_param.T[s,:,:]
     for s in range(M):
-        CC0[s*d:(s+1)*d,:] = intermed_param.T[s,:,:]
+        CC0[s*d:(s+1)*d,:] = np.eye(d)
     CC0 = CC0/np.sqrt(M)
     v0 = CC0[:,0]
     
