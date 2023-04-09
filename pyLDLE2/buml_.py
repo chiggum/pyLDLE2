@@ -310,7 +310,8 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
                             max_internal_iter=100, alpha=0.3, eps=1e-8,
                             add_dim=False, beta={'align':None, 'repel': 1},
                             repel_by=0., n_repel=0,
-                            far_off_points_type='reuse_fixed', patience=5, err_tol=1e-4):
+                            far_off_points_type='reuse_fixed', patience=5, err_tol=1e-4,
+                            tear_color_method='eig', color_diversity_index=1):
     """Sets and returns a dictionary of default_global_opts.
 
     Parameters
@@ -388,6 +389,14 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
               to persist before stopping the refinement.
     err_tol: float
              The tolerance level for the alignment error.
+    tear_color_method: str
+             Method to color the tear. Options are 'spectral' or 'heuristic'.
+             The latter keeps the coloring of the tear same accross
+             the iterations.
+    color_diversity_index: int
+             Index used to obtain diversity of the colors on the tear.
+             The value must be non-negative. Higher values result in
+             more diversity. The diversity saturates after a certain value.
     """
     return {'to_tear': to_tear, 'nu': nu, 'max_iter': max_iter,
                'color_tear': color_tear,
@@ -401,7 +410,9 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
                'alpha': alpha, 'eps': eps, 'add_dim': add_dim,
                'beta': beta, 'repel_by': repel_by, 'n_repel': n_repel,
                'far_off_points_type': far_off_points_type,
-               'patience': patience, 'err_tol': err_tol
+               'patience': patience, 'err_tol': err_tol,
+                'tear_color_method': tear_color_method,
+                'color_diversity_index': color_diversity_index
               }
 def get_default_vis_opts(save_dir='', cmap_interior='summer', cmap_boundary='jet', c=None):
     """Sets and returns a dictionary of default_vis_opts.

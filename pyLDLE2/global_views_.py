@@ -8,7 +8,7 @@ from .global_reg_ import procrustes_init, spectral_alignment, ltsa_alignment, sd
 
 import scipy
 from scipy.linalg import svdvals
-from scipy.sparse.csgraph import minimum_spanning_tree, breadth_first_order, laplacian
+from scipy.sparse.csgraph import minimum_spanning_tree, breadth_first_order, laplacian, connected_components
 from scipy.sparse import coo_matrix, csr_matrix, triu
 from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import pdist, cdist, squareform
@@ -198,7 +198,7 @@ class GlobalViews:
                cluster_of_intermed_view
     
     # dist = y_d_e
-    def compute_pwise_dist_in_embedding(self, s_d_e, Utilde, C, global_opts, y=None, dist=None,):
+    def compute_pwise_dist_in_embedding(self, s_d_e, intermed_param, Utilde, C, global_opts, y=None, dist=None,):
         M,n = Utilde.shape
         assert ((y is not None) or (dist is not None))
         
@@ -243,7 +243,7 @@ class GlobalViews:
                         # which are in mth cluster and in m'th cluster. If
                         # both sets are non-empty then assign them same color.
                         temp_m = C[m,:].multiply(temp_i).nonzero()[1]
-                        temp_mp = C[mpp,:].multiply(temp_i).nonzero()[1]
+                        temp_mpp = C[mpp,:].multiply(temp_i).nonzero()[1]
                         
                         y_m_temp_m = intermed_param.eval_({'view_index': m, 'data_mask': temp_m})
                         y_m_temp_mpp = intermed_param.eval_({'view_index': m, 'data_mask': temp_mpp})
@@ -254,10 +254,10 @@ class GlobalViews:
                         dist_mpp = cdist(y_mpp_temp_m, y_mpp_temp_mpp)
                         dist_ = np.minimum(dist_m, dist_mpp)
                         
-                        dist[np.ix_(temp_m,temp_mp)] = dist_
-                        dist[np.ix_(temp_mp,temp_m)] = dist_.T
+                        dist[np.ix_(temp_m,temp_mpp)] = dist_
+                        dist[np.ix_(temp_mpp,temp_m)] = dist_.T
                         pts_on_tear[temp_m] = True
-                        pts_on_tear[temp_mp] = True
+                        pts_on_tear[temp_mpp] = True
 
         # Compute min of original vs lengths of one hop-distances by
         # contracting dist.T, dist with min as the binary operation
@@ -298,8 +298,8 @@ class GlobalViews:
 
         return dist
     
-    def compute_color_of_pts_on_tear(self, y, Utilde, C, global_opts,
-                                    n_Utilde_Utilde, Utildeg=None):
+    def compute_color_of_pts_on_tear_heuristic(self, y, Utilde, C, global_opts,
+                                                n_Utilde_Utilde, Utildeg=None):
         M,n = Utilde.shape
 
         # Compute |Utildeg_{mm'}| if not provided
@@ -348,57 +348,84 @@ class GlobalViews:
                             cur_color += 1
         return color_of_pts_on_tear
     
-        # def compute_color_of_pts_on_tear(self, y, Utilde, C, global_opts,
-        #                                 n_Utilde_Utilde, Utildeg=None):
-        # M,n = Utilde.shape
+    def compute_spectral_color_of_pts_on_tear(self, y, Utilde, C, global_opts,
+                                     n_Utilde_Utilde, Utildeg=None):
+        M,n = Utilde.shape
+        color_of_pts_on_tear = np.zeros(n) + np.nan
 
-        # # Compute |Utildeg_{mm'}| if not provided
-        # if Utildeg is None:
-        #     Utildeg = self.compute_Utildeg(y, C, global_opts)
+        # Compute |Utildeg_{mm'}| if not provided
+        if Utildeg is None:
+            Utildeg = self.compute_Utildeg(y, C, global_opts)
 
-        # # Compute the tear: a graph between views where ith view
-        # # is connected to jth view if they are neighbors in the
-        # # ambient space but not in the embedding space
-        # # tear = Utilde -  Utilde.multiply(Utildeg)
-        # # tear = tear.dot(tear.T)
-        # tear_G0 = n_Utilde_Utilde.multiply(Utildeg.dot(Utildeg.T))
-        # tear_G1 = n_Utilde_Utilde - tear_G0
-        # tear_G1.eliminate_zeros()
+        # Compute the tear: a graph between views where ith view
+        # is connected to jth view if they are neighbors in the
+        # ambient space but not in the embedding space
+        # tear = Utilde -  Utilde.multiply(Utildeg)
+        # tear = tear.dot(tear.T)
+        tear_G0 = n_Utilde_Utilde.multiply(Utildeg.dot(Utildeg.T))
+        tear_G1 = n_Utilde_Utilde - tear_G0
+        tear_G1.eliminate_zeros()
+        
+        G1_row_inds = []
+        G1_col_inds = []
+        tear_G1_row, tear_G1_col = tear_G1.nonzero()
+        if len(tear_G1_row) == 0:
+            return color_of_pts_on_tear
+        pts_on_tear = np.zeros(n, dtype=bool)
+        for ind in range(len(tear_G1_row)):
+            i = tear_G1_row[ind]
+            j = tear_G1_col[ind]
+            pts_on_overlap = Utilde[i,:].multiply(Utilde[j,:]).multiply(C[i,:]+C[j,:])
+            pts_on_overlap = pts_on_overlap.nonzero()[1]
+            n_ = len(pts_on_overlap)
+            if n_ > 0:
+                pts_on_tear[pts_on_overlap] = True
+                G1_row_inds += np.repeat(pts_on_overlap, n_).tolist()
+                G1_col_inds += np.tile(pts_on_overlap, n_).tolist()
 
-        # views_on_tear = tear_G1.sum(axis=1)
+        G1 = csr_matrix((np.ones(len(G1_row_inds)), (G1_row_inds, G1_col_inds)),
+                        shape=(n,n), dtype=float)
+        
+        G1 = G1[np.ix_(pts_on_tear,pts_on_tear)]
+        pts_on_tear = np.where(pts_on_tear)[0]
+        n_pts_on_tear = len(pts_on_tear)
+        n_comp, labels = connected_components(G1, directed=False, return_labels=True)
+        offset = 0
+        
+        for i in range(n_comp):
+            comp_i = labels==i
+            n_comp_i = np.sum(comp_i)
+            scale = n_comp_i/n_pts_on_tear
+            if n_comp_i <= max(2,int(0.001*n)):
+                color_of_pts_on_tear[pts_on_tear[comp_i]] = offset + scale/2
+                offset += scale
+                continue
+            G1_comp_i = G1[np.ix_(comp_i, comp_i)]
+            G1_comp_i = laplacian(G1_comp_i)
+            np.random.seed(42)
+            v0 = np.random.uniform(0, 1, G1_comp_i.shape[0])
+            n_eigs = min(n_comp_i, 2+global_opts['color_diversity_index'])
+            _, colors_ = scipy.sparse.linalg.eigsh(G1_comp_i, v0=v0,
+                                                   k=n_eigs,
+                                                   sigma=-1e-3)
+            colors_max = np.max(colors_)
+            colors_min = np.min(colors_)
+            colors_ = (colors_-colors_min)/(colors_max-colors_min) # scale to [0,1]
+            colors_ = offset + colors_*scale
+            offset += scale
+            color_of_pts_on_tear[pts_on_tear[comp_i]] = colors_[:,n_eigs-1]
+            
+        # views_on_tear = tear_G1.sum(axis=1) > 0
         # tear_G2 = tear_G0.multiply(views_on_tear).multiply(views_on_tear.T)
         # tear_G2.eliminate_zeros()
-
-        # G1_row_inds = []
-        # G1_col_inds = []
+        # tear_G2_row, tear_G2_col = tear_G2.nonzero()
         # G2_row_inds = []
         # G2_col_inds = []
-
-        # tear_G1_row, tear_G1_col = tear_G1.nonzero()
-        # tear_G2_row, tear_G2_col = tear_G2.nonzero()
-
-        # pts_on_tear = np.zeros(n, dtype=bool)
-
-        # for ind in range(len(tear_G1_row)):
-        #     i = tear_G1_row[ind]
-        #     j = tear_G1_col[ind]
-        #     pts_on_overlap = Utilde[i,:].multiply(Utilde[j,:]).multiply(C[i,:]+C[j,:])
-        #     pts_on_overlap = pts_on_overlap.nonzero()[1]
-        #     n_ = len(pts_on_overlap)
-        #     if n_ > 0:
-        #         pts_on_tear[pts_on_overlap] = True
-        #         G1_row_inds += np.repeat(pts_on_overlap, n_).tolist()
-        #         G1_col_inds += np.tile(pts_on_overlap, n_).tolist()
-
-        # G1 = csr_matrix((np.ones(len(G1_row_inds)), (G1_row_inds, G1_col_inds)),
-        #                 shape=(n,n), dtype=float)
-        # G1 = laplacian(G1)
-
         # pts_on_tear2 = np.zeros(n, dtype=bool)
         # for ind in range(len(tear_G2_row)):
         #     i = tear_G2_row[ind]
         #     j = tear_G2_col[ind]
-        #     pts_on_tear_in_ij = (C[i,:]+C[j,:]).multiply(pts_on_tear)
+        #     pts_on_tear_in_ij = (C[i,:]+C[j,:]).multiply(pts_on_tear[None,:])
         #     pts_on_tear_in_ij = pts_on_tear_in_ij.nonzero()[1]
         #     n_ = len(pts_on_tear_in_ij)
         #     if n_ > 0:
@@ -408,15 +435,19 @@ class GlobalViews:
 
         # G2 = csr_matrix((np.ones(len(G2_row_inds)), (G2_row_inds, G2_col_inds)),
         #                 shape=(n,n), dtype=float)
+        # G2 = G2[np.ix_(pts_on_tear,pts_on_tear)]
         # G2 = laplacian(G2)
-        # G2 = global_opts['color_diversity']*G2
-        # G1 = (1-global_opts['color_diversity'])*G1
-
-        # np.random.seed(42)
-        # v0 = np.random.uniform(0,1,n)
-        # _, color_of_pts_on_tear = scipy.sparse.linalg.eigsh(G2-G1, k=1, v0=v0)
-        # color_of_pts_on_tear[~pts_on_tear] = np.nan
-        # return color_of_pts_on_tear
+        return color_of_pts_on_tear
+    
+    def compute_color_of_pts_on_tear(self, y, Utilde, C, global_opts,
+                                     n_Utilde_Utilde, Utildeg=None):
+        if global_opts['tear_color_method'] == 'spectral':
+            return self.compute_spectral_color_of_pts_on_tear(y, Utilde, C, global_opts,
+                                                              n_Utilde_Utilde, Utildeg=Utildeg)
+        else:
+            return self.compute_color_of_pts_on_tear_heuristic(y, Utilde, C, global_opts,
+                                                              n_Utilde_Utilde, Utildeg=Utildeg)
+            
     
     def vis_embedding_(self, y, d, intermed_param, c, C, Utilde,
                       n_Utilde_Utilde, global_opts, vis,

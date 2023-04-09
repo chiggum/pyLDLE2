@@ -268,6 +268,17 @@ def compute_distortion_at(y_d_e, s_d_e):
         distortion_at[i] = np.max(scale_factors[i,:])/np.min(scale_factors[i,:])
     return distortion_at, max_distortion
 
+def compute_prctile_distortion_at(y_d_e, s_d_e, prctile=50):
+    scale_factors = (y_d_e+1e-12)/(s_d_e+1e-12)
+    np.fill_diagonal(scale_factors,1)
+    max_distortion = np.percentile(scale_factors, prctile)/np.percentile(scale_factors, 100-prctile)
+    print('Max distortion is:', max_distortion, flush=True)
+    n = y_d_e.shape[0]
+    distortion_at = np.zeros(n)
+    for i in range(n):
+        distortion_at[i] = np.percentile(scale_factors[i,:], prctile)/np.percentile(scale_factors[i,:], 100-prctile)
+    return distortion_at, max_distortion
+
 def get_global_distortion_info(ldle=None, ys=None, names=None, include_ldle=True, s_d_e=None):
     assert ((ldle is not None) or (include_ldle is False)), 'error: ldle is None and include_ldle is True.'
     if s_d_e is None:
