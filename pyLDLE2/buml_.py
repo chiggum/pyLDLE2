@@ -180,7 +180,7 @@ def double_manifold_k_nn(data, ddX, k_nn, metric, n_proc=1):
     
 
 def get_default_local_opts(algo='LPCA', k_nn=49, k_tune=7, k=28, metric='euclidean', radius=0.5,
-                           U_method='k_nn', gl_type='unnorm', N=100, scale_by='gamma',
+                           U_method='k_nn', gl_type='unnorm', tuning='self', N=100, scale_by='gamma',
                            Atilde_method='LDLE_1', alpha=1, max_iter=300, reg=0.,
                            p=0.99, tau=50, delta=0.9, to_postprocess= True,
                            pp_n_thresh=32, lambda1_init=8, lambda1_decay=0.75, lambda1_min=1e-3,
@@ -216,6 +216,9 @@ def get_default_local_opts(algo='LPCA', k_nn=49, k_tune=7, k=28, metric='euclide
               Options are 'unnorm' for unnormalized,
               'symnorm' for symmetric normalized,
               'diffusion' for density-corrected normalized.
+    tuning: str
+            The tuning method for the construction of kernel.
+            Options are: 'self', 'solo', 'median' or None.
     N : int
         Number of smallest non-trivial eigenvectors of the
         graph Laplacian to be used for the construction of
@@ -267,7 +270,7 @@ def get_default_local_opts(algo='LPCA', k_nn=49, k_tune=7, k=28, metric='euclide
                   maximum fraction of the desired sparsity.
     """
     return {'k_nn': k_nn, 'k_tune': k_tune, 'k': k, 'metric': metric, 'radius': radius,
-           'U_method': U_method, 'gl_type': gl_type, 'N': N, 'scale_by': scale_by,
+           'U_method': U_method, 'gl_type': gl_type, 'tuning': tuning, 'N': N, 'scale_by': scale_by,
            'Atilde_method': Atilde_method, 'p': p, 'tau': tau, 'delta': delta,
            'alpha': alpha, 'max_iter': max_iter, 'reg': reg, 
            'to_postprocess': to_postprocess, 'algo': algo,
@@ -311,7 +314,8 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
                             add_dim=False, beta={'align':None, 'repel': 1},
                             repel_by=0., n_repel=0,
                             far_off_points_type='reuse_fixed', patience=5, err_tol=1e-4,
-                            tear_color_method='eig', color_diversity_index=1):
+                            tear_color_method='spectral', color_diversity_index=1,
+                            metric='euclidean'):
     """Sets and returns a dictionary of default_global_opts.
 
     Parameters
@@ -397,6 +401,8 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
              Index used to obtain diversity of the colors on the tear.
              The value must be non-negative. Higher values result in
              more diversity. The diversity saturates after a certain value.
+    metric: str
+            default is euclidean
     """
     return {'to_tear': to_tear, 'nu': nu, 'max_iter': max_iter,
                'color_tear': color_tear,
@@ -411,8 +417,9 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
                'beta': beta, 'repel_by': repel_by, 'n_repel': n_repel,
                'far_off_points_type': far_off_points_type,
                'patience': patience, 'err_tol': err_tol,
-                'tear_color_method': tear_color_method,
-                'color_diversity_index': color_diversity_index
+               'tear_color_method': tear_color_method,
+               'color_diversity_index': color_diversity_index,
+               'metric': metric
               }
 def get_default_vis_opts(save_dir='', cmap_interior='summer', cmap_boundary='jet', c=None):
     """Sets and returns a dictionary of default_vis_opts.
@@ -485,7 +492,6 @@ class BUML:
         self.local_opts = default_local_opts
         #############################################
         intermed_opts['n_proc'] = n_proc
-        intermed_opts['metric'] = self.local_opts['metric']
         intermed_opts['local_algo'] = self.local_opts['algo']
         intermed_opts['verbose'] = verbose
         intermed_opts['debug'] = debug
@@ -498,7 +504,6 @@ class BUML:
         print("local_opts['k_nn0'] =", self.local_opts['k_nn0'], "is created.")
         #############################################
         global_opts['k'] = self.local_opts['k']
-        global_opts['metric'] = self.local_opts['metric']
         global_opts['n_proc'] = n_proc
         global_opts['verbose'] = verbose
         global_opts['debug'] = debug

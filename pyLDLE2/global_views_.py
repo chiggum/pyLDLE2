@@ -396,7 +396,7 @@ class GlobalViews:
             comp_i = labels==i
             n_comp_i = np.sum(comp_i)
             scale = n_comp_i/n_pts_on_tear
-            if n_comp_i <= max(2,int(0.001*n)):
+            if n_comp_i <= max(3, int(0.001*n)):
                 color_of_pts_on_tear[pts_on_tear[comp_i]] = offset + scale/2
                 offset += scale
                 continue
@@ -461,47 +461,46 @@ class GlobalViews:
         else:
             color_of_pts_on_tear = None
             
-        # vis.global_embedding(y, vis_opts['c'], vis_opts['cmap_interior'],
+        vis.global_embedding(y, vis_opts['c'], vis_opts['cmap_interior'],
+                                  color_of_pts_on_tear, vis_opts['cmap_boundary'],
+                                  title)
+            
+        # if color_of_pts_on_tear is not None:
+        #     pts_on_tear = np.nonzero(~np.isnan(color_of_pts_on_tear))[0]
+        #     y_ = []
+        #     ind_ = []
+        #     #color_of_pts_on_tear = np.zeros(n)+np.nan
+        #     color_of_pts_on_tear_ = []
+        #     for i in range(pts_on_tear.shape[0]):
+        #         k = pts_on_tear[i]
+        #         for m in Utilde[:,k].nonzero()[0].tolist():
+        #             if m == c[k]:
+        #                 continue
+        #             y_.append(intermed_param.eval_({'view_index': m, 'data_mask': np.array([k])}))
+        #             ind_.append(k)
+        #             color_of_pts_on_tear_.append(color_of_pts_on_tear[k])
+        #     ind_ = np.array(ind_)
+        #     color_of_pts_on_tear_ = np.array(color_of_pts_on_tear_)
+        #     if len(y_):
+        #         y_ = np.concatenate(y_, axis=0)
+        #         y_ = np.concatenate([y,y_], axis=0)
+        #         color_of_pts_on_tear_ = np.concatenate([color_of_pts_on_tear, color_of_pts_on_tear_], axis=0)
+        #         if vis_opts['c'] is not None:
+        #             c_ = vis_opts['c'][ind_]
+        #             c_ = np.concatenate([vis_opts['c'],c_], axis=0)
+        #         else:
+        #             c_ = None
+        #         vis.global_embedding(y_,c_, vis_opts['cmap_interior'],
+        #                               color_of_pts_on_tear_, vis_opts['cmap_boundary'],
+        #                               title)
+        #     else:
+        #         vis.global_embedding(y, vis_opts['c'], vis_opts['cmap_interior'],
         #                           color_of_pts_on_tear, vis_opts['cmap_boundary'],
         #                           title)
-        # plt.show()
-            
-        if color_of_pts_on_tear is not None:
-            pts_on_tear = np.nonzero(~np.isnan(color_of_pts_on_tear))[0]
-            y_ = []
-            ind_ = []
-            #color_of_pts_on_tear = np.zeros(n)+np.nan
-            color_of_pts_on_tear_ = []
-            for i in range(pts_on_tear.shape[0]):
-                k = pts_on_tear[i]
-                for m in Utilde[:,k].nonzero()[0].tolist():
-                    if m == c[k]:
-                        continue
-                    y_.append(intermed_param.eval_({'view_index': m, 'data_mask': np.array([k])}))
-                    ind_.append(k)
-                    color_of_pts_on_tear_.append(color_of_pts_on_tear[k])
-            ind_ = np.array(ind_)
-            color_of_pts_on_tear_ = np.array(color_of_pts_on_tear_)
-            if len(y_):
-                y_ = np.concatenate(y_, axis=0)
-                y_ = np.concatenate([y,y_], axis=0)
-                color_of_pts_on_tear_ = np.concatenate([color_of_pts_on_tear, color_of_pts_on_tear_], axis=0)
-                if vis_opts['c'] is not None:
-                    c_ = vis_opts['c'][ind_]
-                    c_ = np.concatenate([vis_opts['c'],c_], axis=0)
-                else:
-                    c_ = None
-                vis.global_embedding(y_,c_, vis_opts['cmap_interior'],
-                                      color_of_pts_on_tear_, vis_opts['cmap_boundary'],
-                                      title)
-            else:
-                vis.global_embedding(y, vis_opts['c'], vis_opts['cmap_interior'],
-                                  color_of_pts_on_tear, vis_opts['cmap_boundary'],
-                                  title)
-        else:
-            vis.global_embedding(y, vis_opts['c'], vis_opts['cmap_interior'],
-                                  color_of_pts_on_tear, vis_opts['cmap_boundary'],
-                                  title)
+        # else:
+        #     vis.global_embedding(y, vis_opts['c'], vis_opts['cmap_interior'],
+        #                           color_of_pts_on_tear, vis_opts['cmap_boundary'],
+        #                           title)
         plt.show()
         return color_of_pts_on_tear, y
     
@@ -616,7 +615,7 @@ class GlobalViews:
 
     def compute_Utildeg(self, y, C, global_opts):
         M,n = C.shape
-        k_ = min(global_opts['k']*global_opts['nu'], n-1)
+        k_ = min(int(global_opts['k']*global_opts['nu']), n-1)
         neigh_distg, neigh_indg = nearest_neighbors(y, k_, global_opts['metric'])
         Ug = sparse_matrix(neigh_indg,
                            np.ones(neigh_indg.shape,
