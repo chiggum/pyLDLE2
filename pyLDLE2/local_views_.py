@@ -24,6 +24,8 @@ from hyperspy.learn.rpca import rpca_godec
 import multiprocess as mp
 from multiprocess import shared_memory
 
+from sklearn.manifold import Isomap
+
 class LocalViews:
     def __init__(self, exit_at=None, verbose=True, debug=False):
         self.exit_at = exit_at
@@ -187,6 +189,8 @@ class LocalViews:
                     
             if local_opts['algo'] == 'Smooth-RATS':
                 local_param_pre = self.compute_Smooth_LPCA(d, X, d_e, U, local_opts)
+            elif local_opts['algo'] == 'LISOMAP':
+                local_param_pre = self.compute_LISOMAP(d, X, d_e, U, local_opts)
             else:
                 local_param_pre = self.compute_LPCA(d, X, d_e, U, local_opts)
             self.log('Done.', log_time=True)
@@ -309,6 +313,63 @@ class LocalViews:
         for p_num in range(n_proc):
             proc[p_num].join()
             
+        print('local_param: all %d points processed...' % n)
+        print("max distortion is %f" % (np.max(local_param.zeta)))
+        return local_param
+    
+    def compute_LISOMAP(self, d, X, d_e, U, local_opts, print_prop = 0.25):
+        n = U.shape[0]
+        p = X.shape[1]
+        print_freq = int(print_prop * n)
+        
+        local_param = Param('LISOMAP')
+        local_param.X = X
+        local_param.isomap = np.empty(n, dtype=np.object)
+        local_param.zeta = np.zeros(n)
+        n_proc = local_opts['n_proc']
+        
+        def target_proc(p_num, chunk_sz, q_):
+            start_ind = p_num*chunk_sz
+            if p_num == (n_proc-1):
+                end_ind = n
+            else:
+                end_ind = (p_num+1)*chunk_sz
+
+            for k in range(start_ind, end_ind):
+                U_k = U[k,:].indices
+                # LPCA
+                X_k = X[U_k,:]
+                local_param.isomap[k] = Isomap(n_components=d, n_neighbors=local_opts['k_tune'])
+                local_param.isomap[k].fit(X_k)
+
+                # Compute zeta_{kk}
+                d_e_k = d_e[np.ix_(U_k, U_k)]
+                local_param.zeta[k] = compute_zeta(d_e_k,
+                                                   local_param.eval_({'view_index': k,
+                                                                      'data_mask': U_k}))
+            
+            q_.put((start_ind, end_ind,
+                    local_param.zeta[start_ind:end_ind],
+                    local_param.isomap[start_ind:end_ind]))
+        
+        q_ = mp.Queue()
+        chunk_sz = int(n/n_proc)
+        proc = []
+        for p_num in range(n_proc):
+            proc.append(mp.Process(target=target_proc,
+                                   args=(p_num,chunk_sz,q_),
+                                   daemon=True))
+            proc[-1].start()
+
+        for p_num in range(n_proc):
+            start_ind, end_ind, zeta_, isomap_ = q_.get()
+            local_param.zeta[start_ind:end_ind] = zeta_
+            local_param.isomap[start_ind:end_ind] = isomap_
+
+        q_.close()
+        
+        for p_num in range(n_proc):
+            proc[p_num].join()
         print('local_param: all %d points processed...' % n)
         print("max distortion is %f" % (np.max(local_param.zeta)))
         return local_param
@@ -684,9 +745,11 @@ class LocalViews:
         if local_opts['algo'] == 'LDLE':
             local_param.Psi_i = local_param.Psi_i[npo,:]
             local_param.Psi_gamma = local_param.Psi_gamma[npo,:]
-        else:
+        elif local_opts['algo'] == 'LPCA':
             local_param.Psi = local_param.Psi[npo,:]
             local_param.mu = local_param.mu[npo,:]
+        else:
+            local_param.isomap = local_param.isomap[npo]
             
         print('Max local distortion after postprocessing:', np.max(local_param.zeta))
         return local_param

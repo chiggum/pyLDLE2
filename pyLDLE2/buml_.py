@@ -313,9 +313,10 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
                             max_internal_iter=100, alpha=0.3, eps=1e-8,
                             add_dim=False, beta={'align':None, 'repel': 1},
                             repel_by=0., n_repel=0,
-                            far_off_points_type='reuse_fixed', patience=5, err_tol=1e-4,
+                            far_off_points_type='reuse_fixed', patience=5, err_tol=1e-6,
                             tear_color_method='spectral', color_diversity_index=1,
-                            metric='euclidean'):
+                            metric='euclidean', color_cutoff_frac=0.001,
+                            color_largest_tear_comp_only=False):
     """Sets and returns a dictionary of default_global_opts.
 
     Parameters
@@ -401,6 +402,12 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
              Index used to obtain diversity of the colors on the tear.
              The value must be non-negative. Higher values result in
              more diversity. The diversity saturates after a certain value.
+    color_cutoff_frac: float
+             If the number of points in a tear component is less than
+             color_cutoff_frac * number of data points, then all the
+             points in the component will be colored with the same color.
+    color_largest_tear_comp_only: bool
+             If True then the largest tear components is colored only.
     metric: str
             default is euclidean
     """
@@ -419,7 +426,8 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
                'patience': patience, 'err_tol': err_tol,
                'tear_color_method': tear_color_method,
                'color_diversity_index': color_diversity_index,
-               'metric': metric
+               'metric': metric, 'color_cutoff_frac': color_cutoff_frac,
+               'color_largest_tear_comp_only': color_largest_tear_comp_only
               }
 def get_default_vis_opts(save_dir='', cmap_interior='summer', cmap_boundary='jet', c=None):
     """Sets and returns a dictionary of default_vis_opts.

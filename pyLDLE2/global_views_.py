@@ -198,7 +198,8 @@ class GlobalViews:
                cluster_of_intermed_view
     
     # dist = y_d_e
-    def compute_pwise_dist_in_embedding(self, s_d_e, intermed_param, Utilde, C, global_opts, y=None, dist=None,):
+    def compute_pwise_dist_in_embedding(self, intermed_param, Utilde, C, global_opts,
+                                        y=None, dist=None, max_crossings=5, tol=1e-6):
         M,n = Utilde.shape
         assert ((y is not None) or (dist is not None))
         
@@ -219,82 +220,91 @@ class GlobalViews:
         if np.sum(tear)==0:
             return dist
         
-        # Keep track of visited views across clusters of manifolds
-        is_visited = np.zeros(M, dtype=bool)
-        n_visited = 0
-        pts_on_tear = np.zeros(n, dtype=bool)
-        while n_visited < M: # boundary of a cluster remain to be colored
-            s0 = np.argmax(is_visited == 0)
-            seq, rho = breadth_first_order(n_Utilde_Utilde, s0, directed=False) #(ignores edge weights)
-            is_visited[seq] = True
-            n_visited = np.sum(is_visited)
+        old_dist = dist.copy()
+        for i_crossing in range(max_crossings):
+            print('i_crossing:', i_crossing, flush=True)
+            # Keep track of visited views across clusters of manifolds
+            is_visited = np.zeros(M, dtype=bool)
+            n_visited = 0
+            pts_on_tear = np.zeros(n, dtype=bool)
+            while n_visited < M: # boundary of a cluster remain to be colored
+                s0 = np.argmax(is_visited == 0)
+                seq, rho = breadth_first_order(n_Utilde_Utilde, s0, directed=False) #(ignores edge weights)
+                is_visited[seq] = True
+                n_visited = np.sum(is_visited)
 
-            # Iterate over views
-            for m in seq:
-                to_tear_mth_view_with = tear[m,:].nonzero()[1].tolist()
-                if len(to_tear_mth_view_with):
-                    # Points in the overlap of mth view and the views
-                    # on the opposite side of the tear
-                    Utilde_m = Utilde[m,:]
-                    for i in range(len(to_tear_mth_view_with)):
-                        mpp = to_tear_mth_view_with[i]
-                        temp_i = Utilde_m.multiply(Utilde[mpp,:])
-                        # Compute points on the overlap of m and m'th view
-                        # which are in mth cluster and in m'th cluster. If
-                        # both sets are non-empty then assign them same color.
-                        temp_m = C[m,:].multiply(temp_i).nonzero()[1]
-                        temp_mpp = C[mpp,:].multiply(temp_i).nonzero()[1]
-                        
-                        y_m_temp_m = intermed_param.eval_({'view_index': m, 'data_mask': temp_m})
-                        y_m_temp_mpp = intermed_param.eval_({'view_index': m, 'data_mask': temp_mpp})
-                        y_mpp_temp_m = intermed_param.eval_({'view_index': mpp, 'data_mask': temp_m})
-                        y_mpp_temp_mpp = intermed_param.eval_({'view_index': mpp, 'data_mask': temp_mpp})
-                        
-                        dist_m = cdist(y_m_temp_m, y_m_temp_mpp)
-                        dist_mpp = cdist(y_mpp_temp_m, y_mpp_temp_mpp)
-                        dist_ = np.minimum(dist_m, dist_mpp)
-                        
-                        dist[np.ix_(temp_m,temp_mpp)] = dist_
-                        dist[np.ix_(temp_mpp,temp_m)] = dist_.T
-                        pts_on_tear[temp_m] = True
-                        pts_on_tear[temp_mpp] = True
+                # Iterate over views
+                for m in seq:
+                    to_tear_mth_view_with = tear[m,:].nonzero()[1].tolist()
+                    if len(to_tear_mth_view_with):
+                        # Points in the overlap of mth view and the views
+                        # on the opposite side of the tear
+                        Utilde_m = Utilde[m,:]
+                        for i in range(len(to_tear_mth_view_with)):
+                            mpp = to_tear_mth_view_with[i]
+                            temp_i = Utilde_m.multiply(Utilde[mpp,:])
+                            # Compute points on the overlap of m and m'th view
+                            # which are in mth cluster and in m'th cluster. If
+                            # both sets are non-empty then assign them same color.
+                            temp_m = C[m,:].multiply(temp_i).nonzero()[1]
+                            temp_mpp = C[mpp,:].multiply(temp_i).nonzero()[1]
 
-        # Compute min of original vs lengths of one hop-distances by
-        # contracting dist.T, dist with min as the binary operation
-        print('Computing min(original dist, min(one-hop distances))', flush=True)
-        print('#pts on tear', np.sum(pts_on_tear))
-#         print_freq = int(n/10)
-#         for i in range(n):
-#             if np.mod(i, print_freq) == 0:
-#                 print('Processed', i, 'points.', flush=True)
-#             dist[i,:] = np.minimum(dist[i,:],np.min(dist[pts_on_tear,:] + dist[i,pts_on_tear][:,None], axis=0))
-        
-        n_proc = global_opts['n_proc']
-        chunk_sz = int(n/n_proc)
-        def target_proc(p_num, q_, dist, pts_on_tear):
-            start_ind = p_num*chunk_sz
-            if p_num == (n_proc-1):
-                end_ind = n
-            else:
-                end_ind = (p_num+1)*chunk_sz
-            dist_ = np.zeros((end_ind-start_ind,n))
-            for i in range(start_ind, end_ind):
-                dist_[i-start_ind,:] = np.minimum(dist[i,:],np.min(dist[pts_on_tear,:] + dist[i,pts_on_tear][:,None], axis=0))
-            q_.put((start_ind, end_ind, dist_))
-        
-        q_ = mp.Queue()
-        proc = []
-        for p_num in range(n_proc):
-            proc.append(mp.Process(target=target_proc, args=(p_num,q_, dist, pts_on_tear)))
-            proc[-1].start()
-        
-        for p_num in range(n_proc):
-            start_ind, end_ind, dist_ = q_.get()
-            dist[start_ind:end_ind,:] = dist_
-        q_.close()
-        
-        for p_num in range(n_proc):
-            proc[p_num].join()
+                            y_m_temp_m = intermed_param.eval_({'view_index': m, 'data_mask': temp_m})
+                            y_m_temp_mpp = intermed_param.eval_({'view_index': m, 'data_mask': temp_mpp})
+                            y_mpp_temp_m = intermed_param.eval_({'view_index': mpp, 'data_mask': temp_m})
+                            y_mpp_temp_mpp = intermed_param.eval_({'view_index': mpp, 'data_mask': temp_mpp})
+
+                            dist_m = cdist(y_m_temp_m, y_m_temp_mpp)
+                            dist_mpp = cdist(y_mpp_temp_m, y_mpp_temp_mpp)
+                            dist_ = np.minimum(dist_m, dist_mpp)
+
+                            dist[np.ix_(temp_m,temp_mpp)] = dist_
+                            dist[np.ix_(temp_mpp,temp_m)] = dist_.T
+                            pts_on_tear[temp_m] = True
+                            pts_on_tear[temp_mpp] = True
+
+            # Compute min of original vs lengths of one hop-distances by
+            # contracting dist.T, dist with min as the binary operation
+            print('Computing min(original dist, min(one-hop distances))', flush=True)
+            print('#pts on tear', np.sum(pts_on_tear))
+    #         print_freq = int(n/10)
+    #         for i in range(n):
+    #             if np.mod(i, print_freq) == 0:
+    #                 print('Processed', i, 'points.', flush=True)
+    #             dist[i,:] = np.minimum(dist[i,:],np.min(dist[pts_on_tear,:] + dist[i,pts_on_tear][:,None], axis=0))
+
+            n_proc = global_opts['n_proc']
+            chunk_sz = int(n/n_proc)
+            def target_proc(p_num, q_, dist, pts_on_tear):
+                start_ind = p_num*chunk_sz
+                if p_num == (n_proc-1):
+                    end_ind = n
+                else:
+                    end_ind = (p_num+1)*chunk_sz
+                dist_ = np.zeros((end_ind-start_ind,n))
+                for i in range(start_ind, end_ind):
+                    dist_[i-start_ind,:] = np.minimum(dist[i,:],np.min(dist[pts_on_tear,:] + dist[i,pts_on_tear][:,None], axis=0))
+                q_.put((start_ind, end_ind, dist_))
+
+            q_ = mp.Queue()
+            proc = []
+            for p_num in range(n_proc):
+                proc.append(mp.Process(target=target_proc, args=(p_num,q_, dist, pts_on_tear)))
+                proc[-1].start()
+
+            for p_num in range(n_proc):
+                start_ind, end_ind, dist_ = q_.get()
+                dist[start_ind:end_ind,:] = dist_
+            q_.close()
+
+            for p_num in range(n_proc):
+                proc[p_num].join()
+            
+            mean_abs_diff = np.mean(np.abs(dist-old_dist))
+            print('Mean Absolute Difference in distances:', mean_abs_diff)
+            if mean_abs_diff < tol:
+                break
+            old_dist = dist.copy()
 
         return dist
     
@@ -349,9 +359,9 @@ class GlobalViews:
         return color_of_pts_on_tear
     
     def compute_spectral_color_of_pts_on_tear(self, y, Utilde, C, global_opts,
-                                     n_Utilde_Utilde, Utildeg=None):
+                                     n_Utilde_Utilde, Utildeg=None, return_G_T=False):
         M,n = Utilde.shape
-        color_of_pts_on_tear = np.zeros(n) + np.nan
+        color_of_pts_on_tear = np.zeros((n,2+global_opts['color_diversity_index'])) + np.nan
 
         # Compute |Utildeg_{mm'}| if not provided
         if Utildeg is None:
@@ -375,69 +385,67 @@ class GlobalViews:
         for ind in range(len(tear_G1_row)):
             i = tear_G1_row[ind]
             j = tear_G1_col[ind]
-            pts_on_overlap = Utilde[i,:].multiply(Utilde[j,:]).multiply(C[i,:]+C[j,:])
-            pts_on_overlap = pts_on_overlap.nonzero()[1]
-            n_ = len(pts_on_overlap)
-            if n_ > 0:
-                pts_on_tear[pts_on_overlap] = True
-                G1_row_inds += np.repeat(pts_on_overlap, n_).tolist()
-                G1_col_inds += np.tile(pts_on_overlap, n_).tolist()
+            T_ij = Utilde[j,:].multiply(C[i,:]).nonzero()[1]
+            T_ji = Utilde[i,:].multiply(C[j,:]).nonzero()[1]
+            n_T_ij = len(T_ij)
+            n_T_ji = len(T_ji)
+            #pts_on_overlap = T_ij + T_ji
+            #pts_on_overlap = pts_on_overlap.nonzero()[1]
+            #n_ = len(pts_on_overlap)
+            if (n_T_ij*n_T_ji) > 0:
+                pts_on_tear[T_ij] = True
+                pts_on_tear[T_ji] = True
+                G1_row_inds += np.repeat(T_ij, n_T_ji).tolist()
+                G1_col_inds += np.tile(T_ji, n_T_ij).tolist()
+                G1_row_inds += np.repeat(T_ji, n_T_ij).tolist()
+                G1_col_inds += np.tile(T_ij, n_T_ji).tolist()
 
         G1 = csr_matrix((np.ones(len(G1_row_inds)), (G1_row_inds, G1_col_inds)),
-                        shape=(n,n), dtype=float)
+                        shape=(n,n), dtype=bool)
         
         G1 = G1[np.ix_(pts_on_tear,pts_on_tear)]
         pts_on_tear = np.where(pts_on_tear)[0]
         n_pts_on_tear = len(pts_on_tear)
         n_comp, labels = connected_components(G1, directed=False, return_labels=True)
-        offset = 0
-        
+        n_points_in_comp = []
         for i in range(n_comp):
+            comp_i = labels==i
+            n_points_in_comp.append(np.sum(comp_i))
+        
+        offset = np.zeros(2+global_opts['color_diversity_index'])
+        if return_G_T:
+            G_T_info = []
+        for i in np.flip(np.argsort(n_points_in_comp)).tolist():
             comp_i = labels==i
             n_comp_i = np.sum(comp_i)
             scale = n_comp_i/n_pts_on_tear
-            if n_comp_i <= max(3, int(0.001*n)):
-                color_of_pts_on_tear[pts_on_tear[comp_i]] = offset + scale/2
+            if n_comp_i <= max(3, int(global_opts['color_cutoff_frac']*n)):
+                color_of_pts_on_tear[pts_on_tear[comp_i],:] = offset + scale/2
                 offset += scale
                 continue
             G1_comp_i = G1[np.ix_(comp_i, comp_i)]
-            G1_comp_i = laplacian(G1_comp_i)
+            G1_comp_i = laplacian(G1_comp_i.astype('float'))
+            if return_G_T:
+                G_T_info.append([i, G1_comp_i])
             np.random.seed(42)
             v0 = np.random.uniform(0, 1, G1_comp_i.shape[0])
             n_eigs = min(n_comp_i, 2+global_opts['color_diversity_index'])
             _, colors_ = scipy.sparse.linalg.eigsh(G1_comp_i, v0=v0,
                                                    k=n_eigs,
                                                    sigma=-1e-3)
-            colors_max = np.max(colors_)
-            colors_min = np.min(colors_)
+            colors_max = np.max(colors_, axis=0)[None,:]
+            colors_min = np.min(colors_, axis=0)[None,:]
             colors_ = (colors_-colors_min)/(colors_max-colors_min) # scale to [0,1]
-            colors_ = offset + colors_*scale
+            colors_ = offset[None,:n_eigs] + colors_*scale
             offset += scale
-            color_of_pts_on_tear[pts_on_tear[comp_i]] = colors_[:,n_eigs-1]
+            color_of_pts_on_tear[np.ix_(pts_on_tear[comp_i],np.arange(n_eigs))] = colors_
+            if global_opts['color_largest_tear_comp_only']:
+                break
             
-        # views_on_tear = tear_G1.sum(axis=1) > 0
-        # tear_G2 = tear_G0.multiply(views_on_tear).multiply(views_on_tear.T)
-        # tear_G2.eliminate_zeros()
-        # tear_G2_row, tear_G2_col = tear_G2.nonzero()
-        # G2_row_inds = []
-        # G2_col_inds = []
-        # pts_on_tear2 = np.zeros(n, dtype=bool)
-        # for ind in range(len(tear_G2_row)):
-        #     i = tear_G2_row[ind]
-        #     j = tear_G2_col[ind]
-        #     pts_on_tear_in_ij = (C[i,:]+C[j,:]).multiply(pts_on_tear[None,:])
-        #     pts_on_tear_in_ij = pts_on_tear_in_ij.nonzero()[1]
-        #     n_ = len(pts_on_tear_in_ij)
-        #     if n_ > 0:
-        #         pts_on_tear2[pts_on_tear_in_ij] = True
-        #         G2_row_inds += np.repeat(pts_on_tear_in_ij, n_).tolist()
-        #         G2_col_inds += np.tile(pts_on_tear_in_ij, n_).tolist()
-
-        # G2 = csr_matrix((np.ones(len(G2_row_inds)), (G2_row_inds, G2_col_inds)),
-        #                 shape=(n,n), dtype=float)
-        # G2 = G2[np.ix_(pts_on_tear,pts_on_tear)]
-        # G2 = laplacian(G2)
-        return color_of_pts_on_tear
+        if return_G_T:
+            return color_of_pts_on_tear, [labels, G_T_info]
+        else:
+            return color_of_pts_on_tear
     
     def compute_color_of_pts_on_tear(self, y, Utilde, C, global_opts,
                                      n_Utilde_Utilde, Utildeg=None):

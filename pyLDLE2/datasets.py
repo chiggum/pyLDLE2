@@ -354,6 +354,18 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, None
     
+    def sphere3(self, n=10000, noise = 0):
+        R = np.power(2/(np.pi**2), 0.25)
+        np.random.seed(42)
+        X = np.random.normal(0,1,(n,4))
+        X = X/np.linalg.norm(X,axis=1)[:,None]
+        X = X*R;
+        np.random.seed(2)
+        X = X*(1+noise*np.random.uniform(-1,1,(X.shape[0],1)))
+        labelsMat = X
+        print('X.shape = ', X.shape)
+        return X, labelsMat, None
+    
     def sphere_and_swissroll(self, n=5000, RES=70, noise1 = 0.01, noise2=0.015, sep=1):
         s1, l1, _ = self.sphere(n, noise=noise1)
         s2, l2, _ = self.noisyswissroll(RES=RES, noise=noise2)

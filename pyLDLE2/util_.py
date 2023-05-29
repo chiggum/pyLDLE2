@@ -4,14 +4,15 @@ import numpy as np
 import itertools
 from scipy.sparse import csr_matrix, issparse
 from scipy.spatial.distance import pdist, squareform
-from scipy.sparse.csgraph import floyd_warshall
+from scipy.sparse.csgraph import floyd_warshall, shortest_path
 from sklearn.neighbors import NearestNeighbors
+from sklearn.manifold import Isomap
 import multiprocess as mp
 import os
 import pickle
 
 def path_exists(path):
-    return os.path.exists(path)
+    return os.path.exists(path) or os.path.islink(path)
 
 def makedirs(dirpath):
     if path_exists(dirpath):
@@ -37,6 +38,13 @@ def save(dirpath, fname, data, verbose=False):
         pickle.dump(data, f)
     if verbose:
         print('Saved data in', fpath, flush=True)
+        
+        
+def shortest_paths(X, n_nbrs):
+    nbrs = NearestNeighbors(n_neighbors=n_nbrs).fit(X)
+    knn_graph = nbrs.kneighbors_graph(mode='distance')
+    dist_matrix, predecessors = shortest_path(knn_graph, return_predecessors=True, directed=False)
+    return dist_matrix, predecessors
 
 def print_log(s, log_time, local_start_time, global_start_time):
     print(s)
@@ -75,6 +83,9 @@ class Param:
         
         self.add_dim = False
         
+        # For ISOMAP
+        self.isomap = None
+        
     def eval_(self, opts):
         k = opts['view_index']
         mask = opts['data_mask']
@@ -85,6 +96,8 @@ class Param:
         elif self.algo == 'LPCA':
             temp = np.dot(self.X[mask,:]-self.mu[k,:][np.newaxis,:],self.Psi[k,:,:])
             n = self.X.shape[0]
+        elif self.algo == 'LISOMAP':
+            temp = self.isomap[k].transform(self.X[mask,:])
         
         if self.noise_var:
             np.random.seed(self.noise_seed[k])
@@ -178,7 +191,7 @@ def to_dense(x):
         return x.toarray()
     else:
         return x
-
+    
 def compute_zeta(d_e_mask0, Psi_k_mask):
     d_e_mask = to_dense(d_e_mask0)
     if d_e_mask.shape[0]==1:
@@ -259,13 +272,17 @@ def lexargmax(x):
 
 def compute_distortion_at(y_d_e, s_d_e):
     scale_factors = (y_d_e+1e-12)/(s_d_e+1e-12)
-    np.fill_diagonal(scale_factors,1)
-    max_distortion = np.max(scale_factors)/np.min(scale_factors)
+    mask = np.ones(scale_factors.shape, dtype=bool)
+    np.fill_diagonal(mask, 0)
+    max_distortion = np.max(scale_factors[mask])/np.min(scale_factors[mask])
     print('Max distortion is:', max_distortion, flush=True)
     n = y_d_e.shape[0]
     distortion_at = np.zeros(n)
+    mask = np.ones(n, dtype=bool)
     for i in range(n):
-        distortion_at[i] = np.max(scale_factors[i,:])/np.min(scale_factors[i,:])
+        mask[i] = 0
+        distortion_at[i] = np.max(scale_factors[i,mask])/np.min(scale_factors[i,mask])
+        mask[i] = 1
     return distortion_at, max_distortion
 
 def compute_prctile_distortion_at(y_d_e, s_d_e, prctile=50):
