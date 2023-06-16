@@ -13,6 +13,8 @@ import os
 import scipy.misc
 import matplotlib.image as mpimg
 
+from . import util_
+
 def read_img(fpath, grayscale=False, bbox=None):
     if grayscale:
         img = ImageOps.grayscale(Image.open(fpath))
@@ -354,6 +356,34 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, None
     
+    def wave_on_circle(self, RES=25, R_in=2, R_out=3, r=1/2, f=8):
+        sideLx = int(np.ceil(2*(R_out+r)))
+        sideLy = int(np.ceil(2*(R_out+r)))
+        RESx = sideLx*RES+1
+        RESy = sideLy*RES+1
+        x = np.linspace(-sideLx/2,sideLx/2,RESx);
+        y = np.linspace(-sideLy/2,sideLy/2,RESy);
+        xv, yv = np.meshgrid(x, y)
+        xv = xv.flatten('F')
+        yv = yv.flatten('F')
+        
+        theta = np.arctan2(yv, xv)
+        radius = np.sqrt(xv**2 + yv**2)
+        R_out_at_theta = R_out+r*np.sin(f*theta)
+        R_in_at_theta = R_in+r*np.sin(f*theta)
+        mask = (radius <= R_out_at_theta) & (radius >= R_in_at_theta)
+        
+        xv = xv[mask][:,np.newaxis]
+        yv = yv[mask][:,np.newaxis]
+        X = np.concatenate([xv,yv], axis=1)
+        
+        theta = theta[mask][:,np.newaxis]
+        radius = radius[mask][:,np.newaxis]
+        
+        labelsMat = np.concatenate([radius, theta], axis=1)
+        print('X.shape = ', X.shape)
+        return X, labelsMat, None
+    
     def sphere3(self, n=10000, noise = 0):
         R = np.power(2/(np.pi**2), 0.25)
         np.random.seed(42)
@@ -523,6 +553,10 @@ class Datasets:
         labelsMat = np.concatenate([xv, yv], axis=1)
         print('X.shape = ', X.shape)
         return X, labelsMat, None
+    
+    def cyclooctane(self, fpath):
+        X, _, pi = util_.read(fpath)
+        return X, pi
     
     def mobiusstrip3d(self, ar=4, RES=90):
         sideLx=np.sqrt(ar)
