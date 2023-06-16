@@ -19,7 +19,7 @@ def makedirs(dirpath):
         return
     os.makedirs(dirpath)
 
-def read(fpath, verbose=False):
+def read(fpath, verbose=True):
     if not path_exists(fpath):
         if verbose:
             print(fpath, 'does not exist.')
@@ -30,7 +30,7 @@ def read(fpath, verbose=False):
         print('Read data from', fpath, flush=True)
     return data
     
-def save(dirpath, fname, data, verbose=False):
+def save(dirpath, fname, data, verbose=True):
     if not path_exists(dirpath):
         os.makedirs(dirpath)
     fpath = dirpath + '/' + fname

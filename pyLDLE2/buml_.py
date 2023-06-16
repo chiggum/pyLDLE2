@@ -312,11 +312,12 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
                             refine_algo_name='rgd',
                             max_internal_iter=100, alpha=0.3, eps=1e-8,
                             add_dim=False, beta={'align':None, 'repel': 1},
-                            repel_by=0., n_repel=0,
+                            repel_by=0., repel_decay=1., n_repel=0,
                             far_off_points_type='reuse_fixed', patience=5, err_tol=1e-6,
                             tear_color_method='spectral', color_diversity_index=1,
                             metric='euclidean', color_cutoff_frac=0.001,
-                            color_largest_tear_comp_only=False):
+                            color_largest_tear_comp_only=False,
+                            n_forced_clusters=1):
     """Sets and returns a dictionary of default_global_opts.
 
     Parameters
@@ -382,6 +383,8 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
                If positive, the points which are far off are repelled
               away from each other by a force proportional to it.
               Ignored when refinement algorithm is 'procrustes'.
+    repel_decay: float
+                 Multiply repel_decay with repel_by after every iteration.
     n_repel : int
               The number of far off points repelled from each other.
     far_off_points_type : 'fixed' or 'random'
@@ -410,6 +413,8 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
              If True then the largest tear components is colored only.
     metric: str
             default is euclidean
+    n_forced_clusters: str
+                       Minimum no. of clusters to force in the embeddings.
     """
     return {'to_tear': to_tear, 'nu': nu, 'max_iter': max_iter,
                'color_tear': color_tear,
@@ -421,13 +426,15 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
                'refine_algo_name': refine_algo_name, 
                'max_internal_iter': max_internal_iter,
                'alpha': alpha, 'eps': eps, 'add_dim': add_dim,
-               'beta': beta, 'repel_by': repel_by, 'n_repel': n_repel,
+               'beta': beta, 'repel_by': repel_by,
+               'repel_decay': repel_decay, 'n_repel': n_repel,
                'far_off_points_type': far_off_points_type,
                'patience': patience, 'err_tol': err_tol,
                'tear_color_method': tear_color_method,
                'color_diversity_index': color_diversity_index,
                'metric': metric, 'color_cutoff_frac': color_cutoff_frac,
-               'color_largest_tear_comp_only': color_largest_tear_comp_only
+               'color_largest_tear_comp_only': color_largest_tear_comp_only,
+               'n_forced_clusters': n_forced_clusters
               }
 def get_default_vis_opts(save_dir='', cmap_interior='summer', cmap_boundary='jet', c=None):
     """Sets and returns a dictionary of default_vis_opts.

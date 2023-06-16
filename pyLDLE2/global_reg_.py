@@ -726,6 +726,9 @@ def sdp_alignment(y, d, Utilde,
                                      far_off_points=global_opts['far_off_points'],
                                      repel_by=global_opts['repel_by'],
                                      beta=global_opts['beta'])
+    if (global_opts['n_repel'] > 0) and global_opts['repel_by'] > 0:
+        di = np.diag_indices(4)
+        CC[di] += np.linalg.norm(CC)
     M,n = Utilde.shape
     b = vec(CC)
     if solver is None:

@@ -160,6 +160,15 @@ class GlobalViews:
         W = W + W.T
         # Compute maximum spanning tree/forest of W
         T = minimum_spanning_tree(-W)
+        n_comp = connected_components(T, directed=False, return_labels=False)
+        
+        # Remove edges to force clusters if desired
+        if global_opts['n_forced_clusters'] > n_comp:
+            inds = np.argsort(T.data)[-(global_opts['n_forced_clusters']-n_comp):]
+            T.data[inds] = 0
+            T.eliminate_zeros()
+            
+        
         # Detect clusters of manifolds and create
         # a sequence of intermediate views for each of them
         n_visited = 0
@@ -460,12 +469,14 @@ class GlobalViews:
     def vis_embedding_(self, y, d, intermed_param, c, C, Utilde,
                       n_Utilde_Utilde, global_opts, vis,
                       vis_opts, title='', color_of_pts_on_tear=None,
-                      Utilde_t=None):
+                      Utilde_t=None, use_largest_eig_for_tear_color=True):
         M,n = Utilde.shape
         if global_opts['color_tear']:
             if (color_of_pts_on_tear is None) and global_opts['to_tear']:
                 color_of_pts_on_tear = self.compute_color_of_pts_on_tear(y, Utilde, C, global_opts,
                                                                          n_Utilde_Utilde)
+            if use_largest_eig_for_tear_color:
+                color_of_pts_on_tear = color_of_pts_on_tear[:,-1]
         else:
             color_of_pts_on_tear = None
             
@@ -518,18 +529,13 @@ class GlobalViews:
                               title)
         plt.show()
         
-    def add_spacing_bw_clusters(self, d, seq_of_intermed_views_in_cluster,
+    def add_spacing_bw_clusters(self, y, d, seq_of_intermed_views_in_cluster,
                                 intermed_param, C):
         n_clusters = len(seq_of_intermed_views_in_cluster)
         if n_clusters == 1:
             return
         
         M,n = C.shape
-        y = np.zeros((n,d))
-        
-        for s in range(M):
-            C_s = C[s,:].indices
-            y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
             
         # arrange connected components nicely
         # spaced on horizontal (x) axis
@@ -543,11 +549,7 @@ class GlobalViews:
             if i > 0:
                 offset_ = np.min(y[pts_in_cluster_i,0])
                 intermed_param.v[seq,0] += offset - offset_
-            
-            # recompute the embeddings of the points in this cluster
-            for s in range(seq.shape[0]):
-                C_s = C[seq[s],:].indices
-                y[C_s,:] = intermed_param.eval_({'view_index': seq[s], 'data_mask': C_s})
+                y[pts_in_cluster_i,0] += offset - offset_
             
             # recompute the offset as the x coordinate of
             # rightmost point of the current cluster
@@ -611,14 +613,14 @@ class GlobalViews:
             self.log('Alignment error: %0.3f' % (err/Utilde.nnz), log_time=True)
             self.tracker['init_err'] = err
         
-        self.add_spacing_bw_clusters(d, seq_of_intermed_views_in_cluster,
-                                intermed_param, C)
+        self.add_spacing_bw_clusters(y, d, seq_of_intermed_views_in_cluster,
+                                    intermed_param, C)
         
         # Visualize the initial embedding
         color_of_pts_on_tear, y = self.vis_embedding_(y, d, intermed_param, c, C, Utilde,
                                                   n_Utilde_Utilde, global_opts, vis,
                                                   vis_opts, title='Init')
-        intermed_param.y = y
+        #intermed_param.y = y
         return y, color_of_pts_on_tear
 
     def compute_Utildeg(self, y, C, global_opts):
@@ -734,7 +736,7 @@ class GlobalViews:
                         patience_ctr = global_opts['patience']
                 prev_err = err
                 
-            self.add_spacing_bw_clusters(d, seq_of_intermed_views_in_cluster,
+            self.add_spacing_bw_clusters(y, d, seq_of_intermed_views_in_cluster,
                                          intermed_param, C)
             
             # If to tear the closed manifolds
@@ -751,7 +753,7 @@ class GlobalViews:
                 self.y_refined_at.append(y)
                 self.color_of_pts_on_tear_at.append(color_of_pts_on_tear)
             
-            intermed_param.y = y
+            #intermed_param.y = y
              
             # Visualize the current embedding
             _, y = self.vis_embedding_(y, d, intermed_param, c, C, Utilde,
@@ -764,4 +766,7 @@ class GlobalViews:
             if global_opts['compute_error'] and (patience_ctr <= 0):
                 self.refinement_converged = True
                 break
+            
+            if (global_opts['repel_by'] is not None):
+                global_opts['repel_by'] *= global_opts['repel_decay']
         return y, color_of_pts_on_tear

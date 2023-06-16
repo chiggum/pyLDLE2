@@ -460,7 +460,8 @@ class Visualize:
                                      offset1=1, offset2=0.01,
                                      legend=True, rotation=0, filled=False, loc_='lower right',
                                      bbox_to_anchor_=(1,-0.05,0.35,0.35),
-                                     vert=True, ncol=1, columnspacing=2, prop={'size':26}):
+                                     vert=True, ncol=1, columnspacing=2, prop={'size':26},
+                                     remove_annotation = True):
         lw = 1
         # create figure and axes
         fig, ax = plt.subplots(figsize=figsize)
@@ -534,18 +535,21 @@ class Visualize:
             plt.xlabel(label)
         plt.title(title)
         plt.tight_layout()
-        plt.ylabel('')
-        plt.title('')
-        plt.gca().spines[['right', 'top']].set_visible(False)
-        yticks = np.arange(1+int(np.round(plt.gca().get_ylim()[1])))
-        yticklabels = yticks.copy().tolist()
-        yticklabels[0] = str(yticklabels[0])
-        yticklabels[-1] = str(yticklabels[-1])
+        
+        if remove_annotation:
+            plt.ylabel('')
+            plt.title('')
+            plt.gca().spines[['right', 'top']].set_visible(False)
+            yticks = np.arange(1+int(np.round(plt.gca().get_ylim()[1])))
+            yticklabels = yticks.copy().tolist()
 
-        for i in range(1,len(yticklabels)-1):
-            yticklabels[i] = ''
-        plt.gca().xaxis.set_ticklabels([])
-        plt.yticks(yticks, yticklabels)
+            yticklabels[0] = str(yticklabels[0])
+            yticklabels[-1] = str(yticklabels[-1])
+            for i in range(1,len(yticklabels)-1):
+                yticklabels[i] = ''
+            plt.gca().xaxis.set_ticklabels([])
+            plt.yticks(yticks, yticklabels)
+            
         if self.save_dir:
             plt.savefig(self.save_dir+'/global_distortion_violinplot_overlay.eps') 
         
@@ -1455,7 +1459,7 @@ class Visualize:
         #plt.show()
     
     def global_embedding_images(self, X, img_shape, y, labels, cmap0, color_of_pts_on_tear=None, cmap1=None,
-                         title=None, figsize=None, s=30, zoom=1, offset_ratio=0.2,w_ratio=0.0025):
+                         title=None, figsize=None, s=30, zoom=1, offset_ratio=0.2, w_ratio=0.0025):
         d = y.shape[1]
         if d > 2:
             return

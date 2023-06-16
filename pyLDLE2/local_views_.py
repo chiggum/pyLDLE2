@@ -745,11 +745,11 @@ class LocalViews:
         if local_opts['algo'] == 'LDLE':
             local_param.Psi_i = local_param.Psi_i[npo,:]
             local_param.Psi_gamma = local_param.Psi_gamma[npo,:]
-        elif local_opts['algo'] == 'LPCA':
+        elif local_opts['algo'] == 'LISOMAP':
+            local_param.isomap = local_param.isomap[npo]
+        else:
             local_param.Psi = local_param.Psi[npo,:]
             local_param.mu = local_param.mu[npo,:]
-        else:
-            local_param.isomap = local_param.isomap[npo]
             
         print('Max local distortion after postprocessing:', np.max(local_param.zeta))
         return local_param
