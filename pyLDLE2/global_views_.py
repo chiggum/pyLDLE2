@@ -475,7 +475,7 @@ class GlobalViews:
             if (color_of_pts_on_tear is None) and global_opts['to_tear']:
                 color_of_pts_on_tear = self.compute_color_of_pts_on_tear(y, Utilde, C, global_opts,
                                                                          n_Utilde_Utilde)
-            if use_largest_eig_for_tear_color:
+            if global_opts['to_tear'] and use_largest_eig_for_tear_color:
                 color_of_pts_on_tear = color_of_pts_on_tear[:,-1]
         else:
             color_of_pts_on_tear = None

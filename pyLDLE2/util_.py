@@ -296,135 +296,6 @@ def compute_prctile_distortion_at(y_d_e, s_d_e, prctile=50):
         distortion_at[i] = np.percentile(scale_factors[i,:], prctile)/np.percentile(scale_factors[i,:], 100-prctile)
     return distortion_at, max_distortion
 
-def get_global_distortion_info(ldle=None, ys=None, names=None, include_ldle=True, s_d_e=None):
-    assert ((ldle is not None) or (include_ldle is False)), 'error: ldle is None and include_ldle is True.'
-    if s_d_e is None:
-        print('Using Floyd Warshall on the data', flush=True)
-        s_d_e = scipy.sparse.csgraph.floyd_warshall(ldle.d_e, directed=False)
-    df_dict = {}
-    max_dict = {}
-    if include_ldle:
-        print('Computing pairwise Euclidean distances in the LDLE embedding', flush=True)
-        y_ldle_d_e = ldle.GlobalViews.compute_pwise_dist_in_embedding(s_d_e, ldle.GlobalViews.y_final,
-                                                                    ldle.IntermedViews.Utilde,
-                                                                    ldle.IntermedViews.C, ldle.global_opts,
-                                                                    ldle.GlobalViews.n_Utilde_Utilde)
-        df_dict['LDLE'] = compute_distortion_at(y_ldle_d_e, s_d_e)
-
-    for i in range(len(ys)):
-        print('Computing pairwise Euclidean distances in the', names[i], 'embedding.', flush=True)
-        y_d_e = squareform(pdist(ys[i]))
-        df_dict[names[i]], max_dict[names[i]] = compute_distortion_at(y_d_e, s_d_e)
-    return df_dict, max_dict, s_d_e
-
-def get_weak_global_distortion_info(ldle=None, ys=None, names=None, include_ldle=True,
-                                    s_d_e=None, pred=None, verbose=True, n_proc=16):
-    assert ((ldle is not None) or (include_ldle is False)), 'error: ldle is None and include_ldle is True.'
-    if s_d_e is None:
-        print('Using Floyd Warshall on the data', flush=True)
-        s_d_e, pred = scipy.sparse.csgraph.floyd_warshall(ldle.d_e, directed=False, return_predecessors=True)
-    df_dict = {}
-    max_dist = {}
-    if include_ldle:
-        print('Computing pairwise Euclidean distances in the LDLE embedding', flush=True)
-        y_ldle_d_e = ldle.GlobalViews.compute_pwise_dist_in_embedding(s_d_e, ldle.IntermedViews.Utilde,
-                                                                    ldle.IntermedViews.C, ldle.global_opts,
-                                                                    ldle.GlobalViews.n_Utilde_Utilde,
-                                                                    y = ldle.GlobalViews.y_final)
-        df_dict['LDLE'] = compute_distortion_at(y_ldle_d_e, s_d_e)
-
-    for s in range(len(ys)):
-        print('Computing pairwise Euclidean distances in the', names[s], 'embedding.', flush=True)
-        y_d_e = squareform(pdist(ys[s]))
-        n = ys[s].shape[0]
-        y_d_e2 = np.zeros((n,n))
-        
-        def target_proc(start_ind, end_ind, q_, y_d_e, s_d_e, pred):
-            def get_path_length(i, j):
-                path_length = 0
-                k = j
-                while pred[i, k] != -9999:
-                    path_length += y_d_e[k, pred[i, k]]
-                    k = pred[i, k]
-                return path_length
-            
-            y_d_e2_ = np.zeros((end_ind-start_ind+1, n))
-            for i in range(start_ind, end_ind):
-                for j in range(i+1,n):
-                    y_d_e2_[i-start_ind,j] = get_path_length(i,j)
-                    
-            q_.put((start_ind, end_ind, y_d_e2_))
-                   
-        q_ = mp.Queue()
-        chunk_sz = int((n*(n-1))/(2*n_proc))
-        proc = []
-        start_ind = 0
-        end_ind = 1
-        for p_num in range(n_proc):
-            if p_num == n_proc-1:
-                end_ind = n
-            else:
-                while (n-1)*(end_ind-start_ind) - (end_ind*(end_ind-1))/2 + (start_ind*(start_ind-1))/2 < chunk_sz:
-                    end_ind += 1
-                    
-            proc.append(mp.Process(target=target_proc,
-                                   args=(start_ind, end_ind, q_,y_d_e, s_d_e, pred),
-                                   daemon=True))
-            proc[-1].start()
-            start_ind = end_ind
-        
-        print('All processes started', flush=True)
-        for p_num in range(n_proc):
-            start_ind, end_ind, y_d_e2_ = q_.get()
-            for i in range(start_ind, end_ind):
-                y_d_e2[i,i+1:] = y_d_e2_[i-start_ind,i+1:]
-                y_d_e2[i+1:,i] = y_d_e2[i,i+1:]
-
-        q_.close()
-        for p_num in range(n_proc):
-            proc[p_num].join()
-            
-#         def get_path_length(i, j):
-#             path_length = 0
-#             k = j
-#             while pred[i, k] != -9999:
-#                 path_length += y_d_e[k, pred[i, k]]
-#                 k = pred[i, k]
-#             return path_length
-        
-#         print_freq = n//10
-#         for i in range(n):
-#             if verbose and np.mod(i, print_freq) == 0:
-#                  print('Processed', i, 'points.', flush=True)
-#             for j in range(i+1,n):
-#                 y_d_e2[i,j] = get_path_length(i, j)
-#                 y_d_e2[j,i] = y_d_e2[i,j]
-        
-        df_dict[names[s]], max_dist[names[s]] = compute_distortion_at(y_d_e2, s_d_e)
-        print('done', flush=True)
-    return df_dict, max_dist, s_d_e
-
-# def get_path_lengths_in_embedding_space(s_d_e, pred, y_d_e, verbose=True):
-#     def get_path_length(i, j):
-#         path_length = 0
-#         k = j
-#         while pred[i, k] != -9999:
-#             path_length += y_d_e[k, pred[i, k]]
-#             k = pred[i, k]
-#         return path_length
-        
-#     n = y_d_e.shape[0]
-#     y_d_e2 = np.zeros((n,n))
-#     print_freq = n//10
-#     for i in range(n):
-#         if verbose and np.mod(i, print_freq) == 0:
-#             print('Processed', i, 'points.', flush=True)
-#         # TODO: make this faster
-#         for j in range(i+1,n):
-#             y_d_e2[i,j] = get_path_length(i, j)
-#             y_d_e2[j,i] = y_d_e2[i,j]
-#     return y_d_e2
-
 def get_path_lengths_in_embedding_space(s_d_e, pred, y_d_e, n_proc=8, verbose=True):
     n = pred.shape[0]
     inds = np.arange(n)
@@ -477,3 +348,56 @@ def get_path_lengths_in_embedding_space(s_d_e, pred, y_d_e, n_proc=8, verbose=Tr
         proc[p_num].join()
     
     return y_d_e2
+
+def compute_global_distortions(X, y, n_nbr=10, buml_obj_path='',
+                               read_dir_root='', save_dir_root='',
+                               n_proc=32):
+    # Shortest paths in the data
+    s_d_e_path = read_dir_root + '/s_d_e.dat'
+    pred_path = read_dir_root + '/pred.dat'
+    save0 = (read_dir_root != '')
+    if (not path_exists(s_d_e_path)) or (not path_exists(pred_path)):
+        s_d_e, pred = shortest_paths(X, n_nbr)
+        if save0:
+            save(read_dir_root, 's_d_e.dat', s_d_e)
+            save(read_dir_root, 'pred.dat', pred)
+    else:
+        s_d_e = read(s_d_e_path)
+        pred = read(pred_path)
+    
+    # Shortest paths in the embedding
+    save1 = (save_dir_root != '')
+    y_s_d_e_path = save_dir_root + '/y_s_d_e.dat'
+    if (not path_exists(y_s_d_e_path)):
+        y_s_d_e, _ = shortest_paths(y, n_nbr)
+
+        if (buml_obj_path is not None):
+            all_data = read(buml_obj_path)
+            X, labelsMat, buml_obj, gv_info, ex_name = all_data
+            if buml_obj.global_opts['to_tear']:
+                intermed_param = buml_obj.IntermedViews.intermed_param
+                Utilde = buml_obj.IntermedViews.Utilde
+                C = buml_obj.IntermedViews.C
+                global_opts = buml_obj.global_opts
+                y_s_d_e = gv_info['gv'].compute_pwise_dist_in_embedding(intermed_param,
+                                                                        Utilde, C, global_opts,
+                                                                        dist=y_s_d_e, y=y)
+        if save1:
+            save(save_dir_root, 'y_s_d_e.dat', y_s_d_e)
+    else:
+        y_s_d_e = read(y_s_d_e_path)
+        
+    # Lengths of the embeddings of the shortest paths in the data
+    save2 = (save_dir_root != '')
+    y_d_e2_path = save_dir_root + '/y_d_e2.dat'
+    if not path_exists(y_d_e2_path):
+        y_d_e2 = get_path_lengths_in_embedding_space(s_d_e, pred, y_s_d_e,
+                                                     n_proc=n_proc, verbose=True)
+        if save2:
+            save(save_dir_root, 'y_d_e2.dat', y_d_e2)
+    else:
+        y_d_e2 = read(y_d_e2_path)
+    
+    sd_at, max_sd = compute_distortion_at(y_s_d_e, s_d_e)
+    wd_at, max_wd = compute_distortion_at(y_d_e2, s_d_e)
+    return sd_at, max_sd, wd_at, max_wd

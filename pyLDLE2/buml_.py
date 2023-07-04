@@ -375,7 +375,7 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
           algorithm is 'sdp'.
     add_dim : bool
              add an extra dimension to intermediate views.
-    beta: dict
+    beta : dict
           Hyperparameters used for computing the alignment weights and
           the repulsion weights. Form is {'align': float, 'repel': float}.
           Default is {'align': None, 'repel': None} i.e. unweighted.
@@ -383,7 +383,7 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
                If positive, the points which are far off are repelled
               away from each other by a force proportional to it.
               Ignored when refinement algorithm is 'procrustes'.
-    repel_decay: float
+    repel_decay : float
                  Multiply repel_decay with repel_by after every iteration.
     n_repel : int
               The number of far off points repelled from each other.
@@ -392,28 +392,28 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
               randomize over refinement iterations. If 'reuse' is
               in the string then the points to be repelled are the
               same across iterations.
-    patience: int
+    patience : int
               The number of iteration to wait for error below tolerance
               to persist before stopping the refinement.
-    err_tol: float
+    err_tol : float
              The tolerance level for the alignment error.
-    tear_color_method: str
+    tear_color_method : str
              Method to color the tear. Options are 'spectral' or 'heuristic'.
              The latter keeps the coloring of the tear same accross
              the iterations.
-    color_diversity_index: int
+    color_diversity_index : int
              Index used to obtain diversity of the colors on the tear.
              The value must be non-negative. Higher values result in
              more diversity. The diversity saturates after a certain value.
-    color_cutoff_frac: float
+    color_cutoff_frac : float
              If the number of points in a tear component is less than
              color_cutoff_frac * number of data points, then all the
              points in the component will be colored with the same color.
-    color_largest_tear_comp_only: bool
+    color_largest_tear_comp_only : bool
              If True then the largest tear components is colored only.
-    metric: str
+    metric : str
             default is euclidean
-    n_forced_clusters: str
+    n_forced_clusters : str
                        Minimum no. of clusters to force in the embeddings.
     """
     return {'to_tear': to_tear, 'nu': nu, 'max_iter': max_iter,
@@ -514,6 +514,7 @@ class BUML:
             default_intermed_opts[i] = intermed_opts[i]
         self.intermed_opts = default_intermed_opts
         # Update k_nn 
+        self.local_opts['k_nn'] = max(self.local_opts['k_nn'], self.local_opts['k'])
         self.local_opts['k_nn0'] = max(self.local_opts['k_nn'],
                                        self.intermed_opts['eta_max']*self.local_opts['k'])
         print("local_opts['k_nn0'] =", self.local_opts['k_nn0'], "is created.")

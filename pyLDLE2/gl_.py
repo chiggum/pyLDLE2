@@ -50,6 +50,7 @@ def graph_laplacian(neigh_dist, neigh_ind, k_nn, k_tune, gl_type,
         # Compute kernel matrix
         if tuning is None: # Binary kernel no tuning
             K = np.ones(neigh_dist.shape)
+            autotune = None
         else:
             eps = np.finfo(np.float64).eps
             K = np.exp(-neigh_dist**2/(autotune+eps))
