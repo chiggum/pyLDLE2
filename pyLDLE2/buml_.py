@@ -186,7 +186,7 @@ def get_default_local_opts(algo='LPCA', metric0='euclidean', k=28,  k_nn=49, k_t
                            p=0.99, tau=50, delta=0.9, lkpca_kernel='linear', to_postprocess= True,
                            pp_n_thresh=32, lambda1_init=8, lambda1_decay=0.75, lambda1_min=1e-3,
                            power=5, max_sparsity=0.9, doubly_stochastic_max_iter=0):
-    """Sets and returns a dictionary of default_local_opts, (experimental) options to be ignored.
+    """Sets and returns a dictionary of default_local_opts, (experimental) options are work in progress.
     
     Parameters
     ----------
@@ -195,10 +195,9 @@ def get_default_local_opts(algo='LPCA', metric0='euclidean', k=28,  k_nn=49, k_t
         local views. Options are 'LDLE', 'LPCA' and 'LKPCA'.
         Experimental options are 'L1PCA', 'SparsePCA', 'LISOMAP'
         and 'RPCA-GODEC'.
-           others.
     metric0 : str
-        The metric to be used for finding nearest neighbors. If
-        the data is a distance matrix then use 'precomputed'.
+        The metric to be used for finding nearest neighbors.
+        (experimental) If the data is a distance matrix then use 'precomputed'.
     k : int 
         The size of the local view per point.
     k_nn : int
@@ -217,7 +216,7 @@ def get_default_local_opts(algo='LPCA', metric0='euclidean', k=28,  k_nn=49, k_t
         be less than k_nn. This is used to construct
         self-tuning kernel in LDLE.
     metric : str
-        The local metric on the data. If the data is a distance
+        The local metric on the data. (experimental) If the data is a distance
         matrix then use 'precomputed'.
     update_metric : bool
         If True, recomputes neighbor distances using metric.
@@ -305,30 +304,31 @@ def get_default_local_opts(algo='LPCA', metric0='euclidean', k=28,  k_nn=49, k_t
            'doubly_stochastic_max_iter': doubly_stochastic_max_iter}
 
 def get_default_intermed_opts(algo='best', n_times=4, eta_min=5, eta_max=25, len_S_thresh=256):
-    """Sets and returns a dictionary of default_intermed_opts.
+    """Sets and returns a dictionary of default_intermed_opts, (experimental) options are work in progress.
     
     Parameters
     ----------
     algo : str
-           Algo to use. Options are 'mnm' for match and merge,
-           'best' for the optimal algorithm (much slower
-           but creates intermediate views with lower distortion).
+        Algo to use. Options are 'mnm' for match and merge,
+        'best' for the optimal algorithm (much slower
+        but creates intermediate views with lower distortion).
+        'mnm' is (experimental).
     n_times : int
-              Hypereparameter for 'mnm' algo. Number of times to match
-              and merge. If n is the #local views then the #intermediate
-              views will be approximately n/2^{n_times}.
+        (experimental) Hypereparameter for 'mnm' algo. Number of times to match
+        and merge. If n is the #local views then the #intermediate
+        views will be approximately n/2^{n_times}.
     eta_min : int
-              Hyperparameter for 'best' algo. Minimum allowed size of 
-              the clusters underlying the intermediate views.
-              The values must be >= 1.
+        Hyperparameter for 'best' algo. Minimum allowed size of 
+        the clusters underlying the intermediate views.
+        The values must be >= 1.
     eta_max : int
-              Hyperparameter for 'best' algo. Maximum allowed size of
-              the clusters underlying the intermediate views.
-              The value must be > eta_min.
+        Hyperparameter for 'best' algo. Maximum allowed size of
+        the clusters underlying the intermediate views.
+        The value must be > eta_min.
     len_S_thresh : int
-                   Threshold on the number of points for which 
-                   the costs are to be updated, to invoke
-                   multiple processors. Used with 'best' algo only.
+        Threshold on the number of points for which 
+        the costs are to be updated, to invoke
+        multiple processors. Used with 'best' algo only.
     """
     return {'algo': algo, 'n_times': n_times, 'eta_min': eta_min,
             'eta_max': eta_max, 'len_S_thresh': len_S_thresh}
@@ -345,105 +345,105 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
                             metric='euclidean', color_cutoff_frac=0.001,
                             color_largest_tear_comp_only=False,
                             n_forced_clusters=1):
-    """Sets and returns a dictionary of default_global_opts.
+    """Sets and returns a dictionary of default_global_opts, (experimental) options are work in progress.
 
     Parameters
     ----------
     align_transform : str
-                    The algorithm to use for the alignment of intermediate
-                    views. Options are 'rigid' and 'affine'. If 'affine' is
-                    chosen then none of the following hypermateters are used.
+        The algorithm to use for the alignment of intermediate
+        views. Options are 'rigid' and 'affine'. (experimental) If 'affine' is
+        chosen then none of the following hypermateters are used.
     to_tear : bool
-              If True the tearing of the manifold is allowed.
+        If True then tear-enabled alignment of views is performed.
     nu : int
-         A hyperparameter used to compute neighboring intermediate
-         views in the embedding space.
+        The ratio of the size of local views in the embedding against those
+        in the data.
     max_iter : int
-               Number of iterations to refine the global embedding for.
+        Number of iterations to refine the global embedding for.
     color_tear : bool
-                 If True, colors the tear with the colormap provided in vis_opts.
+        If True, colors the points across the tear with a
+        spectral coloring scheme.
     vis_before_init : bool
-                      If True, plots the global embedding before
-                      alignment begins. This is same as just plotting
-                      all the intermediate views without alignment.
+        If True, plots the global embedding before
+        alignment begins. This is same as just plotting
+        all the intermediate views without alignment.
     compute_error : bool
-                    If True the alignment error is computed at each 
-                    iteration of the refinement, otherwise only at
-                    the last iteration.
+        If True the alignment error is computed at each 
+        iteration of the refinement, otherwise only at
+        the last iteration.
     init_algo_name : str
-                     The algorithm used to compute initial global embedding
-                     by aligning the intermediate views.
-                     Options are 'procrustes' for tree-based-procrustes alignment,
-                     'spectral' for spectral alignment (ignores to_tear),
-                     'sdp' for semi-definite programming based alignment (ignores
-                     to_tear).
+        The algorithm used to compute initial global embedding
+        by aligning the intermediate views. Options are 'procrustes'
+        for spanning-tree-based-procrustes alignment,
+        'spectral' for spectral alignment (ignores to_tear),
+        'sdp' for semi-definite programming based alignment (ignores to_tear).
     align_w_parent_only : bool
-                          If True only the parents of the intermediate
-                          views are used in the tree-based-procrustes
-                          alignment.
+        If True, then aligns child views the parent views only
+        in the spanning-tree-based-procrustes alignment.
     refine_algo_name : str
-                       The algorithm used to refine the initial global embedding
-                       by refining the alignment between intermediate views.
-                       Options are 'gpa' for Generalized Procustes Analysis
-                       (GPA) based alignment, 'rgd' for Riemannian gradient descent
-                       based alignment, 'spectral' for spectral alignment,
-                       'gpm' for generalized power method based alignment,
-                       'sdp' for semi-definite programming based alignment. Note that
-                       sdp based alignment is very slow.
+        The algorithm used to refine the initial global embedding
+        by refining the alignment between intermediate views.
+        Options are 'gpa' for Generalized Procustes Analysis
+        (GPA) based alignment, 'rgd' for Riemannian gradient descent
+        based alignment, 'spectral' for spectral alignment,
+        'gpm' for generalized power method based alignment,
+        'sdp' for semi-definite programming based alignment. Note that
+        sdp based alignment is very slow. Recommended options are 'rgd'
+        with an appropriate step size (alpha) and 'gpm'.
     max_internal_iter : int
-                        The number of internal iterations used by
-                        the refinement algorithm. This is ignored
-                        by 'spectral' refinement.
+        The number of internal iterations used by
+        the refinement algorithm, for example, RGD updates.
+        This is ignored by 'spectral' refinement.
     alpha : float
-            The step size used in the Riemannian gradient descent
-            when the refinement algorithm is 'rgd'.
+        The step size used in the Riemannian gradient descent
+        when the refinement algorithm is 'rgd'.
     eps : float
-          The tolerance used by sdp solver when the init or refinement
-          algorithm is 'sdp'.
+        The tolerance used by sdp solver when the init or refinement
+        algorithm is 'sdp'.
     add_dim : bool
-             add an extra dimension to intermediate views.
+        (experimental) add an extra dimension to intermediate views.
     beta : dict
-          Hyperparameters used for computing the alignment weights and
-          the repulsion weights. Form is {'align': float, 'repel': float}.
-          Default is {'align': None, 'repel': None} i.e. unweighted.
+        (experimental) Hyperparameters used for computing the alignment weights and
+        the repulsion weights. Form is {'align': float, 'repel': float}.
+        Default is {'align': None, 'repel': None} i.e. unweighted.
     repel_by : float
-               If positive, the points which are far off are repelled
-              away from each other by a force proportional to it.
-              Ignored when refinement algorithm is 'procrustes'.
+        If positive, the points which are far off are repelled
+        away from each other by a force proportional to this parameter.
+        Ignored when refinement algorithm is 'gpa'.
     repel_decay : float
-                 Multiply repel_decay with repel_by after every iteration.
+        Multiply repel_decay with current value of repel_by after every iteration.
     n_repel : int
-              The number of far off points repelled from each other.
+        The number of far off points repelled from each other.
     far_off_points_type : 'fixed' or 'random'
-              Whether to use the same points for repulsion or 
-              randomize over refinement iterations. If 'reuse' is
-              in the string then the points to be repelled are the
-              same across iterations.
+        Whether to use the same points for repulsion or 
+        randomize over refinement iterations. If 'reuse' is
+        in the string, for example 'fixed_reuse', then the points
+        to be repelled are the same across iterations.
     patience : int
-              The number of iteration to wait for error below tolerance
-              to persist before stopping the refinement.
+        The number of iteration to wait for error below tolerance
+        to persist before stopping the refinement.
     err_tol : float
-             The tolerance level for the alignment error.
+        The tolerance level for the alignment error.
     tear_color_method : str
-             Method to color the tear. Options are 'spectral' or 'heuristic'.
-             The latter keeps the coloring of the tear same accross
-             the iterations.
+        Method to color the tear. Options are 'spectral' or 'heuristic'.
+        The latter keeps the coloring of the tear same accross
+        the iterations. Recommended option is 'spectral'.
     tear_color_eig_inds : int
-             Eigenvectors to be used to color the tear. The value must either
-             be a non-negative integer or it must be a list of three non-negative
-             integers [R,G,B] representing the indices of eigenvectors to be used
-             as RGB channels for coloring the tear. Higher values result in
-             more diversity of colors. The diversity saturates after a certain value.
+        Eigenvectors to be used to color the tear. The value must either
+        be a non-negative integer or it must be a list of three non-negative
+        integers [R,G,B] representing the indices of eigenvectors to be used
+        as RGB channels for coloring the tear. Higher values result in
+        more diversity of colors. The diversity saturates after a certain value.
     color_cutoff_frac : float
-             If the number of points in a tear component is less than
-             color_cutoff_frac * number of data points, then all the
-             points in the component will be colored with the same color.
+        If the number of points in a tear component is less than
+        (color_cutoff_frac * number of data points), then all the
+        points in the component will be colored with the same color.
     color_largest_tear_comp_only : bool
-             If True then the largest tear components is colored only.
+        If True then the largest tear components is colored only.
     metric : str
-             metric assumed on the global embedding. currently only euclidean is supported.
+        metric assumed on the global embedding. Currently only euclidean is supported.
     n_forced_clusters : str
-                       Minimum no. of clusters to force in the embeddings.
+        (experimental) Minimum no. of clusters to force in the embeddings.
     """
     return {'to_tear': to_tear, 'nu': nu, 'max_iter': max_iter,
                'color_tear': color_tear,
