@@ -25,6 +25,7 @@ import multiprocess as mp
 from multiprocess import shared_memory
 
 from sklearn.manifold import Isomap
+from sklearn.decomposition import KernelPCA
 
 class LocalViews:
     def __init__(self, exit_at=None, verbose=True, debug=False):
@@ -52,7 +53,8 @@ class LocalViews:
             self.local_start_time = print_log(s, log_time,
                                               self.local_start_time, 
                                               self.global_start_time)
-            
+    
+    # TODO: relax X to be a distance matrix
     def fit(self, d, X, d_e, neigh_dist, neigh_ind, ddX, local_opts):
         print('Computing local views using', local_opts['algo'], flush=True)
         if local_opts['algo'] == 'LDLE':
@@ -73,8 +75,9 @@ class LocalViews:
             IPGE = ipge_.IPGE(debug=self.debug)
             if local_opts['Atilde_method'] == 'LLR':
                 print('Using LLR')
-            elif local_opts['Atilde_method'] == 'LDLE_2':
-                print('Using LDLE_2')
+            elif local_opts['Atilde_method'] == 'FeymanKac':
+                print('Using Feyman-Kac formula')
+                IPGE.FeymanKac(GL.L, GL.phi, U)
             elif local_opts['Atilde_method'] == 'LDLE_3':
                 print('Using LDLE_3')
             else: #fem
@@ -92,6 +95,8 @@ class LocalViews:
                 gamma = np.ones((GL.phi.shape[0], local_opts['N']))
             elif local_opts['scale_by']=='gamma':
                 gamma = 1/(np.sqrt(U.dot(GL.phi**2)/local_opts['k'])+1e-12)
+            elif local_opts['scale_by']=='grad_norm':
+                gamma = 1/(np.sqrt(np.diagonal(IPGE.Atilde, axis1=1, axis2=2))+1e-12)
             else:
                 gamma = np.repeat(np.power(GL.lmbda.flatten(),local_opts['scale_by']),
                                   GL.phi.shape[0]).reshape(GL.phi.shape)
@@ -99,13 +104,13 @@ class LocalViews:
 
             # Compute LDLE: Low Distortion Local Eigenmaps
             self.log('Computing LDLE.')
-            local_param_pre = self.compute_LDLE(d, d_e, neigh_dist, GL.phi, U, IPGE.Atilde, gamma, local_opts)
+            local_param_pre = self.compute_LDLE(d, d_e, GL.phi, U, IPGE.Atilde, gamma, local_opts)
             self.log('Done.', log_time=True)
             #############################################
 
             if local_opts['to_postprocess']:
                 self.log('Posprocessing local parameterizations.')
-                local_param_post = self.postprocess(d_e, neigh_dist, neigh_ind, local_param_pre, U, local_opts)
+                local_param_post = self.postprocess(d_e, local_param_pre, U, local_opts)
                 self.log('Done.', log_time=True)
             else:
                 local_param_post = local_param_pre
@@ -191,12 +196,14 @@ class LocalViews:
                 local_param_pre = self.compute_Smooth_LPCA(d, X, d_e, U, local_opts)
             elif local_opts['algo'] == 'LISOMAP':
                 local_param_pre = self.compute_LISOMAP(d, X, d_e, U, local_opts)
+            elif local_opts['algo'] == 'LKPCA':
+                local_param_pre = self.compute_LKPCA(d, X, d_e, U, local_opts)
             else:
                 local_param_pre = self.compute_LPCA(d, X, d_e, U, local_opts)
             self.log('Done.', log_time=True)
             if local_opts['to_postprocess']:
                 self.log('Posprocessing local parameterizations.')
-                local_param_post = self.postprocess(d_e, neigh_dist, neigh_ind, local_param_pre, U, local_opts)
+                local_param_post = self.postprocess(d_e, local_param_pre, U, local_opts)
                 self.log('Done.', log_time=True)
             else:
                 local_param_post = local_param_pre
@@ -217,7 +224,7 @@ class LocalViews:
         self.U = U
         self.local_param_post = local_param_post
     
-    def compute_LDLE(self, d, d_e, neigh_dist, phi, U, Atilde, gamma, local_opts, print_prop = 0.25):
+    def compute_LDLE(self, d, d_e, phi, U, Atilde, gamma, local_opts, print_prop = 0.25):
         n, N = phi.shape
         N = phi.shape[1]
         tau = local_opts['tau']
@@ -324,7 +331,7 @@ class LocalViews:
         
         local_param = Param('LISOMAP')
         local_param.X = X
-        local_param.isomap = np.empty(n, dtype=np.object)
+        local_param.model = np.empty(n, dtype=np.object)
         local_param.zeta = np.zeros(n)
         n_proc = local_opts['n_proc']
         
@@ -339,8 +346,8 @@ class LocalViews:
                 U_k = U[k,:].indices
                 # LPCA
                 X_k = X[U_k,:]
-                local_param.isomap[k] = Isomap(n_components=d, n_neighbors=local_opts['k_tune'])
-                local_param.isomap[k].fit(X_k)
+                local_param.model[k] = Isomap(n_components=d, n_neighbors=local_opts['k_tune'])
+                local_param.model[k].fit(X_k)
 
                 # Compute zeta_{kk}
                 d_e_k = d_e[np.ix_(U_k, U_k)]
@@ -350,7 +357,7 @@ class LocalViews:
             
             q_.put((start_ind, end_ind,
                     local_param.zeta[start_ind:end_ind],
-                    local_param.isomap[start_ind:end_ind]))
+                    local_param.model[start_ind:end_ind]))
         
         q_ = mp.Queue()
         chunk_sz = int(n/n_proc)
@@ -362,9 +369,9 @@ class LocalViews:
             proc[-1].start()
 
         for p_num in range(n_proc):
-            start_ind, end_ind, zeta_, isomap_ = q_.get()
+            start_ind, end_ind, zeta_, model_ = q_.get()
             local_param.zeta[start_ind:end_ind] = zeta_
-            local_param.isomap[start_ind:end_ind] = isomap_
+            local_param.model[start_ind:end_ind] = model_
 
         q_.close()
         
@@ -483,6 +490,62 @@ class LocalViews:
             local_param.zeta[start_ind:end_ind] = zeta_
             local_param.Psi[start_ind:end_ind,:] = Psi_
             local_param.mu[start_ind:end_ind,:] = mu_
+
+        q_.close()
+        
+        for p_num in range(n_proc):
+            proc[p_num].join()
+        print('local_param: all %d points processed...' % n)
+        print("max distortion is %f" % (np.max(local_param.zeta)))
+        return local_param
+    
+    def compute_LKPCA(self, d, X, d_e, U, local_opts, print_prop = 0.25):
+        n = U.shape[0]
+        p = X.shape[1]
+        print_freq = int(print_prop * n)
+        
+        local_param = Param('LKPCA')
+        local_param.X = X
+        local_param.model = np.empty(n, dtype=np.object)
+        local_param.zeta = np.zeros(n)
+        n_proc = local_opts['n_proc']
+        
+        def target_proc(p_num, chunk_sz, q_):
+            start_ind = p_num*chunk_sz
+            if p_num == (n_proc-1):
+                end_ind = n
+            else:
+                end_ind = (p_num+1)*chunk_sz
+
+            for k in range(start_ind, end_ind):
+                local_param.model[k] = KernelPCA(n_components=d, kernel=local_opts['lkpca_kernel'])
+                U_k = U[k,:].indices
+                X_k = X[U_k,:]
+                local_param.model[k].fit(X_k)
+
+                # Compute zeta_{kk}
+                d_e_k = d_e[np.ix_(U_k, U_k)]
+                local_param.zeta[k] = compute_zeta(d_e_k,
+                                                   local_param.eval_({'view_index': k,
+                                                                      'data_mask': U_k}))
+            
+            q_.put((start_ind, end_ind,
+                    local_param.zeta[start_ind:end_ind],
+                    local_param.model[start_ind:end_ind]))
+        
+        q_ = mp.Queue()
+        chunk_sz = int(n/n_proc)
+        proc = []
+        for p_num in range(n_proc):
+            proc.append(mp.Process(target=target_proc,
+                                   args=(p_num,chunk_sz,q_),
+                                   daemon=True))
+            proc[-1].start()
+
+        for p_num in range(n_proc):
+            start_ind, end_ind, zeta_, model_ = q_.get()
+            local_param.zeta[start_ind:end_ind] = zeta_
+            local_param.model[start_ind:end_ind] = model_
 
         q_.close()
         
@@ -627,7 +690,7 @@ class LocalViews:
         print("max distortion is %f" % (np.max(local_param.zeta)))
         return local_param
     
-    def postprocess(self, d_e, neigh_dist, neigh_ind, local_param_pre, U, local_opts):
+    def postprocess(self, d_e, local_param_pre, U, local_opts):
         # initializations
         n = U.shape[0]
         local_param = copy.deepcopy(local_param_pre)
@@ -659,7 +722,7 @@ class LocalViews:
         shm_npo_name = shm_npo.name
         shm_zeta_name = shm_zeta.name
 
-        def target_proc(p_num, chunk_sz, barrier, U, neigh_ind, local_param, d_e):
+        def target_proc(p_num, chunk_sz, barrier, U, local_param, d_e):
             existing_shm_pcb = shared_memory.SharedMemory(name=shm_pcb_name)
             param_changed_buf = np.ndarray(pcb_shape, dtype=pcb_dtype,
                                            buffer=existing_shm_pcb.buf)
@@ -722,7 +785,7 @@ class LocalViews:
         chunk_sz = int(n/n_proc)
         for p_num in range(n_proc):
             proc.append(mp.Process(target=target_proc, args=(p_num,chunk_sz, barrier,
-                                                             U, neigh_ind, local_param, d_e),
+                                                             U, local_param, d_e),
                                    daemon=True))
             proc[-1].start()
 
@@ -745,8 +808,8 @@ class LocalViews:
         if local_opts['algo'] == 'LDLE':
             local_param.Psi_i = local_param.Psi_i[npo,:]
             local_param.Psi_gamma = local_param.Psi_gamma[npo,:]
-        elif local_opts['algo'] == 'LISOMAP':
-            local_param.isomap = local_param.isomap[npo]
+        elif local_opts['algo'] != 'LPCA':
+            local_param.model = local_param.model[npo]
         else:
             local_param.Psi = local_param.Psi[npo,:]
             local_param.mu = local_param.mu[npo,:]

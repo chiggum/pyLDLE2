@@ -50,6 +50,9 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, ddX
     
+    def helicical_tree(self, RES=100, noise=0):
+        return None
+    
     def circle(self, RES=100, noise=0):
         np.random.seed(42)
         theta = np.linspace(0, 2*np.pi, RES)[:-1]
@@ -57,6 +60,46 @@ class Datasets:
         yv = np.sin(theta)[:,np.newaxis]
         X = np.concatenate([xv,yv], axis=1)
         labelsMat = X
+        print('X.shape = ', X.shape)
+        return X, labelsMat, None
+    
+    def figure_eight(self, RES=100, noise=0):
+        np.random.seed(42)
+        theta = np.linspace(0, 2*np.pi, RES)[:-1]
+        xv = np.sin(2*theta)[:,np.newaxis]
+        yv = np.cos(theta)[:,np.newaxis]
+        X = np.concatenate([xv,yv], axis=1)
+        labelsMat = theta[:,None]
+        print('X.shape = ', X.shape)
+        return X, labelsMat, None
+    
+    def checkered_board(self, m, n, RES=100, noise=0):
+        np.random.seed(42)
+        X_ = np.random.uniform(0,1,(m+n+2,RES))
+        X = np.zeros((RES*(m+n+2), 2))
+        for i in range(m+1):
+            X[i*RES:(i+1)*RES,0] = X_[i,:]
+            X[i*RES:(i+1)*RES,1] = i/m
+        for i in range(n+1):
+            X[(i+m+1)*RES:(i+1+m+1)*RES,1] = X_[i+m+1,:]
+            X[(i+m+1)*RES:(i+1+m+1)*RES,0] = i/n
+        return X, X, None
+    
+    def rose(self, ang_freq_n=2, ang_freq_d=1, radius=1, RES=1000, noise=0, n_cycles=None):
+        ang_freq = ang_freq_n/ang_freq_d
+        if np.mod(ang_freq_n, 2):
+            n_petals = ang_freq_n
+            n_cycles_ = ang_freq_d
+        else:
+            n_petals = 2*ang_freq_n
+            n_cycles_ = 2*ang_freq_d
+        if n_cycles is None:
+            n_cycles = n_cycles_
+        theta = np.linspace(0, n_cycles*np.pi, RES)[:-1]
+        xv = radius*(np.cos(ang_freq*theta)*np.cos(theta))[:,np.newaxis]
+        yv = radius*(np.cos(ang_freq*theta)*np.sin(theta))[:,np.newaxis]
+        X = np.concatenate([xv,yv], axis=1)
+        labelsMat = theta[:,None]
         print('X.shape = ', X.shape)
         return X, labelsMat, None
     
@@ -353,6 +396,30 @@ class Datasets:
         np.random.seed(2)
         X = X*(1+noise*np.random.uniform(-1,1,(X.shape[0],1)))
         labelsMat = np.concatenate([np.mod(thetav,2*np.pi), phiv], axis=1)
+        print('X.shape = ', X.shape)
+        return X, labelsMat, None
+    
+    def RP2(self, n=10000, noise = 0):
+        X_, labelsMat, _ = self.sphere(n, noise)
+        mask = (X_[:,2] > 0) | ((X_[:,0] > 0) & (X_[:,2]==0))
+        X_ = X_[mask,:]
+        labelsMat = labelsMat[mask,:]
+        X = np.zeros((X_.shape[0],4))
+        X[:,0] = X_[:,0]*X_[:,1]
+        X[:,1] = X_[:,0]*X_[:,2]
+        X[:,2] = X_[:,1]**2 - X_[:,2]**2
+        X[:,3] = 2*X_[:,1]*X_[:,2]
+        print('X.shape = ', X.shape)
+        return X, labelsMat, None
+    
+    def RP1(self, RES=100, noise = 0):
+        X_, labelsMat, _ = self.circle(RES, noise)
+        mask = (X_[:,1] > 0) | ((X_[:,0] > 0) & (X_[:,1]==0))
+        X_ = X_[mask,:]
+        labelsMat = labelsMat[mask,:]
+        X = np.zeros((X_.shape[0],2))
+        X[:,0] = X_[:,0]*X_[:,1]
+        X[:,1] = X_[:,0]**2 - X_[:,1]**2
         print('X.shape = ', X.shape)
         return X, labelsMat, None
     

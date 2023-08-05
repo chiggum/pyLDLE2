@@ -22,6 +22,55 @@ from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from matplotlib.cbook import get_sample_data
 from scipy.spatial.distance import pdist, squareform
 
+import imageio
+
+OUTPUT_EXT = '.png'
+
+def get_orientations(step_size = 15, max_angle = 360*7):
+    orientation = []
+    for angle in range(0, max_angle + 1, step_size):
+        # Normalize the angle to the range [-180, 180] for display
+        angle_norm = (angle + 180) % 360 - 180
+
+        # Cycle through a full rotation of elevation, then azimuth, roll, and all
+        elev = azim = roll = 0
+        if angle <= 360:
+            elev = angle_norm
+        elif angle <= 360*2:
+            azim = angle_norm
+        elif angle <= 360*3:
+            roll = angle_norm
+        elif angle <= 360*4:
+            elev = azim = angle_norm
+        elif angle <= 360*5:
+            azim = roll = angle_norm
+        elif angle <= 360*6:
+            elev = roll = angle_norm
+        else:
+            elev = azim = roll = angle_norm
+        orientation.append((elev, azim, roll))
+    return orientation
+
+def save_gif(y, labels, vis_obj, fpath, cmap='jet', FPS = 10, step_size = 15, max_angle = 360*8, s=1, figsize=(8,8)):
+    frames = []
+    vis_obj.global_embedding(y, labels, cmap, s=s, figsize=figsize)
+    ax = plt.gca()
+    orientation = get_orientations(step_size, max_angle)
+    for i in range(len(orientation)):
+        elev, azim, roll = orientation[i]
+        # Update the axis view and title
+        ax.view_init(elev, azim, roll)
+        set_axes_equal(ax)
+
+        fig = plt.gcf()
+        fig.canvas.draw()
+        image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
+        image  = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        frames.append(image)
+
+    plt.close()
+    imageio.mimsave(fpath, frames, fps=FPS)
+
 def combine_cmaps(zeta, U_k):
     min_zeta = np.min(zeta)
     max_zeta = np.max(zeta)
@@ -197,7 +246,7 @@ class Visualize:
         plt.tight_layout()
         #plt.axis('off')
         if self.save_dir:
-            plt.savefig(self.save_dir+'/' + title + '.eps') 
+            plt.savefig(self.save_dir+'/' + title + OUTPUT_EXT) 
         #plt.show()
         
     def eigenvalues(self, lmbda, figsize=None):
@@ -232,7 +281,7 @@ class Visualize:
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/gamma'):
                 os.makedirs(self.save_dir+'/gamma')
-            plt.savefig(self.save_dir+'/gamma/'+str(i)+'.eps') 
+            plt.savefig(self.save_dir+'/gamma/'+str(i)+OUTPUT_EXT) 
         plt.show()
     
     def eigenvector(self, X, phi, i, figsize=None, s=20):
@@ -254,7 +303,7 @@ class Visualize:
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/eigvecs'):
                 os.makedirs(self.save_dir+'/eigvecs')
-            plt.savefig(self.save_dir+'/eigvecs/'+str(i)+'.eps') 
+            plt.savefig(self.save_dir+'/eigvecs/'+str(i)+OUTPUT_EXT) 
         plt.show()
     
     def grad_phi(self, X, phi, grad_phi, i, prop=0.01, figsize=None, s=20):
@@ -294,7 +343,7 @@ class Visualize:
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/grad_phi'):
                 os.makedirs(self.save_dir+'/grad_phi')
-            plt.savefig(self.save_dir+'/grad_phi/'+str(i)+'.eps') 
+            plt.savefig(self.save_dir+'/grad_phi/'+str(i)+OUTPUT_EXT) 
         plt.show()
     
     def Atilde(self, X, phi, i, j, Atilde, figsize=None, s=20):
@@ -340,7 +389,7 @@ class Visualize:
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/Atilde'):
                 os.makedirs(self.save_dir+'/Atilde')
-            plt.savefig(self.save_dir+'/Atilde/'+str(i)+'_'+str(j)+'.eps') 
+            plt.savefig(self.save_dir+'/Atilde/'+str(i)+'_'+str(j)+OUTPUT_EXT) 
         plt.show()
     
     def n_eigvecs_w_grad_lt(self, X, Atilde, thresh_prctile=None, figsize=(16,8), s=20):
@@ -416,7 +465,7 @@ class Visualize:
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/n_eigvecs_w_grad_lt'):
                     os.makedirs(self.save_dir+'/n_eigvecs_w_grad_lt')
-                plt.savefig(self.save_dir+'/n_eigvecs_w_grad_lt/'+str(thresh)+'.eps')
+                plt.savefig(self.save_dir+'/n_eigvecs_w_grad_lt/'+str(thresh)+OUTPUT_EXT)
             plt.show()
             
             if thresh_prctile is not None:
@@ -443,14 +492,14 @@ class Visualize:
             fig.colorbar(p)
         plt.title(title)
         if self.save_dir:
-            plt.savefig(self.save_dir+'/'+title+'.eps') 
+            plt.savefig(self.save_dir+'/'+title+OUTPUT_EXT) 
         plt.show()
     
     def distortion_boxplot(self, zeta, title, figsize=None):
         fig = plt.figure(figsize=figsize)
         plt.boxplot([zeta],labels=[title], notch=True, patch_artist=True)
         if self.save_dir:
-            plt.savefig(self.save_dir+'/box_'+title+'.eps') 
+            plt.savefig(self.save_dir+'/box_'+title+OUTPUT_EXT) 
         plt.show()
         
     def global_distortion_viloinplot_overlay(self, dist_dicts, label=r'$\log(\mathcal{G}_k)$',
@@ -596,7 +645,7 @@ class Visualize:
             fig.colorbar(p, ax=ax)
             ax.set_title('dX') 
         if self.save_dir:
-            plt.savefig(self.save_dir+'/'+title+'.eps') 
+            plt.savefig(self.save_dir+'/'+title+OUTPUT_EXT) 
         plt.show()
     
     def intrinsic_dim(self, X, chi, figsize=None, s=20):
@@ -831,7 +880,7 @@ class Visualize:
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/local_views/'+save_subdir):
                     os.makedirs(self.save_dir+'/local_views/'+save_subdir)
-                plt.savefig(self.save_dir+'/local_views/'+save_subdir+'/'+str(k)+'.eps')
+                plt.savefig(self.save_dir+'/local_views/'+save_subdir+'/'+str(k)+OUTPUT_EXT)
             plt.show()
             
             first_plot = False
@@ -954,7 +1003,7 @@ class Visualize:
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/local_views/'+save_subdir):
                     os.makedirs(self.save_dir+'/local_views/'+save_subdir)
-                plt.savefig(self.save_dir+'/local_views/'+save_subdir+'/'+str(k)+'.eps')
+                plt.savefig(self.save_dir+'/local_views/'+save_subdir+'/'+str(k)+OUTPUT_EXT)
             plt.show()
             
             first_plot = False
@@ -1104,7 +1153,7 @@ class Visualize:
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/intermediate_views/'+save_subdir):
                     os.makedirs(self.save_dir+'/intermediate_views/'+save_subdir)
-                plt.savefig(self.save_dir+'/intermediate_views/'+save_subdir+'/'+str(m)+'.eps') 
+                plt.savefig(self.save_dir+'/intermediate_views/'+save_subdir+'/'+str(m)+OUTPUT_EXT) 
             plt.show()
             
             first_plot = False
@@ -1218,7 +1267,7 @@ class Visualize:
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/local_high_low_distortion/'):
                     os.makedirs(self.save_dir+'/local_high_low_distortion/')
-                plt.savefig(self.save_dir+'/local_high_low_distortion/thresh='+str(thresh)+'.eps') 
+                plt.savefig(self.save_dir+'/local_high_low_distortion/thresh='+str(thresh)+OUTPUT_EXT) 
             plt.show()
             
         
@@ -1336,7 +1385,7 @@ class Visualize:
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/intermediate_high_low_distortion'):
                     os.makedirs(self.save_dir+'/intermediate_high_low_distortion')
-                plt.savefig(self.save_dir+'/intermediate_high_low_distortion/thresh='+str(thresh)+'.eps') 
+                plt.savefig(self.save_dir+'/intermediate_high_low_distortion/thresh='+str(thresh)+OUTPUT_EXT) 
             plt.show()
     
     def seq_of_intermediate_views(self, X, c, seq, rho, Utilde, figsize=None, s=20, cmap='jet'):
@@ -1455,7 +1504,7 @@ class Visualize:
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/ge'):
                 os.makedirs(self.save_dir+'/ge')
-            plt.savefig(self.save_dir+'/ge/'+str(title)+'.eps', bbox_inches = 'tight',pad_inches = 0)
+            plt.savefig(self.save_dir+'/ge/'+str(title)+OUTPUT_EXT, bbox_inches = 'tight',pad_inches = 0)
         #plt.show()
     
     def global_embedding_images(self, X, img_shape, y, labels, cmap0, color_of_pts_on_tear=None, cmap1=None,
@@ -1558,7 +1607,7 @@ class Visualize:
             if self.save_dir:
                 if not os.path.isdir(self.save_dir+'/ge_img'):
                     os.makedirs(self.save_dir+'/ge_img')
-                plt.savefig(self.save_dir+'/ge_img/'+str(title)+'.eps')
+                plt.savefig(self.save_dir+'/ge_img/'+str(title)+OUTPUT_EXT)
             plt.show()
     
     def global_embedding_images_v2(self, X, img_shape, y, labels, cmap0, color_of_pts_on_tear=None, cmap1=None,
@@ -1687,7 +1736,7 @@ class Visualize:
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/ge_img_v2'):
                 os.makedirs(self.save_dir+'/ge_img_v2')
-            plt.savefig(self.save_dir+'/ge_img_v2/'+str(title)+'.eps')
+            plt.savefig(self.save_dir+'/ge_img_v2/'+str(title)+OUTPUT_EXT)
     
     def visualize_epoch_data(self, X, Ls):
         a=np.array(X)

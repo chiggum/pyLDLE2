@@ -2,7 +2,7 @@ import pdb
 import numpy as np
 import time
 
-from scipy.spatial.distance import pdist, squareform
+from scipy.spatial.distance import pdist, squareform, cdist
 from sklearn.neighbors import NearestNeighbors, KNeighborsTransformer
 
 from scipy.sparse import csr_matrix
@@ -179,77 +179,98 @@ def double_manifold_k_nn(data, ddX, k_nn, metric, n_proc=1):
     return neigh_dist, neigh_ind
     
 
-def get_default_local_opts(algo='LPCA', k_nn=49, k_tune=7, k=28, metric='euclidean', radius=0.5,
-                           U_method='k_nn', gl_type='unnorm', tuning='self', N=100, scale_by='gamma',
+def get_default_local_opts(algo='LPCA', metric0='euclidean', k=28,  k_nn=49, k_tune=7, 
+                           metric='euclidean', update_metric=True, radius=0.5, U_method='k_nn',
+                           gl_type='unnorm', tuning='self', N=100, scale_by='gamma',
                            Atilde_method='LDLE_1', alpha=1, max_iter=300, reg=0.,
-                           p=0.99, tau=50, delta=0.9, to_postprocess= True,
+                           p=0.99, tau=50, delta=0.9, lkpca_kernel='linear', to_postprocess= True,
                            pp_n_thresh=32, lambda1_init=8, lambda1_decay=0.75, lambda1_min=1e-3,
-                           power=5, max_sparsity=0.9):
-    """Sets and returns a dictionary of default_local_opts.
+                           power=5, max_sparsity=0.9, doubly_stochastic_max_iter=0):
+    """Sets and returns a dictionary of default_local_opts, (experimental) options to be ignored.
     
     Parameters
     ----------
     algo : str
-           The algorithm to use for the construction of
-           local views. Options are 'LDLE', 'LPCA', 'L1PCA', 'SparsePCA',
-           and 'RPCA-GODEC'. LPCA uses the hyperparameter k and 
-           k_nn only and is not affected by the value of the
-           others. Smooth-LPCA additionally uses alpha,
-           max_iter, reg. Currently, Smooth-LPCA is very slow.
-    k_nn : int
-           For k-nearest neighbor graph construction.
-    k_tune : int
-           Distance to k_tune-th nearest neighbor is
-           used as the local scaling factor. This must
-           be less than k_nn.
+        The algorithm to use for the construction of
+        local views. Options are 'LDLE', 'LPCA' and 'LKPCA'.
+        Experimental options are 'L1PCA', 'SparsePCA', 'LISOMAP'
+        and 'RPCA-GODEC'.
+           others.
+    metric0 : str
+        The metric to be used for finding nearest neighbors. If
+        the data is a distance matrix then use 'precomputed'.
     k : int 
-        The size of local view per point.
+        The size of the local view per point.
+    k_nn : int
+        This is used for nearest neighbor graph construction.
+        The neighborhood size is kept bigger than the size of the
+        local views. This is because, during clustering where we
+        construct intermediate views, we need access to distances
+        between points in a bigger neighborhood around each point.
+        The value of k_nn must be >= k. Then the size of neighborhood
+        is set to max(k_nn, eta_max * k) where eta_max is in intermed_opts.
+        This value is used to construct the nearest neighbor graph
+        using metric0.
+    k_tune : int
+        Distance to k_tune-th nearest neighbor is
+        used as the local scaling factor. This must
+        be less than k_nn. This is used to construct
+        self-tuning kernel in LDLE.
     metric : str
-             The metric to use for finding nearest neighbors.
+        The local metric on the data. If the data is a distance
+        matrix then use 'precomputed'.
+    update_metric : bool
+        If True, recomputes neighbor distances using metric.
+        If False, the neighbor distances computed using metric0
+        are retained. Note that neighbor indices are not changed.
     radius : float
-             Radius of the balls to be used to find nearest neighbors.
+        Radius of the balls to be used to compute nearest neighbors.
+        (experimental)
     U_method : str
-                Method to use to construct local views.
-                Options are 'k_nn' and 'radius'.
+        Method to use to construct local views.
+        Options are 'k_nn' and 'radius'.
     gl_type : str
-              The type of graph Laplacian to construct.
-              Options are 'unnorm' for unnormalized,
-              'symnorm' for symmetric normalized,
-              'diffusion' for density-corrected normalized.
+        The type of graph Laplacian to construct in LDLE.
+        Options are 'unnorm' for unnormalized,
+        'symnorm' for symmetric normalized,
+        'diffusion' for density-corrected normalized.
     tuning: str
-            The tuning method for the construction of kernel.
-            Options are: 'self', 'solo', 'median' or None.
+        The tuning method for the construction of kernel in LDLE.
+        Options are: 'self', 'solo', 'median' or None. 
     N : int
         Number of smallest non-trivial eigenvectors of the
         graph Laplacian to be used for the construction of
-        local views.
+        local views in LDLE.
     scale_by : str
-               To scale the eigenvectors. Options
-               are 'none', 'gamma' or a positive real value. Default is
-               'gamma'. Using numerical value with gl_type as 'diffusion'
-               uses diffusion maps to construct local views where
-               the numeric value is used as the power of the eigenvalues.
+        To scale the eigenvectors in LDLE. Options
+        are 'none', 'gamma' or a positive real value. Default is
+        'gamma'. Using numerical value with gl_type as 'diffusion'
+        uses diffusion maps to construct local views where
+        the numeric value is used as the power of the eigenvalues.
     Atilde_method : str
-                    Method to use for conmputing Atilde.
-                    Options are 'LDLE_1' for finite element method,
-                    'LLR' for local linear regression. Currently,
-                    only 'LDLE_1' works.
+        Method to use for conmputing Atilde in LDLE.
+        Options are 'FEM' for finite element method,
+        and 'FeymanKac' for Feyman-Kac formula based.
     p : float
         A hyperparameter used in computing Atilde. The value
         must be in (0,1).
     tau : int
         A hyperparameter used in computing parameterizations
-        of local views. The value must be in (0,100).
+        of local views in LDLE. The value must be in (0,100).
     delta : float
         A hyperparameter used in computing parameterizations
-        of local views. The value must be in (0,1).
+        of local views in LDLE. The value must be in (0,1).
     alpha : float
-           Step size in Riemannian gradient descent when using
-           Smooth-LPCA.
+        Step size in Riemannian gradient descent when using
+        Smooth-LPCA (experimental).
     max_iter: int
-              Max number of Riemannian gradient descent steps.
+        Max number of Riemannian gradient descent steps in
+        Smooth-LPCA (experimental).
     reg : float
-         Desired regularization (Smoothness) in Smooth-LPCA.
+        Desired regularization (Smoothness) in Smooth-LPCA
+        (experimental).
+    lkpca_kernel: str
+        The kernel for local KPCA.
     to_postprocess : bool
         If True the local parameterizations are postprocessed
         to fix anamolous parameterizations leading to high
@@ -259,23 +280,29 @@ def get_default_local_opts(algo='LPCA', k_nn=49, k_tune=7, k=28, metric='euclide
         while postprocessing the local parameterizations. A small
         value such as 32 leads to faster postprocessing.
     lambda1_init : float
-                  Initialization of lambda1 for RPCA-GODEC.
+        Initialization of lambda1 for RPCA-GODEC (experimental).
     lambda1_decay : float
-                   Decay of lambda1 for RPCA-GODEC.
+        Decay of lambda1 for RPCA-GODEC (experimental).
     lambda1_min : float
-                 Minimum allowed valued of lambda1 for RPCA-GODEC.
+        Minimum allowed valued of lambda1 for RPCA-GODEC (experimental).
     power : int
-           Number of power iterations for initialization in RPCA-GODEC.
+        Number of power iterations for initialization in RPCA-GODEC
+        (experimental).
     max_sparsity : float
-                  maximum fraction of the desired sparsity.
+        maximum fraction of the desired sparsity (experimental).
+    doubly_stochastic_max_iter: int
+        max number of sinkhorn iterations for converting
+        self tuned kernel in LDLE to doubly stochastic.
     """
-    return {'k_nn': k_nn, 'k_tune': k_tune, 'k': k, 'metric': metric, 'radius': radius,
+    return {'k_nn': k_nn, 'k_tune': k_tune, 'k': k, 'metric0': metric0,
+            'metric': metric, 'update_metric': update_metric, 'radius': radius,
            'U_method': U_method, 'gl_type': gl_type, 'tuning': tuning, 'N': N, 'scale_by': scale_by,
            'Atilde_method': Atilde_method, 'p': p, 'tau': tau, 'delta': delta,
-           'alpha': alpha, 'max_iter': max_iter, 'reg': reg, 
+           'alpha': alpha, 'max_iter': max_iter, 'reg': reg, 'lkpca_kernel': lkpca_kernel,
            'to_postprocess': to_postprocess, 'algo': algo,
            'pp_n_thresh': pp_n_thresh, 'lambda1_init': lambda1_init, 'lambda1_decay': lambda1_decay,
-           'lambda1_min': lambda1_min, 'power': power, 'max_sparsity': max_sparsity}
+           'lambda1_min': lambda1_min, 'power': power, 'max_sparsity': max_sparsity,
+           'doubly_stochastic_max_iter': doubly_stochastic_max_iter}
 
 def get_default_intermed_opts(algo='best', n_times=4, eta_min=5, eta_max=25, len_S_thresh=256):
     """Sets and returns a dictionary of default_intermed_opts.
@@ -314,7 +341,7 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
                             add_dim=False, beta={'align':None, 'repel': 1},
                             repel_by=0., repel_decay=1., n_repel=0,
                             far_off_points_type='reuse_fixed', patience=5, err_tol=1e-6,
-                            tear_color_method='spectral', color_diversity_index=1,
+                            tear_color_method='spectral', tear_color_eig_inds=[1,0,2],
                             metric='euclidean', color_cutoff_frac=0.001,
                             color_largest_tear_comp_only=False,
                             n_forced_clusters=1):
@@ -401,10 +428,12 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
              Method to color the tear. Options are 'spectral' or 'heuristic'.
              The latter keeps the coloring of the tear same accross
              the iterations.
-    color_diversity_index : int
-             Index used to obtain diversity of the colors on the tear.
-             The value must be non-negative. Higher values result in
-             more diversity. The diversity saturates after a certain value.
+    tear_color_eig_inds : int
+             Eigenvectors to be used to color the tear. The value must either
+             be a non-negative integer or it must be a list of three non-negative
+             integers [R,G,B] representing the indices of eigenvectors to be used
+             as RGB channels for coloring the tear. Higher values result in
+             more diversity of colors. The diversity saturates after a certain value.
     color_cutoff_frac : float
              If the number of points in a tear component is less than
              color_cutoff_frac * number of data points, then all the
@@ -412,7 +441,7 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
     color_largest_tear_comp_only : bool
              If True then the largest tear components is colored only.
     metric : str
-            default is euclidean
+             metric assumed on the global embedding. currently only euclidean is supported.
     n_forced_clusters : str
                        Minimum no. of clusters to force in the embeddings.
     """
@@ -431,7 +460,7 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
                'far_off_points_type': far_off_points_type,
                'patience': patience, 'err_tol': err_tol,
                'tear_color_method': tear_color_method,
-               'color_diversity_index': color_diversity_index,
+               'tear_color_eig_inds': tear_color_eig_inds,
                'metric': metric, 'color_cutoff_frac': color_cutoff_frac,
                'color_largest_tear_comp_only': color_largest_tear_comp_only,
                'n_forced_clusters': n_forced_clusters
@@ -602,12 +631,12 @@ class BUML:
         if ddX is None or self.local_opts['algo'] != 'LDLE':
             neigh_dist, neigh_ind = nearest_neighbors(data,
                                                       k_nn=self.local_opts['k_nn0'],
-                                                      metric=self.local_opts['metric'])
+                                                      metric=self.local_opts['metric0'])
         else:
             self.log('Doubling manifold.')
             neigh_dist, neigh_ind = double_manifold_k_nn(data, ddX,
                                                          self.local_opts['k_nn0'],
-                                                         self.local_opts['metric'],
+                                                         self.local_opts['metric0'],
                                                          self.local_opts['n_proc'])
             self.log('Done.', log_time=True)
         
@@ -616,6 +645,16 @@ class BUML:
 #         return
         # Construct a sparse d_e matrix based on neigh_ind and neigh_dist
         # self.scale = np.min(neigh_dist[neigh_dist > 0])
+        
+        
+        if (self.local_opts['metric0'] != self.local_opts['metric']) and self.local_opts['update_metric']:
+            for k in range(neigh_ind.shape[0]):
+                neigh_dist[k,:] = cdist(data[k,:][None,:], data[neigh_ind[k,:],:],
+                                        metric=self.local_opts['metric'])
+                # cdist can return a very small value of self-distance
+                # enforce self-distance to be zero.
+                neigh_dist[k,0] = 0
+        
         d_e = sparse_matrix(neigh_ind, neigh_dist)
         d_e = d_e.maximum(d_e.transpose())
         
@@ -630,7 +669,7 @@ class BUML:
         
         # Construct low dimensional local views
         LocalViews = local_views_.LocalViews(self.exit_at, self.verbose, self.debug)
-        LocalViews.fit(self.d, X, d_e, neigh_dist, neigh_ind, ddX, self.local_opts)
+        LocalViews.fit(self.d, data, d_e, neigh_dist, neigh_ind, ddX, self.local_opts)
         
         # Halving distance matrix
         if ddX is not None:

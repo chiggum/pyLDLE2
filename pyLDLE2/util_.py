@@ -81,10 +81,12 @@ class Param:
         self.X = None
         self.y = None
         
-        self.add_dim = False
+        # For KPCA, ISOMAP etc
+        self.model = None
+        self.X = None
+        self.y = None
         
-        # For ISOMAP
-        self.isomap = None
+        self.add_dim = False
         
     def eval_(self, opts):
         k = opts['view_index']
@@ -96,8 +98,50 @@ class Param:
         elif self.algo == 'LPCA':
             temp = np.dot(self.X[mask,:]-self.mu[k,:][np.newaxis,:],self.Psi[k,:,:])
             n = self.X.shape[0]
-        elif self.algo == 'LISOMAP':
-            temp = self.isomap[k].transform(self.X[mask,:])
+        else:
+            temp = self.model[k].transform(self.X[mask,:])
+        
+        if self.noise_var:
+            np.random.seed(self.noise_seed[k])
+            temp2 = np.random.normal(0, self.noise_var, (n, temp.shape[1]))
+            temp = temp + temp2[mask,:]
+            
+        if self.add_dim:
+            temp = np.concatenate([temp,np.zeros((temp.shape[0],1))], axis=1)
+        
+        if self.b is None:
+            return temp
+        else:
+            temp = self.b[k]*temp
+            if self.T is not None:
+                temp = np.dot(temp, self.T[k,:,:])
+            if self.v is not None:
+                temp = temp + self.v[[k],:]
+            return temp
+        
+    def reconstruct_(self, opts):
+        k = opts['view_index']
+        y_ = opts['embeddings']
+        if self.algo == 'LDLE':
+            pass
+        elif self.algo == 'LPCA':
+            temp = np.dot(np.dot(y_-self.v[[k],:], self.T[k,:,:].T),self.Psi[k,:,:].T)+self.mu[k,:][np.newaxis,:]
+        else:
+            pass
+        return temp
+    
+    def out_of_sample_eval_(self, opts):
+        k = opts['view_index']
+        X_ = opts['out_of_samples']
+        
+        if self.algo == 'LDLE':
+            temp = self.Psi_gamma[k,:][np.newaxis,:]*self.phi[np.ix_(mask,self.Psi_i[k,:])]
+            n = self.phi.shape[0]
+        elif self.algo == 'LPCA':
+            temp = np.dot(X_-self.mu[k,:][np.newaxis,:],self.Psi[k,:,:])
+            n = self.X.shape[0]
+        else:
+            temp = self.isomap[k].transform(X_)
         
         if self.noise_var:
             np.random.seed(self.noise_seed[k])
@@ -348,6 +392,41 @@ def get_path_lengths_in_embedding_space(s_d_e, pred, y_d_e, n_proc=8, verbose=Tr
         proc[p_num].join()
     
     return y_d_e2
+
+def reconstruct_(self, opts):
+    k = opts['view_index']
+    y_ = opts['embeddings']
+    if self.algo == 'LDLE':
+        return None
+    elif self.algo == 'LPCA':
+        temp = np.dot(np.dot(y_-self.v[[k],:], self.T[k,:,:].T),self.Psi[k,:,:].T)+self.mu[k,:][np.newaxis,:]
+    elif self.algo == 'LISOMAP':
+        return None
+    return temp
+
+def reconstruct_data(p, buml_obj, y, is_init=False, averaging=True):
+    if averaging:
+        Utildeg = buml_obj.GlobalViews.compute_Utildeg(y, buml_obj.IntermedViews.C, buml_obj.global_opts)
+        Utilde = buml_obj.IntermedViews.Utilde.multiply(Utildeg)
+        Utilde.eliminate_zeros() 
+    else:
+        Utilde = buml_obj.IntermedViews.C
+    if is_init:
+        intermed_param = buml_obj.GlobalViews.intermed_param_init
+    else:
+        intermed_param = buml_obj.IntermedViews.intermed_param
+    m,n = Utilde.shape
+    X = np.zeros((n, p))
+    for k in range(n):
+        views = Utilde[:,k].nonzero()[0].tolist()
+        temp = []
+        embedding = y[k,:][None,:]
+        for i in views:
+            temp.append(reconstruct_(intermed_param, {'view_index': i, 'embeddings': embedding}))
+        temp = np.array(temp)
+        X[k,:] = np.mean(temp, axis=0)
+    return X
+    
 
 def compute_global_distortions(X, y, n_nbr=10, buml_obj_path='',
                                read_dir_root='', save_dir_root='',

@@ -370,7 +370,8 @@ class GlobalViews:
     def compute_spectral_color_of_pts_on_tear(self, y, Utilde, C, global_opts,
                                      n_Utilde_Utilde, Utildeg=None, return_G_T=False):
         M,n = Utilde.shape
-        color_of_pts_on_tear = np.zeros((n,2+global_opts['color_diversity_index'])) + np.nan
+        max_diversity = np.max(global_opts['tear_color_eig_inds'])+1
+        color_of_pts_on_tear = np.zeros((n, max_diversity)) + np.nan
 
         # Compute |Utildeg_{mm'}| if not provided
         if Utildeg is None:
@@ -421,7 +422,7 @@ class GlobalViews:
             comp_i = labels==i
             n_points_in_comp.append(np.sum(comp_i))
         
-        offset = np.zeros(2+global_opts['color_diversity_index'])
+        offset = np.zeros(max_diversity)
         if return_G_T:
             G_T_info = []
         for i in np.flip(np.argsort(n_points_in_comp)).tolist():
@@ -433,18 +434,18 @@ class GlobalViews:
                 offset += scale
                 continue
             G1_comp_i = G1[np.ix_(comp_i, comp_i)]
-            G1_comp_i = laplacian(G1_comp_i.astype('float'))
+            G1_comp_i = laplacian(G1_comp_i.astype('float')) # NOTE: Laplacian not adjacency
             if return_G_T:
                 G_T_info.append([i, G1_comp_i])
             np.random.seed(42)
             v0 = np.random.uniform(0, 1, G1_comp_i.shape[0])
-            n_eigs = min(n_comp_i, 2+global_opts['color_diversity_index'])
+            n_eigs = min(n_comp_i, max_diversity)
             _, colors_ = scipy.sparse.linalg.eigsh(G1_comp_i, v0=v0,
                                                    k=n_eigs,
                                                    sigma=-1e-3)
             colors_max = np.max(colors_, axis=0)[None,:]
             colors_min = np.min(colors_, axis=0)[None,:]
-            colors_ = (colors_-colors_min)/(colors_max-colors_min) # scale to [0,1]
+            colors_ = (colors_-colors_min)/(colors_max-colors_min + 1e-12) # scale to [0,1]
             colors_ = offset[None,:n_eigs] + colors_*scale
             offset += scale
             color_of_pts_on_tear[np.ix_(pts_on_tear[comp_i],np.arange(n_eigs))] = colors_
@@ -469,14 +470,14 @@ class GlobalViews:
     def vis_embedding_(self, y, d, intermed_param, c, C, Utilde,
                       n_Utilde_Utilde, global_opts, vis,
                       vis_opts, title='', color_of_pts_on_tear=None,
-                      Utilde_t=None, use_largest_eig_for_tear_color=True):
+                      Utilde_t=None):
         M,n = Utilde.shape
         if global_opts['color_tear']:
             if (color_of_pts_on_tear is None) and global_opts['to_tear']:
                 color_of_pts_on_tear = self.compute_color_of_pts_on_tear(y, Utilde, C, global_opts,
                                                                          n_Utilde_Utilde)
-            if global_opts['to_tear'] and use_largest_eig_for_tear_color:
-                color_of_pts_on_tear = color_of_pts_on_tear[:,-1]
+            if global_opts['to_tear']:
+                color_of_pts_on_tear = color_of_pts_on_tear[:,global_opts['tear_color_eig_inds']]
         else:
             color_of_pts_on_tear = None
             
@@ -620,6 +621,8 @@ class GlobalViews:
         color_of_pts_on_tear, y = self.vis_embedding_(y, d, intermed_param, c, C, Utilde,
                                                   n_Utilde_Utilde, global_opts, vis,
                                                   vis_opts, title='Init')
+        if self.debug:
+            self.intermed_param_init = copy.deepcopy(intermed_param)
         #intermed_param.y = y
         return y, color_of_pts_on_tear
 
@@ -758,7 +761,7 @@ class GlobalViews:
             # Visualize the current embedding
             _, y = self.vis_embedding_(y, d, intermed_param, c, C, Utilde,
                                       n_Utilde_Utilde, global_opts, vis,
-                                      vis_opts, title='Iter_%d' % it0,
+                                      vis_opts, title='Iter_%d' % self.it0,
                                       color_of_pts_on_tear=color_of_pts_on_tear,
                                       Utilde_t=Utilde_t)
             

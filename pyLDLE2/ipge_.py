@@ -1,3 +1,4 @@
+import pdb
 import numpy as np
 from scipy.stats.distributions import chi2
 
@@ -39,6 +40,26 @@ class IPGE:
         print('Atilde: all points processed...')
         if self.debug:
             self.Gtilde = Gtilde
+        self.Atilde = Atilde
+        
+    def FeymanKac(self, L, phi, U, print_prop = 0.25):
+        n, N = phi.shape
+        print_freq = np.int(n*print_prop)
+
+        L = L.copy()
+        #L = L/(autotune.toarray()+1e-12)
+        Atilde=np.zeros((n,N,N))
+
+        print('Feyman-Kac for Atilde.')
+        for k in range(n):
+            if print_freq and np.mod(k,print_freq)==0:
+                print('Atilde: : %d points processed...' % k)
+            U_k = U[k,:].nonzero()[1]
+            dphi_k = phi[U_k,:]-phi[k,:][None,:]
+            L_k = L.getrow(k).T
+            L_k = L_k[U_k,:].toarray()
+            Atilde[k,:,:] = -0.5*np.dot(dphi_k.T, L_k * dphi_k)
+        print('Atilde_k, Atilde_k: all points processed...')
         self.Atilde = Atilde
 
     def compute_gradient_using_LLR(self, X, phi, d_e, U, t, d, print_prop = 0.25):
@@ -86,26 +107,6 @@ class IPGE:
             grad_phi[k,:,:] = np.dot(B_k,bhat_k[1:,:]).T
 
         return grad_phi
-
-    def compute_Atilde_LDLE_2(X, L, phi0, phi, lmbda0, lmbda, d_e, U, epsilon, p, d, autotune, print_prop = 0.25):
-        n, N = phi.shape
-        print_freq = np.int(n*print_prop)
-
-        L = L.copy()
-        L = L/(autotune.toarray()+1e-12)
-
-        lmbda = lmbda.copy()
-        lmbda = lmbda.reshape(1,N)
-        Atilde=np.zeros((n,N,N))
-
-        # For computing derivative at t=0
-        for k in range(n):
-            if print_freq and np.mod(k,print_freq)==0:
-                print('Atilde: : %d points processed...' % k)
-            dphi_k = phi-phi[k,:]
-            Atilde[k,:,:] = -0.5*np.dot(dphi_k.T, dphi_k*(L[k,:][:,np.newaxis]))
-        print('Atilde_k, Atilde_k: all points processed...')
-        return None, Atilde
 
     def llr(self, X, phi, d_e, U, epsilon, p, d, print_prop = 0.25):
         n, N = phi.shape

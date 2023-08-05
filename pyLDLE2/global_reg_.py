@@ -42,13 +42,13 @@ def compute_far_off_points(d_e, global_opts, force_compute=False):
 # Computes Z_s for the case when to_tear is True.
 # Input Z_s is the Z_s for the case when to_tear is False.
 # Output Z_s is a subset of input Z_s.
-def compute_Z_s_to_tear(y, s, Z_s, C, c, k):
+def compute_Z_s_to_tear(y, s, Z_s, C, c, k, metric='euclidean'):
     n_Z_s = Z_s.shape[0]
     # C_s_U_C_Z_s = (self.C[s,:]) | np.isin(self.c, Z_s)
     C_s_U_C_Z_s = np.where(C[s,:] + C[Z_s,:].sum(axis=0))[1]
     n_ = C_s_U_C_Z_s.shape[0]
     k_ = min(k,n_-1)
-    _, neigh_ind_ = nearest_neighbors(y[C_s_U_C_Z_s,:], k_, 'euclidean')
+    _, neigh_ind_ = nearest_neighbors(y[C_s_U_C_Z_s,:], k_, metric)
     U_ = sparse_matrix(neigh_ind_, np.ones(neigh_ind_.shape, dtype=bool))
     Utilde_ = C[np.ix_(Z_s,C_s_U_C_Z_s)].dot(U_)
     Utilde_ = vstack([Utilde_, C[s,C_s_U_C_Z_s].dot(U_)])
@@ -88,7 +88,7 @@ def procrustes_init(seq, rho, y, is_visited_view, d, Utilde, n_Utilde_Utilde,
                 # Find more views to align sth view with
                 Z_s = n_Utilde_Utilde[s,:].multiply(is_visited_view)
                 Z_s_all = Z_s.nonzero()[1]
-                Z_s = compute_Z_s_to_tear(y, s, Z_s_all, C, c, global_opts['k'])
+                Z_s = compute_Z_s_to_tear(y, s, Z_s_all, C, c, global_opts['k'], global_opts['metric'])
                 # The parent must be in Z_s
                 if p not in Z_s:
                     Z_s.append(p)
@@ -213,7 +213,7 @@ def compute_CC(D, B, Lpinv_BT):
 
 def build_ortho_optim(d, Utilde, intermed_param,
                       far_off_points=[], repel_by=0.,
-                      beta=None):
+                      beta=None, ret_CCs=False):
     M,n = Utilde.shape
     B_row_inds = []
     B_col_inds = []
@@ -277,6 +277,7 @@ def build_ortho_optim(d, Utilde, intermed_param,
     Lpinv_BT = compute_Lpinv_MT(Lpinv_helpers, B)
     CC = compute_CC(D, B, Lpinv_BT)
     if n_repel > 0:
+    #if (n_repel > 0) and (repel_by>1e-3):
         temp_arr = (-np.ones(n_repel)).tolist()
         L_r = np.zeros((n_repel, n_repel))
         L__row_inds = []
@@ -301,11 +302,18 @@ def build_ortho_optim(d, Utilde, intermed_param,
             L__vals += L_r[i,:].tolist()
         
         L_ = csr_matrix((L__vals, (L__row_inds, L__col_inds)), shape=(n+M,n+M))
-        L_ = -repel_by*L_
+        L_ = repel_by*L_
         L__Lpinv_BT = L_.dot(Lpinv_BT)
-        CC = CC + (Lpinv_BT.T).dot(L__Lpinv_BT)
-
-    return CC, Lpinv_BT, D, B
+        CC_repel = (Lpinv_BT.T).dot(L__Lpinv_BT)
+        CC_net = CC - CC_repel
+    else:
+        CC_net = CC
+        CC_repel = np.eye(CC.shape[0])
+        
+    if ret_CCs:
+        return (CC, CC_repel), Lpinv_BT, D, B
+    else:
+        return CC_net, Lpinv_BT, D, B
     
 # unscaled alignment error
 def compute_alignment_err(d, Utilde, intermed_param, scale_num, far_off_points=[], repel_by=0., beta=None):

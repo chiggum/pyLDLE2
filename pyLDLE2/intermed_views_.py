@@ -404,6 +404,9 @@ class IntermedViews:
                 intermed_param.Psi_i = local_param.Psi_i[non_empty_C,:]
                 intermed_param.Psi_gamma = local_param.Psi_gamma[non_empty_C,:]
                 intermed_param.b = intermed_param.b[non_empty_C]
+            elif intermed_opts['local_algo'] != 'LPCA':
+                intermed_param.model = local_param.model[non_empty_C]
+                intermed_param.b = intermed_param.b[non_empty_C]
             else:
                 intermed_param.Psi = local_param.Psi[non_empty_C,:]
                 intermed_param.mu = local_param.mu[non_empty_C,:]

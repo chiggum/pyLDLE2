@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 from scipy.sparse.csgraph import laplacian
-from scipy.sparse import coo_matrix
+from scipy.sparse import coo_matrix, diags
 from scipy.sparse.linalg import eigsh
 from umap.umap_ import smooth_knn_dist, compute_membership_strengths
 
@@ -17,9 +17,21 @@ def umap_kernel(knn_indices, knn_dists, k_tune):
     result.eliminate_zeros()
     return result
 
+def sinkhorn(M, k):
+    """Sinkhorn algorithm with fixed number of iterations
+    https://arxiv.org/abs/1306.0895
+    """
+    K = M
+    D = np.array(np.sum(M,0)).squeeze()
+    di = 1/np.sqrt(D)
+    for i in range(k):
+        di = 1. / (K@di + 1e-8) 
+    K = diags(di) @ K @ diags(di)
+    return K
+
 def graph_laplacian(neigh_dist, neigh_ind, k_nn, k_tune, gl_type,
                     return_diag=False, use_out_degree=True,
-                    tuning='self'):
+                    tuning='self', doubly_stochastic_max_iter=0):
     if type(k_tune) != list:
         assert k_nn > k_tune, "k_nn must be greater than k_tune."
     assert gl_type in ['symnorm','unnorm', 'diffusion'],\
@@ -66,6 +78,9 @@ def graph_laplacian(neigh_dist, neigh_ind, k_nn, k_tune, gl_type,
         ones_K_like = ones_K_like + ones_K_like.T
         K.data /= ones_K_like.data
         #K = K + K.T - K.multiply(K.T)
+        
+        if doubly_stochastic_max_iter:
+            K = sinkhorn(K, doubly_stochastic_max_iter)
     
     if gl_type == 'diffusion':
         Dinv = 1/(K.sum(axis=1).reshape((n,1)))
@@ -106,7 +121,8 @@ class GL:
         
         if gl_type in ['unnorm', 'symnorm']:
             autotune, L = graph_laplacian(neigh_dist, neigh_ind, local_opts['k_nn'],
-                                           local_opts['k_tune'], gl_type, tuning=tuning)
+                                           local_opts['k_tune'], gl_type, tuning=tuning,
+                                            doubly_stochastic_max_iter=local_opts['doubly_stochastic_max_iter'])
             lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, which='SM')
             # TODO: Why the following doesn't give correct eigenvalues
             # lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, sigma=0.0)
@@ -115,7 +131,8 @@ class GL:
                 gl_type = 'symnorm'
             autotune, L_and_sqrt_D = graph_laplacian(neigh_dist, neigh_ind, local_opts['k_nn'],
                                             local_opts['k_tune'], gl_type,
-                                            return_diag = True, tuning=tuning)
+                                            return_diag = True, tuning=tuning,
+                                            doubly_stochastic_max_iter=local_opts['doubly_stochastic_max_iter'])
             L, sqrt_D = L_and_sqrt_D
             lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, which='SM')
             # TODO: Why the following doesn't give correct eigenvalues
