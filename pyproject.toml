@@ -21,7 +21,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyLDLE2"
-version = "0.1.20"
+version = "0.1.21"
 authors = [
   { name="Dhruv Kohli, Alex Cloninger, Gal Mishne" },
 ]
