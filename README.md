@@ -6,10 +6,7 @@ pyLDLE2 provides an implementation of our manifold learning algorithm [LDLE](htt
 
 Installation
 ------------
-
-Install pyLDLE2 by running:
-
-    python3 -m pip install pyLDLE2
+https://pyldle2.readthedocs.io/en/latest/
 
 Contribute
 ----------
