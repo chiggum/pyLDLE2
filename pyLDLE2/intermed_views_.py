@@ -94,8 +94,8 @@ class IntermedViews:
         self.Utilde = None
         self.intermed_param = None
         
-        self.local_start_time = time.time()
-        self.global_start_time = time.time()
+        self.local_start_time = time.perf_counter()
+        self.global_start_time = time.perf_counter()
     
     def log(self, s='', log_time=False):
         if self.verbose:

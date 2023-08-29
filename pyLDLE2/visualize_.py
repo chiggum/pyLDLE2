@@ -1433,7 +1433,8 @@ class Visualize:
         plt.show()
     
     def global_embedding(self, y, labels, cmap0, color_of_pts_on_tear=None, cmap1=None,
-                         title=None, figsize=None, s=30, set_title=False, elev=None, azim=None):
+                         title=None, figsize=None, s=30, set_title=False, elev=None, azim=None, roll=None,
+                         vmin=None, vmax=None):
         d = y.shape[1]
         if d == 1:
             y = np.concatenate([y,y],axis=1)
@@ -1448,11 +1449,11 @@ class Visualize:
         
         if d == 2:
             ax = fig.add_subplot()
-            ax.scatter(y[:,0], y[:,1], s=s, c=labels, cmap=cmap0)
+            ax.scatter(y[:,0], y[:,1], s=s, c=labels, cmap=cmap0, vmin=vmin, vmax=vmax)
             ax.axis('image')
         elif d == 3:
             ax = fig.add_subplot(projection='3d')
-            ax.scatter(y[:,0], y[:,1], y[:,2], s=s, c=labels, cmap=cmap0)
+            ax.scatter(y[:,0], y[:,1], y[:,2], s=s, c=labels, cmap=cmap0, vmin=vmin, vmax=vmax)
             set_axes_equal(ax)
         
         if (color_of_pts_on_tear is not None):
@@ -1484,16 +1485,16 @@ class Visualize:
             else:
                 if d == 2:
                     ax.scatter(y[pts_on_tear,0], y[pts_on_tear,1],
-                               s=s, c=color_of_pts_on_tear[pts_on_tear], cmap=cmap1)
+                               s=s, c=color_of_pts_on_tear[pts_on_tear], cmap=cmap1, vmin=None, vmax=None)
                 elif d==3:
                     ax.scatter(y[pts_on_tear,0], y[pts_on_tear,1], y[pts_on_tear,2],
-                               s=s, c=color_of_pts_on_tear[pts_on_tear], cmap=cmap1)
+                               s=s, c=color_of_pts_on_tear[pts_on_tear], cmap=cmap1, vmin=None, vmax=None)
                     set_axes_equal(ax)
         ax.axis('off')
         if set_title:
             ax.set_title(title)
         if elev is not None:
-            ax.view_init(elev=elev, azim=azim)
+            ax.view_init(elev=elev, azim=azim, roll=roll)
         
         plt.gca().set_axis_off()
         plt.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 

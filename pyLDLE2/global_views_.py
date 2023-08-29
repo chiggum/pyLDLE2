@@ -28,8 +28,8 @@ class GlobalViews:
         self.color_of_pts_on_tear_final = None
         self.tracker = {}
         
-        self.local_start_time = time.time()
-        self.global_start_time = time.time()
+        self.local_start_time = time.perf_counter()
+        self.global_start_time = time.perf_counter()
         
         # saved only when debug is True
         self.n_Utilde_Utilde = None
@@ -257,6 +257,9 @@ class GlobalViews:
                             # both sets are non-empty then assign them same color.
                             temp_m = C[m,:].multiply(temp_i).nonzero()[1]
                             temp_mpp = C[mpp,:].multiply(temp_i).nonzero()[1]
+                            
+                            if len(temp_m)*len(temp_mpp) == 0:
+                                continue
 
                             y_m_temp_m = intermed_param.eval_({'view_index': m, 'data_mask': temp_m})
                             y_m_temp_mpp = intermed_param.eval_({'view_index': m, 'data_mask': temp_mpp})
@@ -607,7 +610,7 @@ class GlobalViews:
                 
         
         self.log('Embedding initialized.', log_time=True)
-        self.tracker['init_computed_at'] = time.time()
+        self.tracker['init_computed_at'] = time.perf_counter()
         if global_opts['compute_error']:
             self.log('Computing error.')
             err = compute_alignment_err(d, Utilde, intermed_param, Utilde.count_nonzero())
@@ -650,7 +653,7 @@ class GlobalViews:
 
         np.random.seed(42) # for reproducbility
 
-        old_time = time.time()
+        old_time = time.perf_counter()
         
         CC = None
         Lpinv_BT = None
@@ -685,7 +688,7 @@ class GlobalViews:
         
         # Refine global embedding y
         for it0 in range(max_iter0):
-            self.tracker['refine_iter_start_at'].append(time.time())
+            self.tracker['refine_iter_start_at'].append(time.perf_counter())
             self.log('Refining with ' + refine_algo + ' algorithm for ' + str(max_iter1) + ' iterations.')
             self.log('Refinement iteration: %d' % self.it0, log_time=True)
             
@@ -719,7 +722,9 @@ class GlobalViews:
                                          seq_of_intermed_views_in_cluster)
                 
             self.log('Done.', log_time=True)
-            self.tracker['refine_iter_done_at'].append(time.time())
+            self.tracker['refine_iter_done_at'].append(time.perf_counter())
+            time_elapsed = self.tracker['refine_iter_done_at'][-1] - self.tracker['refine_iter_start_at'][-1]
+            print('### Last iter of refinement took %0.1f seconds.' % (time_elapsed), flush=True)
 
             if global_opts['compute_error'] or (it0 == max_iter0-1):
                 self.log('Computing error.')

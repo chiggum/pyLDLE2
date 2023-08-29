@@ -40,20 +40,23 @@ def save(dirpath, fname, data, verbose=True):
         print('Saved data in', fpath, flush=True)
         
         
-def shortest_paths(X, n_nbrs):
-    nbrs = NearestNeighbors(n_neighbors=n_nbrs).fit(X)
-    knn_graph = nbrs.kneighbors_graph(mode='distance')
-    dist_matrix, predecessors = shortest_path(knn_graph, return_predecessors=True, directed=False)
-    return dist_matrix, predecessors
+def shortest_paths(X, n_nbrs=None, radius=None, metric='euclidean', return_predecessors=True):
+    assert (n_nbrs is not None) or (radius is not None)
+    nbrs = NearestNeighbors(n_neighbors=n_nbrs, radius=radius, metric=metric).fit(X)
+    if n_nbrs is not None:
+        knn_graph = nbrs.kneighbors_graph(mode='distance')
+    else:
+        knn_graph = nbrs.radius_neighbors_graph(mode='distance')
+    return shortest_path(knn_graph, return_predecessors=return_predecessors, directed=False)
 
 def print_log(s, log_time, local_start_time, global_start_time):
     print(s)
     if log_time:
         print('##############################')
-        print('Time elapsed from last time log: %0.1f seconds' %(time.time()-local_start_time))
-        print('Total time elapsed: %0.1f seconds' %(time.time()-global_start_time))
+        print('Time elapsed from last time log: %0.1f seconds' %(time.perf_counter()-local_start_time))
+        print('Total time elapsed: %0.1f seconds' %(time.perf_counter()-global_start_time))
         print('##############################')
-    return time.time()
+    return time.perf_counter()
 
 class Param:
     def __init__(self,
@@ -329,15 +332,19 @@ def compute_distortion_at(y_d_e, s_d_e):
         mask[i] = 1
     return distortion_at, max_distortion
 
-def compute_prctile_distortion_at(y_d_e, s_d_e, prctile=50):
+def compute_quantile_distortion_at(y_d_e, s_d_e, quantile=0.9):
     scale_factors = (y_d_e+1e-12)/(s_d_e+1e-12)
-    np.fill_diagonal(scale_factors,1)
-    max_distortion = np.percentile(scale_factors, prctile)/np.percentile(scale_factors, 100-prctile)
+    mask = np.ones(scale_factors.shape, dtype=bool)
+    np.fill_diagonal(mask, 0)
+    max_distortion = np.quantile(scale_factors[mask], quantile)/np.percentile(scale_factors[mask], 1-quantile)
     print('Max distortion is:', max_distortion, flush=True)
     n = y_d_e.shape[0]
     distortion_at = np.zeros(n)
+    mask = np.ones(n, dtype=bool)
     for i in range(n):
-        distortion_at[i] = np.percentile(scale_factors[i,:], prctile)/np.percentile(scale_factors[i,:], 100-prctile)
+        mask[i] = 0
+        distortion_at[i] = np.quantile(scale_factors[i,mask], quantile)/np.quantile(scale_factors[i,mask], 1-quantile)
+        mask[i] = 1
     return distortion_at, max_distortion
 
 def get_path_lengths_in_embedding_space(s_d_e, pred, y_d_e, n_proc=8, verbose=True):

@@ -281,7 +281,7 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, ddX
     
-    def spherewithhole(self, n=10000):
+    def spherewithhole(self, n=10000, hole_frac=1/6):
         Rmax = np.sqrt(1/(4*np.pi))
         indices = np.arange(n)
         indices = indices+0.5
@@ -290,7 +290,7 @@ class Datasets:
         X = np.concatenate([np.sin(phiv)*np.cos(thetav), np.sin(phiv)*np.sin(thetav), np.cos(phiv)], axis=1)
         X = X*Rmax
         z0 = np.max(X[:,2])
-        R_hole = Rmax/6
+        R_hole = hole_frac*Rmax
         hole = (X[:,0]**2+X[:,1]**2+(X[:,2]-z0)**2)<R_hole**2
         
         Xhole = X[hole,:]
@@ -352,7 +352,7 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, ddX
     
-    def noisyswissroll(self, RES=100, noise=0.01, noise_type = 'normal'):
+    def noisyswissroll(self, RES=100, noise=0.01, noise_type = 'ortho'):
         theta0 = 3*np.pi/2
         nturns = 2
         rmax = 2*1e-2
@@ -378,6 +378,12 @@ class Datasets:
             X = X+noise*np.random.normal(0,1,[X.shape[0],3])
         elif noise_type == 'uniform':
             X = X+noise*np.random.uniform(0,1,[X.shape[0],3])
+        elif noise_type == 'ortho':
+            # the swiss roll rolls around x axis
+            temp = X.copy()
+            temp[:,1] = 0
+            temp = temp/np.linalg.norm(temp, axis=1)[:,None]
+            X = X + noise*np.random.normal(0,1,(X.shape[0],1))*temp
         labelsMat = np.concatenate([tv, X[:,[1]]], axis=1)
         print('X.shape = ', X.shape)
         return X, labelsMat, None
@@ -451,13 +457,24 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, None
     
-    def sphere3(self, n=10000, noise = 0):
+    def sphere3d(self, n=10000, noise = 0, seed=42):
+        R = np.power(1/(4*np.pi), 0.5)
+        np.random.seed(seed)
+        X = np.random.normal(0,1,(n,3))
+        X = X/np.linalg.norm(X,axis=1)[:,None]
+        X = X*R;
+        X = X*(1+noise*np.random.uniform(-1,1,(X.shape[0],1)))
+        labelsMat = X
+        print('X.shape = ', X.shape)
+        return X, labelsMat, None
+    
+    def sphere3(self, n=10000, noise = 0, seed=42):
         R = np.power(2/(np.pi**2), 0.25)
-        np.random.seed(42)
+        np.random.seed(seed)
         X = np.random.normal(0,1,(n,4))
         X = X/np.linalg.norm(X,axis=1)[:,None]
         X = X*R;
-        np.random.seed(2)
+        np.random.seed(seed)
         X = X*(1+noise*np.random.uniform(-1,1,(X.shape[0],1)))
         labelsMat = X
         print('X.shape = ', X.shape)
@@ -576,12 +593,12 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, None
     
-    def curvedtorus3d(self, n=10000, noise=0, Rmax=0.25):
+    def curvedtorus3d(self, n=10000, noise=0, Rmax=0.25, seed=42):
         rmax=1/(4*(np.pi**2)*Rmax);
         X = []
         thetav = []
         phiv = []
-        np.random.seed(42)
+        np.random.seed(seed)
         k = 0
         while k < n:
             rU = np.random.uniform(0,1,3)
@@ -603,7 +620,61 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, None
     
-    def kleinbottle4d(self, ar=4, RES=100):
+    def curvedtorus3d_grid_old(self, RES=50, noise=0, Rmax=0.25):
+        rmax=1/(4*(np.pi**2)*Rmax)
+        
+        sideLx = 2*np.pi
+        sideLy = 2*np.pi
+        RESx = int(sideLx*RES+1)
+        RESy = int(sideLy*RES+1)
+        x = np.linspace(0, sideLx, RESx)[:-1] # remove 2pi
+        y = np.linspace(0, sideLy, RESy)[:-1] # remove 2pi
+        xv, yv = np.meshgrid(x, y)
+        thetav = xv.flatten('F')[:,np.newaxis]
+        phiv = yv.flatten('F')[:,np.newaxis]
+        noise = noise*np.random.uniform(-1,1,(phiv.shape[0],1))
+        X = np.concatenate([(Rmax+(1+noise)*rmax*np.cos(thetav))*np.cos(phiv),
+                             (Rmax+(1+noise)*rmax*np.cos(thetav))*np.sin(phiv),
+                             (1+noise)*rmax*np.sin(thetav)], axis=1)
+        labelsMat = np.concatenate([thetav, phiv], axis=1)
+        print('X.shape = ', X.shape)
+        return X, labelsMat, None
+    
+    def curvedtorus3d_grid(self, RES=50, noise=0, Rmax=0.25):
+        rmax=1/(4*(np.pi**2)*Rmax)
+        
+        ds = 2*np.pi*(Rmax-rmax)/RES
+        #RES2 = 2*np.pi*rmax/ds
+        RES2 = (RES*rmax)/(Rmax-rmax)
+        print('rmax:', rmax)
+        print('ds:', ds)
+        print('RES2:', RES2)
+        RES2 = int(np.round(RES2))
+        print('RES2:', RES2)
+        theta = np.linspace(0, 2*np.pi, RES2+1)[:-1]
+        phiv = []
+        thetav = []
+        for i in range(RES2):
+            RES3 = int(np.round((RES*(Rmax+rmax*np.cos(theta[i])))/(Rmax-rmax)))
+            phi = np.linspace(0, 2*np.pi, RES3+1)[:-1]
+            thetav += [theta[i]]*RES3
+            phiv += phi.tolist()
+        
+        thetav = np.array(thetav)[:,None]
+        phiv = np.array(phiv)[:,None]
+        labelsMat = np.concatenate([thetav, phiv], axis=1)
+            
+        
+        noise = noise*np.random.uniform(-1,1,(phiv.shape[0],1))
+        X = np.concatenate([(Rmax+(1+noise)*rmax*np.cos(thetav))*np.cos(phiv),
+                             (Rmax+(1+noise)*rmax*np.cos(thetav))*np.sin(phiv),
+                             (1+noise)*rmax*np.sin(thetav)], axis=1)
+        labelsMat = np.concatenate([thetav, phiv], axis=1)
+        print('X.shape = ', X.shape)
+        return X, labelsMat, None
+    
+    def kleinbottle(self, ar=4, RES=100, noise=0, seed=42):
+        np.random.seed(seed)
         sideLx=np.sqrt(ar)
         sideLy=1/sideLx
         Rout = sideLx/(2*np.pi)
@@ -615,8 +686,24 @@ class Datasets:
         xv, yv = np.meshgrid(x, y)
         xv = xv.flatten('F')[:,np.newaxis]/Rout
         yv = yv.flatten('F')[:,np.newaxis]/Rin
-        X=np.concatenate([(Rout+Rin*np.cos(yv))*np.cos(xv), (Rout+Rin*np.cos(yv))*np.sin(xv),
-                          Rin*np.sin(yv)*np.cos(xv/2), Rin*np.sin(yv)*np.sin(xv/2)], axis=1)
+        X=np.concatenate([(Rout+(1+noise)*Rin*np.cos(yv))*np.cos(xv), (Rout+(1+noise)*Rin*np.cos(yv))*np.sin(xv),
+                          (1+noise)*Rin*np.sin(yv)*np.cos(xv/2), (1+noise)*Rin*np.sin(yv)*np.sin(xv/2)], axis=1)
+        labelsMat = np.concatenate([xv, yv], axis=1)
+        print('X.shape = ', X.shape)
+        return X, labelsMat, None
+    
+    def kleinbottle4d(self, ar=4, n=10000, noise=0, seed=42):
+        np.random.seed(seed)
+        sideLx=np.sqrt(ar)
+        sideLy=1/sideLx
+        Rout = sideLx/(2*np.pi)
+        Rin = sideLy/(2*np.pi)
+        xv = np.random.uniform(0, sideLx, n)
+        yv = np.random.uniform(0, sideLy, n)
+        xv = xv.flatten('F')[:,np.newaxis]/Rout
+        yv = yv.flatten('F')[:,np.newaxis]/Rin
+        X=np.concatenate([(Rout+(1+noise)*Rin*np.cos(yv))*np.cos(xv), (Rout+(1+noise)*Rin*np.cos(yv))*np.sin(xv),
+                          (1+noise)*Rin*np.sin(yv)*np.cos(xv/2), (1+noise)*Rin*np.sin(yv)*np.sin(xv/2)], axis=1)
         labelsMat = np.concatenate([xv, yv], axis=1)
         print('X.shape = ', X.shape)
         return X, labelsMat, None

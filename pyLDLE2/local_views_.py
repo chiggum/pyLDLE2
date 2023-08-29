@@ -45,8 +45,8 @@ class LocalViews:
         self.gamma = None
         self.phi = None
         
-        self.local_start_time = time.time()
-        self.global_start_time = time.time()
+        self.local_start_time = time.perf_counter()
+        self.global_start_time = time.perf_counter()
         
     def log(self, s='', log_time=False):
         if self.logs:

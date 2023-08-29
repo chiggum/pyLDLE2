@@ -574,8 +574,8 @@ class BUML:
         #############################################
         
         # Other useful inits
-        self.global_start_time = time.time()
-        self.local_start_time = time.time()
+        self.global_start_time = time.perf_counter()
+        self.local_start_time = time.perf_counter()
         
         print('Options provided:')
         print('local_opts:')
