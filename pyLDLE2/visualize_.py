@@ -69,7 +69,7 @@ def save_gif(y, labels, vis_obj, fpath, cmap='jet', FPS = 10, step_size = 15, ma
         frames.append(image)
 
     plt.close()
-    imageio.mimsave(fpath, frames, fps=FPS)
+    imageio.mimsave(fpath, frames, duration=1000/FPS)
 
 def combine_cmaps(zeta, U_k):
     min_zeta = np.min(zeta)
@@ -1434,7 +1434,7 @@ class Visualize:
     
     def global_embedding(self, y, labels, cmap0, color_of_pts_on_tear=None, cmap1=None,
                          title=None, figsize=None, s=30, set_title=False, elev=None, azim=None, roll=None,
-                         vmin=None, vmax=None):
+                         vmin=None, vmax=None, show_axis=False):
         d = y.shape[1]
         if d == 1:
             y = np.concatenate([y,y],axis=1)
@@ -1490,18 +1490,20 @@ class Visualize:
                     ax.scatter(y[pts_on_tear,0], y[pts_on_tear,1], y[pts_on_tear,2],
                                s=s, c=color_of_pts_on_tear[pts_on_tear], cmap=cmap1, vmin=None, vmax=None)
                     set_axes_equal(ax)
-        ax.axis('off')
+        
         if set_title:
             ax.set_title(title)
         if elev is not None:
             ax.view_init(elev=elev, azim=azim, roll=roll)
         
-        plt.gca().set_axis_off()
-        plt.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 
-                    hspace = 0, wspace = 0)
-        plt.margins(0)
-        plt.gca().xaxis.set_major_locator(plt.NullLocator())
-        plt.gca().yaxis.set_major_locator(plt.NullLocator())
+        if not show_axis:
+            ax.axis('off')
+            plt.gca().set_axis_off()
+            plt.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 
+                        hspace = 0, wspace = 0)
+            plt.margins(0)
+            plt.gca().xaxis.set_major_locator(plt.NullLocator())
+            plt.gca().yaxis.set_major_locator(plt.NullLocator())
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/ge'):
                 os.makedirs(self.save_dir+'/ge')
