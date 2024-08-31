@@ -15,6 +15,7 @@ import multiprocess as mp
 from multiprocess import shared_memory
 
 from sklearn.manifold._locally_linear import null_space
+from sklearn.utils.extmath import svd_flip
 
 import scs
 
@@ -146,6 +147,7 @@ def compute_Lpinv_helpers(W):
     # TODO: U12 is dense of size nxM
     print('Computing svd', flush=True)
     U12,SS,VT = scipy.linalg.svd(B_tilde.todense(), full_matrices=False)
+    U12, VT = svd_flip(U12, VT)
     print('Done', flush=True)
     # U12,SS,VT = slinalg.svds(B_tilde, k=M, solver='propack')
     V = VT.T
@@ -361,17 +363,17 @@ def spectral_alignment(y, d, Utilde,
     if (global_opts['n_repel'] == 0) or (global_opts['repel_by'] == 0):
         # To find smallest eigenvalues, using shift-inverted algo with mode=normal and which='LM'
         W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, sigma=-1e-3)
-        #print(W_, flush=True)
-        
         # W_,V_ = scipy.sparse.linalg.lobpcg(CC, CC0.T, largest=False)
         # or just pass which='SM' without using sigma
-        # W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, which='SM')
+        #W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, which='SM')
+        V_, _ = svd_flip(V_, V_.T)
     else:
         # To find smallest eigenvalues, using shift-inverted algo with mode=normal and which='LM'
         CC_frob = np.linalg.norm(CC)
         W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, sigma=-2*CC_frob)
         # or just pass which='SM' without using sigma
         # W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, which='SA')
+        V_, _ = svd_flip(V_, V_.T)
     print('Done.', flush=True)
     Wstar = np.sqrt(M)*V_.T
     Tstar = np.zeros((d, M*d))
@@ -381,19 +383,21 @@ def spectral_alignment(y, d, Utilde,
         seq = seq_of_intermed_views_in_cluster[i]
         s0 = seq[0]
         U_,S_,VT_ = scipy.linalg.svd(Wstar[:,d*s0:d*(s0+1)])
+        U_, VT_ = svd_flip(U_, VT_)
         Q =  np.matmul(U_,VT_)
         if (global_opts['init_algo_name'] != 'spectral') and (np.linalg.det(Q) < 0): # remove reflection
             VT_[-1,:] *= -1
             Q = np.matmul(U_, VT_)
         Q = Q.T
         
-        for m in range(M):
+        for m_ in range(1, len(seq)):
+            m = seq[m_]
             U_,S_,VT_ = scipy.linalg.svd(Wstar[:,d*m:d*(m+1)])
             temp_ = np.matmul(U_,VT_)
             if (global_opts['init_algo_name'] != 'spectral') and (np.linalg.det(temp_) < 0): # remove reflection
                 VT_[-1,:] *= -1
                 temp_ = np.matmul(U_, VT_)
-            Tstar[:,m*d:(m+1)*d] = np.matmul(temp_, Q)
+            Tstar[:,m*d:(m+1)*d] = np.matmul(Q, temp_)
     
     Zstar = Tstar.dot(Lpinv_BT.transpose())
     
@@ -656,6 +660,7 @@ def gpm_alignment(y, d, Utilde, C, intermed_param, global_opts):
                 for i in range(start_ind, end_ind):
                     temp = np.dot(O_copy, CC[:,i*d:(i+1)*d])
                     U_,S_,VT_ = scipy.linalg.svd(temp)
+                    U_, VT_ = svd_flip(U_, VT_)
                     O[:,i*d:(i+1)*d] = np.matmul(U_,VT_)
                 barrier.wait()
             
@@ -776,6 +781,7 @@ def sdp_alignment(y, d, Utilde,
     np.random.seed(42)
     v0 = np.random.uniform(0,1,(Y.shape[0]))
     lmbda, B = slinalg.eigsh(Y, k=d, which='LM')
+    B, _ = svd_flip(B , B.T)
     B = np.sqrt(lmbda)[None,:]*B
     #print('|Y-BB^T|',np.sum(np.abs(Y-np.dot(B,B.T))))
     
@@ -788,13 +794,16 @@ def sdp_alignment(y, d, Utilde,
         seq = seq_of_intermed_views_in_cluster[i]
         s0 = seq[0]
         U_,S_,VT_ = scipy.linalg.svd(B[:,d*s0:d*(s0+1)])
+        U_, VT_ = svd_flip(U_, VT_)
         Q =  np.matmul(U_,VT_)
         Q = Q.T
         
-        for m in range(M):
+        for m_ in range(1, len(seq)):
+            m = seq[m_]
             U_,S_,VT_ = scipy.linalg.svd(B[:,d*m:d*(m+1)])
+            U_, VT_ = svd_flip(U_, VT_)
             temp_ = np.matmul(U_,VT_)
-            Tstar[:,m*d:(m+1)*d] = np.matmul(temp_, Q)
+            Tstar[:,m*d:(m+1)*d] = np.matmul(Q, temp_)
     
     Zstar = Tstar.dot(Lpinv_BT.transpose())
     
