@@ -390,7 +390,7 @@ def spectral_alignment(y, d, Utilde,
             Q = np.matmul(U_, VT_)
         Q = Q.T
         
-        for m_ in range(1, len(seq)):
+        for m_ in range(len(seq)):
             m = seq[m_]
             U_,S_,VT_ = scipy.linalg.svd(Wstar[:,d*m:d*(m+1)])
             temp_ = np.matmul(U_,VT_)
@@ -798,7 +798,7 @@ def sdp_alignment(y, d, Utilde,
         Q =  np.matmul(U_,VT_)
         Q = Q.T
         
-        for m_ in range(1, len(seq)):
+        for m_ in range(len(seq)):
             m = seq[m_]
             U_,S_,VT_ = scipy.linalg.svd(B[:,d*m:d*(m+1)])
             U_, VT_ = svd_flip(U_, VT_)
