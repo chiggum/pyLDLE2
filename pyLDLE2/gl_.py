@@ -1,3 +1,4 @@
+import pdb
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 from scipy.sparse.csgraph import laplacian
@@ -17,16 +18,53 @@ def umap_kernel(knn_indices, knn_dists, k_tune):
     result.eliminate_zeros()
     return result
 
-def sinkhorn(M, k):
-    """Sinkhorn algorithm with fixed number of iterations
-    https://arxiv.org/abs/1306.0895
-    """
-    K = M
-    D = np.array(np.sum(M,0)).squeeze()
-    di = 1/np.sqrt(D)
-    for i in range(k):
-        di = 1. / (K@di + 1e-8) 
-    K = diags(di) @ K @ diags(di)
+# def sinkhorn(K, maxiter=10000, delta=1e-12, eps=0):
+#     """https://epubs.siam.org/doi/pdf/10.1137/20M1342124 """
+#     D = np.array(K.sum(axis=1)).squeeze()
+#     d0 = 1./(D+eps)
+#     d1 = 1./(K.dot(d0)+eps)
+#     d2 = 1./(K.dot(d1)+eps)
+#     for tau in range(maxiter):
+#         if np.max(np.abs(d0 / d2 - 1)) < delta:
+#             print('Sinkhorn converged at iter:', tau)
+#             break
+#         d3 = 1. / (K.dot(d2) + eps)
+#         d0=d1.copy()
+#         d1=d2.copy()
+#         d2=d3.copy()
+#     d = np.sqrt(d2 * d1)
+#     K.data = K.data*d[K.row]*d[K.col]
+#     return K
+
+def sinkhorn(K, maxiter=10000, delta=1e-12, eps=0, boundC = 1e-8, print_freq=1000):
+    """https://epubs.siam.org/doi/pdf/10.1137/20M1342124 """
+    n = K.shape[0]
+    r = np.ones((n,1))
+    u = np.ones((n,1))
+    v = r/(K.dot(u))
+    x = np.sqrt(u*v)
+
+    assert np.min(x) > boundC, 'assert min(x) > boundC failed.'
+    for tau in range(maxiter):
+        error =  np.max(np.abs(u*(K.dot(v)) - r))
+        if tau%print_freq:
+            print('Error:', error, flush=True)
+        
+        if error < delta:
+            print('Sinkhorn converged at iter:', tau)
+            break
+
+        u = r/(K.dot(v))
+        v = r/(K.dot(u))
+        x = np.sqrt(u*v)
+        if np.sum(x<boundC) > 0:
+            print('boundC not satisfied at iter:', tau)
+            x[x < boundC] = boundC
+        
+        u=x
+        v=x
+    x = x.flatten()
+    K.data = K.data*x[K.row]*x[K.col]
     return K
 
 def graph_laplacian(neigh_dist, neigh_ind, k_nn, k_tune, gl_type,
@@ -51,25 +89,27 @@ def graph_laplacian(neigh_dist, neigh_ind, k_nn, k_tune, gl_type,
             if tuning is not None:
                 # Compute tuning values for each pair of neighbors
                 sigma = neigh_dist[:,k_tune-1].flatten()
-                if tuning == 'self': # scaling depends on sigma_i and sigma_j
+                if 'self' in tuning: # scaling depends on sigma_i and sigma_j
                     autotune = sigma[neigh_ind]*sigma[:,np.newaxis]
-                elif tuning == 'solo': # scaling depends on sigma_i only
+                elif 'solo' in tuning: # scaling depends on sigma_i only
                     autotune = np.repeat(sigma**2, neigh_ind.shape[1])
                     autotune = autotune.reshape(neigh_ind.shape)
-                elif tuning == 'median': # scaling is fixed across data points
+                elif 'median' in tuning: # scaling is fixed across data points
                     autotune = np.median(sigma)**2
 
+        eps = np.finfo(np.float64).eps
         # Compute kernel matrix
         if tuning is None: # Binary kernel no tuning
             K = np.ones(neigh_dist.shape)
             autotune = None
+        elif 'laplacian' in tuning:
+            K = np.exp(-neigh_dist/(np.sqrt(autotune)+eps))
         else:
-            eps = np.finfo(np.float64).eps
-            K = np.exp(-neigh_dist**2/(autotune+eps))
+            K = np.exp(-neigh_dist**2/(autotune+eps))+eps
     
         # Convert to sparse matrices
         source_ind = np.repeat(np.arange(n),neigh_ind.shape[1])
-        K = coo_matrix((K.flatten(),(source_ind, neigh_ind.flatten())),shape=(n,n))
+        K = coo_matrix((K.flatten()+eps,(source_ind, neigh_ind.flatten())),shape=(n,n))
         ones_K_like = coo_matrix((np.ones(neigh_dist.shape).flatten(),(source_ind, neigh_ind.flatten())),shape=(n,n))
     
     
@@ -80,7 +120,8 @@ def graph_laplacian(neigh_dist, neigh_ind, k_nn, k_tune, gl_type,
         #K = K + K.T - K.multiply(K.T)
         
         if doubly_stochastic_max_iter:
-            K = sinkhorn(K, doubly_stochastic_max_iter)
+            K = sinkhorn(K.tocoo(), maxiter=doubly_stochastic_max_iter)
+        
     
     if gl_type == 'diffusion':
         Dinv = 1/(K.sum(axis=1).reshape((n,1)))
@@ -115,7 +156,8 @@ class GL:
         # Note: Eigenvalues are returned sorted.
         # Following is needed for reproducibility of lmbda and phi
         np.random.seed(42)
-        v0 = np.random.uniform(0,1,neigh_dist.shape[0])
+        #v0 = np.random.uniform(0,1,neigh_dist.shape[0])
+        v0 = np.ones(neigh_dist.shape[0])/np.sqrt(neigh_dist.shape[0])
         gl_type = local_opts['gl_type']
         tuning = local_opts['tuning']
         
@@ -123,9 +165,9 @@ class GL:
             autotune, L = graph_laplacian(neigh_dist, neigh_ind, local_opts['k_nn'],
                                            local_opts['k_tune'], gl_type, tuning=tuning,
                                             doubly_stochastic_max_iter=local_opts['doubly_stochastic_max_iter'])
-            lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, which='SM')
+            #lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, which='SM')
             # TODO: Why the following doesn't give correct eigenvalues
-            # lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, sigma=0.0)
+            lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, sigma=-1e-3)
         else:
             if gl_type == 'random_walk':
                 gl_type = 'symnorm'
@@ -134,9 +176,9 @@ class GL:
                                             return_diag = True, tuning=tuning,
                                             doubly_stochastic_max_iter=local_opts['doubly_stochastic_max_iter'])
             L, sqrt_D = L_and_sqrt_D
-            lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, which='SM')
+            #lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, which='SM')
             # TODO: Why the following doesn't give correct eigenvalues
-            # lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, sigma=0.0)
+            lmbda, phi = eigsh(L, k=local_opts['N']+1, v0=v0, sigma=-1e-3)
             
             L = L.multiply(1/sqrt_D[:,np.newaxis]).multiply(sqrt_D[np.newaxis,:])
             phi = phi/sqrt_D[:,np.newaxis]
@@ -148,10 +190,11 @@ class GL:
             # The trivial eigenvalue and eigenvector
             self.lmbda0 = lmbda[0]
             self.phi0 = phi[:,0][:,np.newaxis]
-            self.L = L
             self.v0 = v0
             self.autotune = autotune
+            #self.sqrt_D = sqrt_D
         
         # Remaining eigenvalues and eigenvectors
+        self.L = L
         self.lmbda = lmbda[1:]
         self.phi = phi[:,1:]
