@@ -63,12 +63,17 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, None
     
-    def figure_eight(self, RES=100, noise=0):
-        np.random.seed(42)
+    def figure_eight(self, RES=100, noise=0, noise_type='normal', seed=42):
+        np.random.seed(seed)        
         theta = np.linspace(0, 2*np.pi, RES)[:-1]
         xv = np.sin(2*theta)[:,np.newaxis]
         yv = np.cos(theta)[:,np.newaxis]
         X = np.concatenate([xv,yv], axis=1)
+        if noise_type=='normal':
+            noise = noise*np.random.normal(0,1,X.shape)
+        else:
+            noise = noise*(0.01 + 0.49*(1+np.cos(2*theta))/2)[:,None]*np.random.normal(0,1,X.shape)
+        X = X+noise
         labelsMat = theta[:,None]
         print('X.shape = ', X.shape)
         return X, labelsMat, None
@@ -115,9 +120,11 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, None
     
-    def rectanglegrid(self, ar=16, RES=100, noise=0, noise_type='uniform'):
-        sideLx = np.sqrt(ar)
-        sideLy = 1/sideLx
+    def rectanglegrid(self, ar=16, RES=100, noise=0, noise_type='normal', seed=42, sideLx=None, sideLy=None):
+        if sideLx is None:
+            sideLx = np.sqrt(ar)
+        if sideLy is None:
+            sideLy = 1/sideLx
         RESx = int(sideLx*RES+1)
         RESy = int(sideLy*RES+1)
         x = np.linspace(0, sideLx, RESx)
@@ -127,7 +134,7 @@ class Datasets:
         yv = yv.flatten('F')[:,np.newaxis]
         X = np.concatenate([xv,yv], axis=1)
         if noise:
-            np.random.seed(42)
+            np.random.seed(seed)
             n = xv.shape[0]
             if noise_type == 'normal':
                 n = xv.shape[0]
@@ -138,6 +145,35 @@ class Datasets:
             
         labelsMat = X
         print('X.shape = ', X.shape)
+        
+        n = X.shape[0]
+        ddX = np.zeros(n)
+        for k in range(n):
+            ddXx = np.min([X[k,0], sideLx-X[k,0]])
+            ddXy = np.min([X[k,1], sideLy-X[k,1]])
+            ddX[k] = np.min([ddXx, ddXy])
+            
+        return X, labelsMat, ddX
+    
+    def rectangle(self, ar=16, n=5000, noise=0, noise_type='normal', seed=42):
+        sideLx = np.sqrt(ar)
+        sideLy = 1/sideLx
+        np.random.seed(seed)
+        xv = np.random.uniform(0, sideLx, n)
+        yv = np.random.uniform(0, sideLy, n)
+        xv = xv.flatten('F')[:,np.newaxis]
+        yv = yv.flatten('F')[:,np.newaxis]
+        X = np.concatenate([xv,yv], axis=1)
+        labelsMat = X
+        print('X.shape = ', X.shape)
+        if noise:
+            n = xv.shape[0]
+            if noise_type == 'normal':
+                n = xv.shape[0]
+                X = np.concatenate([X,np.zeros((n,1))], axis=1)
+                X = X + noise*np.random.normal(0,1,(n,3))
+            elif noise_type == 'uniform':
+                X = np.concatenate([X,noise*np.random.uniform(-1,1,(n,1))], axis=1)
         
         n = X.shape[0]
         ddX = np.zeros(n)
@@ -198,6 +234,60 @@ class Datasets:
             
         return X, labelsMat, ddX
     
+    def circular_disk(self, RES=100, noise=0, noise_type='uniform'):
+        sideLx = 2
+        sideLy = 2
+        RESx = int(sideLx*RES+1)
+        RESy = int(sideLy*RES+1)
+        x = np.linspace(0, sideLx, RESx)-sideLx/2
+        y = np.linspace(0, sideLy, RESy)-sideLy/2
+        xv, yv = np.meshgrid(x, y)
+        xv = xv.flatten('F')
+        yv = yv.flatten('F')
+        mask = (xv**2 + yv**2) < 1
+        xv = xv[mask][:,np.newaxis]
+        yv = yv[mask][:,np.newaxis]
+        X = np.concatenate([xv,yv], axis=1)
+        if noise:
+            np.random.seed(42)
+            n = xv.shape[0]
+            if noise_type == 'normal':
+                n = xv.shape[0]
+                X = np.concatenate([X,np.zeros((n,1))], axis=1)
+                X = X + noise*np.random.normal(0,1,(n,3))
+            elif noise_type == 'uniform':
+                X = np.concatenate([X,noise*np.random.uniform(-1,1,(n,1))], axis=1)
+        labelsMat = X
+        print('X.shape = ', X.shape)
+        
+        n = X.shape[0]
+        ddX = 1-np.sqrt(X[:,0]**2+X[:,1]**2)
+        return X, labelsMat, ddX
+    
+    def circular_disk_uniform(self, n=10000, noise=0, noise_type='uniform'):
+        np.random.seed(42)
+        xv = np.random.uniform(-1, 1, n)
+        yv = np.random.uniform(-1, 1, n)
+        mask = (xv**2 + yv**2) < 1
+        xv = xv[mask][:,np.newaxis]
+        yv = yv[mask][:,np.newaxis]
+        X = np.concatenate([xv,yv], axis=1)
+        if noise:
+            np.random.seed(42)
+            n = xv.shape[0]
+            if noise_type == 'gaussian':
+                n = xv.shape[0]
+                X = np.concatenate([X,np.zeros((n,1))], axis=1)
+                X[:,-1] = X[:,-1] + noise*np.random.normal(0,1,(n))
+            elif noise_type == 'uniform':
+                X = np.concatenate([X,noise*np.random.uniform(-1,1,(n,1))], axis=1)
+        labelsMat = X
+        print('X.shape = ', X.shape)
+        
+        n = X.shape[0]
+        ddX = 1-np.sqrt(X[:,0]**2+X[:,1]**2)
+        return X, labelsMat, ddX
+    
     def barbell(self, RES=100):
         A1 = 0.425
         Rmax = np.sqrt(A1/np.pi)
@@ -249,7 +339,7 @@ class Datasets:
         ddX[ddX<1e-2] = 0
         return X, labelsMat, ddX
     
-    def squarewithtwoholes(self, RES=100):
+    def squarewithtwoholesgrid(self, RES=100, noise=0, noise_type='normal', seed=42):
         sideLx = 1
         sideLy = 1
         RESx = sideLx*RES+1
@@ -277,6 +367,54 @@ class Datasets:
         
         X = X[~hole1 & ~hole2,:]
         ddX = ddX[~hole1 & ~hole2]
+        n=X.shape[0]
+        if noise:
+            np.random.seed(seed)
+            if noise_type == 'normal':
+                X = np.concatenate([X,np.zeros((n,1))], axis=1)
+                X = X + noise*np.random.normal(0,1,(n,3))
+            elif noise_type == 'uniform':
+                X = np.concatenate([X,noise*np.random.uniform(-1,1,(n,1))], axis=1)
+        
+        labelsMat = X
+        print('X.shape = ', X.shape)
+        return X, labelsMat, ddX
+    
+    def squarewithtwoholes(self, n=5000, noise=0, noise_type='normal', seed=42):
+        sideLx = 1
+        sideLy = 1
+        np.random.seed(seed)
+        xv = np.random.uniform(0,sideLx,n)
+        yv = np.random.uniform(0,sideLy,n)
+        xv = xv.flatten('F')[:,np.newaxis]
+        yv = yv.flatten('F')[:,np.newaxis]
+        X = np.concatenate([xv,yv], axis=1)
+        hole1 = np.sqrt((X[:,0] - 0.5*np.sqrt(2))**2 + (X[:,1]-0.5*np.sqrt(2))**2) < 0.1*np.sqrt(2)
+        hole2 = np.abs(X[:,0] - 0.2*np.sqrt(2)) + np.abs(X[:,1]-0.2*np.sqrt(2)) < 0.1*np.sqrt(2)
+        
+        Xhole1 = X[hole1,:]
+        Xhole2 = X[hole2,:]
+        ddX1 = np.min(cdist(X,Xhole1),axis=1)
+        ddX1[ddX1<1e-2*1.2] = 0
+        ddX2 = np.min(cdist(X,Xhole2),axis=1)
+        ddX2[ddX2<1e-2*1.2] = 0
+        ddXx = np.minimum(X[:,0],sideLx-X[:,0])
+        ddXy = np.minimum(X[:,1],sideLy-X[:,1])
+        ddX = np.minimum(ddXx,ddXy)
+        ddX = np.minimum(ddX,ddX1)
+        ddX = np.minimum(ddX,ddX2)
+        
+        X = X[~hole1 & ~hole2,:]
+        ddX = ddX[~hole1 & ~hole2]
+        n=X.shape[0]
+        if noise:
+            np.random.seed(seed)
+            if noise_type == 'normal':
+                X = np.concatenate([X,np.zeros((n,1))], axis=1)
+                X = X + noise*np.random.normal(0,1,(n,3))
+            elif noise_type == 'uniform':
+                X = np.concatenate([X,noise*np.random.uniform(-1,1,(n,1))], axis=1)
+        
         labelsMat = X
         print('X.shape = ', X.shape)
         return X, labelsMat, ddX
@@ -305,7 +443,52 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, ddX
     
-    def swissrollwithhole(self, RES=100):
+    def swissrollwithhole(self, n=5000, seed=42):
+        theta0 = 3*np.pi/2
+        nturns = 2
+        rmax = 2*1e-2
+        sideL1 = integrate.quad(lambda x: rmax*np.sqrt(1+x**2), theta0, theta0*(1+nturns))[0]
+        sideL2 = 1/sideL1
+        np.random.seed(seed)
+        tdistv = np.random.uniform(0, sideL1, n)
+        tv = []
+        for tdist in tdistv.tolist():
+            tt = fsolve(lambda x: (0.5*rmax*(x*np.sqrt(1+x**2)+np.arcsinh(x)))-\
+                                   0.5*rmax*(theta0*np.sqrt(1+theta0**2)+np.arcsinh(theta0))-\
+                                   tdist,theta0*(1+nturns/2))
+            tv.append(tt)
+        tv = np.array(tv)    
+        heightv = np.random.uniform(0,sideL2,n)[:,np.newaxis]
+        heightv = heightv.flatten('F')[:,np.newaxis]
+        tv = tv[:,np.newaxis]
+        X=np.concatenate([rmax*tv*np.cos(tv), heightv, rmax*tv*np.sin(tv)], axis=1)
+        
+        ddX11 = np.minimum(heightv, sideL2-heightv).flatten()
+        ddX12 = np.tile(tdistv[:,np.newaxis], RESh).flatten()
+        ddX12 = np.minimum(ddX12, sideL1-ddX12)
+        ddX1 = np.minimum(ddX11, ddX12)
+
+        y_mid = sideL2*0.5
+        t_min = np.min(tv)
+        t_max = np.max(tv)
+        t_range = t_max-t_min
+        t_mid = t_min + t_range/2
+        x_mid = rmax*t_mid*np.cos(t_mid)
+        z_mid = rmax*t_mid*np.sin(t_mid)
+        hole = np.sqrt((X[:,0]-x_mid)**2+(X[:,1]-y_mid)**2+(X[:,2]-z_mid)**2)<0.1
+
+        Xhole = X[hole,:]
+        ddX2 = np.min(cdist(X,Xhole), axis=1)
+        ddX2[ddX2<1e-2*1.2] = 0
+        
+        X = X[~hole,:]
+        ddX = np.minimum(ddX1[~hole], ddX2[~hole])
+        tv = tv[~hole]
+        labelsMat = np.concatenate([tv, X[:,[1]]], axis=1)
+        print('X.shape = ', X.shape)
+        return X, labelsMat, ddX
+    
+    def swissrollwithholegrid(self, RES=100):
         theta0 = 3*np.pi/2
         nturns = 2
         rmax = 2*1e-2
@@ -352,7 +535,7 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, ddX
     
-    def noisyswissroll(self, RES=100, noise=0.01, noise_type = 'ortho'):
+    def noisyswissroll(self, RES=100, noise=0.01, noise_type = 'ortho', seed=42):
         theta0 = 3*np.pi/2
         nturns = 2
         rmax = 2*1e-2
@@ -373,22 +556,25 @@ class Datasets:
         heightv = heightv.flatten('F')[:,np.newaxis]
         tv = np.repeat(tv,RESh)[:,np.newaxis]
         X=np.concatenate([rmax*tv*np.cos(tv), heightv, rmax*tv*np.sin(tv)], axis=1)
-        np.random.seed(42)
+        np.random.seed(seed)
         if noise_type == 'normal':
             X = X+noise*np.random.normal(0,1,[X.shape[0],3])
         elif noise_type == 'uniform':
             X = X+noise*np.random.uniform(0,1,[X.shape[0],3])
-        elif noise_type == 'ortho':
+        elif 'ortho' in noise_type:
             # the swiss roll rolls around x axis
             temp = X.copy()
             temp[:,1] = 0
             temp = temp/np.linalg.norm(temp, axis=1)[:,None]
-            X = X + noise*np.random.normal(0,1,(X.shape[0],1))*temp
+            if noise_type == 'ortho-uniform':
+                X = X + noise*np.random.uniform(-1,1,(X.shape[0],1))*temp
+            else:
+                X = X + noise*np.random.normal(0,1,(X.shape[0],1))*temp
         labelsMat = np.concatenate([tv, X[:,[1]]], axis=1)
         print('X.shape = ', X.shape)
         return X, labelsMat, None
         
-    def sphere(self, n=10000, noise = 0):
+    def sphere(self, n=10000, noise = 0, seed=42):
         R = np.sqrt(1/(4*np.pi))
         indices = np.arange(n)+0.5
         phiv = np.arccos(1 - 2*indices/n)
@@ -399,7 +585,7 @@ class Datasets:
                             np.sin(phiv)*np.sin(thetav),
                             np.cos(phiv)], axis=1)
         X = X*R;
-        np.random.seed(2)
+        np.random.seed(seed)
         X = X*(1+noise*np.random.uniform(-1,1,(X.shape[0],1)))
         labelsMat = np.concatenate([np.mod(thetav,2*np.pi), phiv], axis=1)
         print('X.shape = ', X.shape)
@@ -593,7 +779,48 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, None
     
-    def curvedtorus3d(self, n=10000, noise=0, Rmax=0.25, seed=42):
+#     def S1xS1xS1(self, n=10000, seed=42):
+#         np.random.seed(42)
+#         xv=np.linspace(0,2*np.pi,n)[:-1][:,None] # remove 2pi
+#         yv=np.linspace(0,2*np.pi,n)[:-1][:,None] # remove 2pi
+#         zv=np.linspace(0,2*np.pi,n)[:-1][:,None] # remove 2pi
+        
+#         X=np.concatenate([np.cos(xv), np.sin(xv), np.cos(yv),
+#                           np.sin(yv), np.cos(zv), np.sin(zv)], axis=1)
+#         labelsMat = np.concatenate([xv, yv, zv], axis=1)
+#         print('X.shape = ', X.shape)
+#         return X, labelsMat, None
+    
+    def T3(self, n=10000, noise=0, Rmax=0.25, seed=42):
+        rmax=1/(4*(np.pi**2)*Rmax);
+        X = []
+        thetav = []
+        phiv = []
+        np.random.seed(seed)
+        k = 0
+        while k < n:
+            rU = np.random.uniform(0,1,3)
+            theta = 2*np.pi*rU[0]
+            phi = 2*np.pi*rU[1]
+            if rU[2] <= (Rmax + rmax*np.cos(theta))/(Rmax + rmax):
+                thetav.append(theta)
+                phiv.append(phi)
+                k = k + 1
+        
+        thetav = np.array(thetav)[:,np.newaxis]
+        phiv = np.array(phiv)[:,np.newaxis]
+        psiv = np.random.uniform(0, 2*np.pi, (n,1))
+        np.random.seed(42)
+        noise = noise*np.random.uniform(-1,1,(phiv.shape[0],1))
+        X = np.concatenate([(Rmax+(1+noise)*rmax*np.cos(thetav))*np.cos(phiv),
+                             (Rmax+(1+noise)*rmax*np.cos(thetav))*np.sin(phiv),
+                             (Rmax+(1+noise)*rmax*np.sin(thetav))*np.cos(psiv),
+                             (Rmax+(1+noise)*rmax*np.sin(thetav))*np.sin(psiv)], axis=1)
+        labelsMat = np.concatenate([thetav, phiv], axis=1)
+        print('X.shape = ', X.shape)
+        return X, labelsMat, None
+    
+    def curvedtorus3d(self, n=10000, noise=0, noise_type='uniform', Rmax=0.25, seed=42):
         rmax=1/(4*(np.pi**2)*Rmax);
         X = []
         thetav = []
@@ -612,7 +839,14 @@ class Datasets:
         thetav = np.array(thetav)[:,np.newaxis]
         phiv = np.array(phiv)[:,np.newaxis]
         np.random.seed(42)
-        noise = noise*np.random.uniform(-1,1,(phiv.shape[0],1))
+        if noise_type == 'uniform':
+            noise = noise*np.random.uniform(-1,1,(phiv.shape[0],1))
+        elif noise_type == 'gaussian':
+            noise = noise*np.random.normal(0,1,(phiv.shape[0],1))
+        else:
+            noise_u = 0.01 + 0.3*(1+np.cos(4*phiv))/2
+            noise_u = np.random.uniform(-noise_u,noise_u)
+            noise = noise*noise_u
         X = np.concatenate([(Rmax+(1+noise)*rmax*np.cos(thetav))*np.cos(phiv),
                              (Rmax+(1+noise)*rmax*np.cos(thetav))*np.sin(phiv),
                              (1+noise)*rmax*np.sin(thetav)], axis=1)
@@ -640,8 +874,9 @@ class Datasets:
         print('X.shape = ', X.shape)
         return X, labelsMat, None
     
-    def curvedtorus3d_grid(self, RES=50, noise=0, Rmax=0.25):
-        rmax=1/(4*(np.pi**2)*Rmax)
+    def curvedtorus3d_grid(self, RES=50, noise=0, Rmax=0.25, rmax=None):
+        if rmax is None:
+            rmax=1/(4*(np.pi**2)*Rmax)
         
         ds = 2*np.pi*(Rmax-rmax)/RES
         #RES2 = 2*np.pi*rmax/ds
@@ -686,6 +921,7 @@ class Datasets:
         xv, yv = np.meshgrid(x, y)
         xv = xv.flatten('F')[:,np.newaxis]/Rout
         yv = yv.flatten('F')[:,np.newaxis]/Rin
+        noise = np.random.uniform(-1,1,(yv.shape[0],1))*noise
         X=np.concatenate([(Rout+(1+noise)*Rin*np.cos(yv))*np.cos(xv), (Rout+(1+noise)*Rin*np.cos(yv))*np.sin(xv),
                           (1+noise)*Rin*np.sin(yv)*np.cos(xv/2), (1+noise)*Rin*np.sin(yv)*np.sin(xv/2)], axis=1)
         labelsMat = np.concatenate([xv, yv], axis=1)
@@ -772,8 +1008,8 @@ class Datasets:
             
         return X, labelsMat, ddX
     
-    def twinpeaks(self, n=10000, noise=0, ar=4):
-        np.random.seed(42)
+    def twinpeaks(self, n=10000, noise=0, ar=4, seed=42):
+        np.random.seed(seed)
         s_ = 2
         t_ = 2*ar
         t = np.random.uniform(-t_/2,t_/2,(n,1))
@@ -785,6 +1021,16 @@ class Datasets:
         eta = noise * np.random.normal(0,1,(n,1))
         X = np.concatenate([t,s,h+eta],axis=1)
         labelsMat = np.concatenate([t,s], axis=1)
+        print('X.shape = ', X.shape)
+        return X, labelsMat, None
+
+    def twinpeaks2(self, n=1000, param=1, noise=0, seed=42):
+        np.random.seed(seed)
+        xy = 1 - 2 * np.random.rand(2, n)
+        X = np.array([xy[1, :], xy[0, :], param * np.sin(np.pi * xy[0, :]) * np.tanh(3 * xy[1, :])]).T
+        eta = noise * np.random.normal(0,1,n)
+        X[:,-1] = X[:,-1] + eta
+        labelsMat = X.copy()
         print('X.shape = ', X.shape)
         return X, labelsMat, None
         
