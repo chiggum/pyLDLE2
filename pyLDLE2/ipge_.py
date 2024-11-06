@@ -1,6 +1,7 @@
 import pdb
 import numpy as np
 from scipy.stats.distributions import chi2
+from scipy.sparse.linalg import eigsh
 
 # Inner product of gradient of eigenfunctions
 class IPGE:
@@ -15,7 +16,7 @@ class IPGE:
         d = opts['d']
 
         n, N = opts['phi'].shape
-        print_freq = np.int(n*print_prop)
+        print_freq = int(n*print_prop)
 
         # Compute G
         t = 0.5*((epsilon**2)/chi2.ppf(p, df=d))
@@ -42,11 +43,17 @@ class IPGE:
             self.Gtilde = Gtilde
         self.Atilde = Atilde
         
-    def FeymanKac(self, L, phi, U, print_prop = 0.25):
+    def FeymanKac(self, L, phi, U, N_=300, print_prop = 0.25):
         n, N = phi.shape
-        print_freq = np.int(n*print_prop)
+        print_freq = int(n*print_prop)
 
         L = L.copy()
+        
+        np.random.seed(42)
+        v0 = np.random.uniform(0,1,U.shape[0])
+        N_ = np.min([N_, U.shape[0]//2])
+        lmbda_, phi_ = eigsh(L, k=N_, v0=v0, sigma=0.0)
+        L_ = phi_.dot(lmbda_[:,None]*phi_.T)
         #L = L/(autotune.toarray()+1e-12)
         Atilde=np.zeros((n,N,N))
 
@@ -56,15 +63,16 @@ class IPGE:
                 print('Atilde: : %d points processed...' % k)
             U_k = U[k,:].nonzero()[1]
             dphi_k = phi[U_k,:]-phi[k,:][None,:]
-            L_k = L.getrow(k).T
-            L_k = L_k[U_k,:].toarray()
+            #L_k = L.getrow(k).T
+            #L_k = L_k[U_k,:].toarray()
+            L_k = L_[k,U_k][:,None]
             Atilde[k,:,:] = -0.5*np.dot(dphi_k.T, L_k * dphi_k)
         print('Atilde_k, Atilde_k: all points processed...')
         self.Atilde = Atilde
 
     def compute_gradient_using_LLR(self, X, phi, d_e, U, t, d, print_prop = 0.25):
         n,p = X.shape
-        print_freq = np.int(n*print_prop)
+        print_freq = int(n*print_prop)
         N = phi.shape[1]
         grad_phi = np.zeros((n,N,p))
 
@@ -110,7 +118,7 @@ class IPGE:
 
     def llr(self, X, phi, d_e, U, epsilon, p, d, print_prop = 0.25):
         n, N = phi.shape
-        print_freq = np.int(n*print_prop)
+        print_freq = int(n*print_prop)
 
         # t = 0.5*((epsilon**2)/chi2.ppf(p, df=d))
         t = 0.5*((epsilon**2)*chi2.ppf(p, df=d))
@@ -129,7 +137,7 @@ class IPGE:
 
     def compute_Atilde_LDLE_3(X, L, phi0, phi, lmbda0, lmbda, d_e, U, epsilon, p, d, autotune, print_prop = 0.25):
         n, N = phi.shape
-        print_freq = np.int(n*print_prop)
+        print_freq = int(n*print_prop)
         Atilde=np.zeros((n,N,N))
 
         temp1 = np.dot(lmbda*phi, phi.T)
