@@ -27,6 +27,160 @@ from multiprocess import shared_memory
 from sklearn.manifold import Isomap
 from sklearn.decomposition import KernelPCA
 
+import itertools
+
+import torch
+import torch.nn as nn
+
+def scipy_coo_to_torch_sparse(coo):
+    values = coo.data
+    indices = np.vstack((coo.row, coo.col))
+    i = torch.LongTensor(indices)
+    v = torch.FloatTensor(values)
+    shape = coo.shape
+    return torch.sparse.FloatTensor(i, v, torch.Size(shape))
+
+# class Model(torch.nn.Module):
+#     def __init__(self, cov, b, L, lmbda=1, device='cpu'):
+#         super(Model, self).__init__()
+#         self.N, self.n, self.p = b.shape
+#         Psi = torch.zeros((self.N, self.n, self.p), device=device)
+#         self.Psi = torch.nn.Parameter(Psi, requires_grad=True)
+#         #self.L = torch.tensor(L.astype('float32')).to(device)
+#         self.L = scipy_coo_to_torch_sparse(L).to(device)
+#         self.lmbda = lmbda
+#         self.cov = []
+#         for k in range(self.n):
+#             self.cov.append(torch.tensor(cov[k].astype('float32')).to(device))
+#         self.b = torch.tensor(b.astype('float32')).to(device)
+        
+#     def forward(self):
+#         loss = 0
+#         for j in range(self.p):
+#             loss += self.lmbda*torch.sum(torch.sparse.mm(self.L, self.Psi[:,:,j].T)*self.Psi[:,:,j].T)
+        
+#         loss = loss - 2*torch.sum(self.Psi*self.b)
+        
+#         for k in range(self.n):
+#             loss += torch.sum(torch.matmul(self.Psi[:,k,:], self.cov[k])*self.Psi[:,k,:])
+#         return loss
+
+class Model(torch.nn.Module):
+    def __init__(self, X_tilde, Phi_tilde, L, Psi=None, lmbda=1, device='cpu'):
+        super(Model, self).__init__()
+        self.n = len(X_tilde)
+        self.p = X_tilde[0].shape[0]
+        self.N = Phi_tilde[0].shape[0]
+        if Psi is None:
+            Psi = torch.zeros((self.N, self.n, self.p), device=device)
+        else:
+            Psi = torch.tensor(Psi.copy().astype('float32')).to(device)
+        self.Psi = torch.nn.Parameter(Psi, requires_grad=True)
+        self.L = scipy_coo_to_torch_sparse(L).to(device)
+        # self.L_row_inds = L.row
+        # self.L_col_inds = L.col
+        # self.L_vals = L.data
+        self.lmbda = lmbda
+        self.X_tilde = []
+        self.Phi_tilde = []
+        for k in range(self.n):
+            self.X_tilde.append(torch.tensor(X_tilde[k].astype('float32')).to(device))
+            self.Phi_tilde.append(torch.tensor(Phi_tilde[k].astype('float32')).to(device))
+        
+    def forward(self):
+        loss = 0
+        if self.lmbda > 0:
+            for j in range(self.p):
+                loss += self.lmbda*torch.sum(torch.sparse.mm(self.L, self.Psi[:,:,j].T)*self.Psi[:,:,j].T)
+            # for k in range(len(self.L_row_inds)):
+            #     i = self.L_row_inds[k]
+            #     j = self.L_col_inds[k]
+            #     Wij = -self.L_vals[k]
+            #     v1 = self.Psi[:,j,:] - self.Psi[:,i,:]
+            #     v2 = self.Psi[:,j,:] + self.Psi[:,i,:]
+            #     v1_norm = torch.linalg.vector_norm(v1, dim=-1)
+            #     v2_norm = torch.linalg.vector_norm(v2, dim=-1)
+            #     loss += Wij*torch.sum(torch.minimum(v1_norm, v2_norm))
+        
+        for k in range(self.n):
+            loss += torch.sum((torch.matmul(self.Psi[:,k,:],self.X_tilde[k]) - self.Phi_tilde[k])**2)
+
+        loss = loss/(self.N*self.n)
+        return loss
+
+class NNModelBase(torch.nn.Module):
+    def __init__(self, p, h_size, n_layers, device='cuda'):
+        super(NNModelBase, self).__init__()
+        self.layers = []
+        self.params = []
+        for j in range(n_layers):
+            if j == 0:
+                self.layers.append(nn.Linear(p, h_size).to(device))
+                self.params += list(self.layers[-1].parameters())
+                self.layers.append(nn.ReLU().to(device))
+            elif j == n_layers-1:
+                self.layers.append(nn.Linear(h_size, 1).to(device))
+                self.params += list(self.layers[-1].parameters())
+            else:
+                self.layers.append(nn.Linear(h_size, h_size).to(device))
+                self.params += list(self.layers[-1].parameters())
+                self.layers.append(nn.ReLU().to(device))
+
+    def forward(self, x):
+        for i in range(len(self.layers)):
+            x = self.layers[i].forward(x)
+        return x
+
+class NNModel:
+    def __init__(self, X, phi, h_size=128, n_layers=3, batch_size=32,
+                 n_epochs=100, print_freq=1, device='cuda', lr=0.01):
+        p = X.shape[1]
+        n_models = phi.shape[1]
+        models = []
+        loss_fns = []
+        optimizers = []
+        for i in range(n_models):
+            models.append(NNModelBase(p, h_size, n_layers).to(device))
+            loss_fns.append(nn.MSELoss())
+            optimizers.append(torch.optim.Adam(models[-1].params, lr=lr))
+                
+        X_ = torch.tensor(X.astype('float32'), device=device)
+        phi_ = torch.tensor(phi.astype('float32'), device=device)
+
+        np.random.seed(42)
+        n_batches = X.shape[0]//batch_size + 1
+        for i in range(n_epochs):
+            inds = np.arange(X.shape[0])
+            np.random.shuffle(inds)
+            cur_loss = 0
+            for j in range(n_batches):
+                if j == (n_batches-1):
+                    batch = inds[j*batch_size:]
+                else:
+                    batch = inds[j*batch_size:(j+1)*batch_size]
+                for k in range(len(models)):
+                    y_pred = models[k](X_[batch,:])
+                    loss = loss_fns[k](y_pred, phi_[batch,k:k+1])
+                    loss = loss/batch_size
+                    optimizers[k].zero_grad()
+                    loss.backward()
+                    optimizers[k].step()
+                    cur_loss += loss.item()
+        
+            if i%print_freq==0:
+                print('epoch', i+1, 'loss:', cur_loss/(n_batches*len(models)))
+
+        Psi = np.zeros((phi.shape[1], X.shape[0], X.shape[1]))
+        for i in range(len(models)):
+            X_ = torch.tensor(X.astype('float32'), device=device)
+            X_.requires_grad = True
+            y_pred = models[i](X_).sum()
+            y_pred.backward(retain_graph=True)
+            Psi[i,:] = X_.grad.detach().cpu().numpy()
+
+        self.Psi = Psi
+
+
 class LocalViews:
     def __init__(self, exit_at=None, verbose=True, debug=False):
         self.exit_at = exit_at
@@ -57,11 +211,13 @@ class LocalViews:
     # TODO: relax X to be a distance matrix
     def fit(self, d, X, d_e, neigh_dist, neigh_ind, ddX, local_opts):
         print('Computing local views using', local_opts['algo'], flush=True)
-        if local_opts['algo'] == 'LDLE':
+        if local_opts['algo'] in ['LDLE', 'LEPC', 'Smooth-LPCA']:
             self.log('Constructing ' + local_opts['gl_type'] + ' graph Laplacian + its eigendecomposition.')
             GL = gl_.GL(debug=self.debug)
             GL.fit(neigh_dist, neigh_ind, local_opts)
             self.log('Done.', log_time=True)
+        
+        if local_opts['algo'] == 'LDLE' or local_opts['algo'] == 'LEPC':
             #############################################
             
             # Local views in the ambient space
@@ -70,43 +226,45 @@ class LocalViews:
                               np.ones((neigh_ind.shape[0],local_opts['k']), dtype=bool))
             #U = U.maximum(U.transpose()) # Idk why I wrote this. This is not needed.
             #############################################
-
-            self.log('Computing Atilde: Inner Prod of Grad of EigFuncs.')
-            IPGE = ipge_.IPGE(debug=self.debug)
-            if local_opts['Atilde_method'] == 'LLR':
-                print('Using LLR')
-            elif local_opts['Atilde_method'] == 'FeymanKac':
-                print('Using Feyman-Kac formula')
-                IPGE.FeymanKac(GL.L, GL.phi, U)
-            elif local_opts['Atilde_method'] == 'LDLE_3':
-                print('Using LDLE_3')
-            else: #fem
-                IPGE.fem(opts = {'phi': GL.phi, 'neigh_ind': neigh_ind, 'k': local_opts['k'],
-                                 'neigh_dist': neigh_dist, 'epsilon': epsilon,
-                                 'd': d, 'p': local_opts['p']})
-            self.log('Done.', log_time=True)
-            
-            if self.exit_at == 'post-Atilde':
-                return
-            #############################################
-            
-            # Compute gamma
-            if local_opts['scale_by']=='none':
-                gamma = np.ones((GL.phi.shape[0], local_opts['N']))
-            elif local_opts['scale_by']=='gamma':
-                gamma = 1/(np.sqrt(U.dot(GL.phi**2)/local_opts['k'])+1e-12)
-            elif local_opts['scale_by']=='grad_norm':
-                gamma = 1/(np.sqrt(np.diagonal(IPGE.Atilde, axis1=1, axis2=2))+1e-12)
-            else:
-                gamma = np.repeat(np.power(GL.lmbda.flatten(),local_opts['scale_by']),
-                                  GL.phi.shape[0]).reshape(GL.phi.shape)
-            #############################################
-
-            # Compute LDLE: Low Distortion Local Eigenmaps
-            self.log('Computing LDLE.')
-            local_param_pre = self.compute_LDLE(d, d_e, GL.phi, U, IPGE.Atilde, gamma, local_opts)
-            self.log('Done.', log_time=True)
-            #############################################
+            if local_opts['algo'] == 'LDLE':
+                self.log('Computing Atilde: Inner Prod of Grad of EigFuncs.')
+                IPGE = ipge_.IPGE(debug=self.debug)
+                if local_opts['Atilde_method'] == 'LLR':
+                    print('Using LLR')
+                elif local_opts['Atilde_method'] == 'FeymanKac':
+                    print('Using Feyman-Kac formula')
+                    IPGE.FeymanKac(GL.L, GL.phi, U)
+                elif local_opts['Atilde_method'] == 'LDLE_3':
+                    print('Using LDLE_3')
+                else: #fem
+                    IPGE.fem(opts = {'phi': GL.phi, 'neigh_ind': neigh_ind, 'k': local_opts['k'],
+                                     'neigh_dist': neigh_dist, 'epsilon': epsilon,
+                                     'd': d, 'p': local_opts['p']})
+                self.log('Done.', log_time=True)
+                
+                if self.exit_at == 'post-Atilde':
+                    return
+                #############################################
+                
+                # Compute gamma
+                if local_opts['scale_by']=='none':
+                    gamma = np.ones((GL.phi.shape[0], local_opts['N']))
+                elif local_opts['scale_by']=='gamma':
+                    gamma = 1/(np.sqrt(U.dot(GL.phi**2)/local_opts['k'])+1e-12)
+                elif local_opts['scale_by']=='grad_norm':
+                    gamma = 1/(np.sqrt(np.diagonal(IPGE.Atilde, axis1=1, axis2=2))+1e-12)
+                else:
+                    gamma = np.repeat(np.power(1-GL.lmbda.flatten(),local_opts['scale_by']),
+                                      GL.phi.shape[0]).reshape(GL.phi.shape)
+                #############################################
+    
+                # Compute LDLE: Low Distortion Local Eigenmaps
+                self.log('Computing LDLE.')
+                local_param_pre = self.compute_LDLE(d, d_e, GL.phi, U, IPGE.Atilde, gamma, local_opts)
+                self.log('Done.', log_time=True)
+                #############################################
+            elif local_opts['algo'] == 'LEPC':
+                local_param_pre = self.compute_LEPC(d, X, d_e, GL.phi, U, GL.L, local_opts)
 
             if local_opts['to_postprocess']:
                 self.log('Posprocessing local parameterizations.')
@@ -115,6 +273,8 @@ class LocalViews:
             else:
                 local_param_post = local_param_pre
             #############################################
+            if local_opts['algo'] == 'LDLE':
+                local_param_post.gamma = gamma
             # set b
             local_param_post.b = np.ones(U.shape[0])
             n_proc = local_opts['n_proc']
@@ -148,7 +308,7 @@ class LocalViews:
                 proc[p_num].join()
             #############################################
             
-            if ddX is not None:
+            if local_opts['algo'] == 'LDLE' and ddX is not None:
                 self.log('Halving objects.')
                 n = ddX.shape[0]
                 U = U[:n,:n]
@@ -177,6 +337,96 @@ class LocalViews:
                                                                                     'data_mask': U_k}))
                 self.log('Done.', log_time=True)
             #############################################
+        elif local_opts['algo'] == 'RFFLE':
+            # Local views in the ambient space
+            epsilon = neigh_dist[:,[local_opts['k']-1]]
+            U = sparse_matrix(neigh_ind[:,:local_opts['k']],
+                              np.ones((neigh_ind.shape[0],local_opts['k']), dtype=bool))
+            #U = U.maximum(U.transpose()) # Idk why I wrote this. This is not needed.
+            #############################################
+            np.random.seed(42)
+            rff_v = np.random.normal(0, 1, (local_opts['N'], X.shape[1]))
+            rff_xi = np.random.normal(0, 1, (local_opts['N'], 1))
+            phi = np.cos(X.dot(rff_v.T) + rff_xi.T)
+            #############################################
+            self.log('Computing Atilde: Inner Prod of Grad of RFF.')
+            IPGE = ipge_.IPGE(debug=self.debug)
+            if local_opts['Atilde_method'] == 'LLR':
+                print('Using LLR')
+            elif local_opts['Atilde_method'] == 'FeymanKac':
+                print('Using Feyman-Kac formula')
+                self.log('Constructing ' + local_opts['gl_type'] + ' graph Laplacian + its eigendecomposition.')
+                GL = gl_.GL(debug=self.debug)
+                GL.fit(neigh_dist, neigh_ind, local_opts)
+                self.log('Done.', log_time=True)
+                IPGE.FeymanKac(GL.L, phi, U)
+            elif local_opts['Atilde_method'] == 'LDLE_3':
+                print('Using LDLE_3')
+            else: #fem
+                IPGE.fem(opts = {'phi': phi, 'neigh_ind': neigh_ind, 'k': local_opts['k'],
+                                 'neigh_dist': neigh_dist, 'epsilon': epsilon,
+                                 'd': d, 'p': local_opts['p']})
+            self.log('Done.', log_time=True)
+            
+            if self.exit_at == 'post-Atilde':
+                return
+            #############################################
+            # Compute gamma
+            if local_opts['scale_by']=='none':
+                gamma = np.ones((phi.shape[0], local_opts['N']))
+            elif local_opts['scale_by']=='gamma':
+                gamma = 1/(np.sqrt(U.dot(phi**2)/local_opts['k'])+1e-12)
+            elif local_opts['scale_by']=='grad_norm':
+                gamma = 1/(np.sqrt(np.diagonal(IPGE.Atilde, axis1=1, axis2=2))+1e-12)
+            else:
+                gamma = np.ones((phi.shape[0], local_opts['N']))
+            #############################################
+            # Compute  Random Fourier Features based Local Embedding
+            self.log('Computing RFFLE.')
+            local_param_pre = self.compute_RFFLE(d, d_e, phi, U, IPGE.Atilde, gamma, local_opts)
+            self.log('Done.', log_time=True)
+            #############################################
+
+            if local_opts['to_postprocess']:
+                self.log('Posprocessing local parameterizations.')
+                local_param_post = self.postprocess(d_e, local_param_pre, U, local_opts)
+                self.log('Done.', log_time=True)
+            else:
+                local_param_post = local_param_pre
+            #############################################
+            local_param_post.gamma = gamma
+            # set b
+            local_param_post.b = np.ones(U.shape[0])
+            n_proc = local_opts['n_proc']
+            n_ = U.shape[0]
+            chunk_sz = int(n_/n_proc)
+            def target_proc(p_num, q_):
+                start_ind = p_num*chunk_sz
+                if p_num == (n_proc-1):
+                    end_ind = n_
+                else:
+                    end_ind = (p_num+1)*chunk_sz
+                b_ = np.ones(end_ind-start_ind)
+                for k in range(start_ind, end_ind):
+                    U_k = U[k,:].indices
+                    d_e_k = to_dense(d_e[np.ix_(U_k,U_k)])
+                    Psi_k = local_param_post.eval_({'view_index': k, 'data_mask': U_k})
+                    b_[k-start_ind] = np.median(squareform(d_e_k))/np.median(pdist(Psi_k))
+                q_.put((start_ind, end_ind, b_))
+            
+            q_ = mp.Queue()
+            proc = []
+            for p_num in range(n_proc):
+                proc.append(mp.Process(target=target_proc, args=(p_num, q_)))
+                proc[-1].start()
+                
+            for p_num in range(n_proc):
+                start_ind, end_ind, b_ = q_.get()
+                local_param_post.b[start_ind:end_ind] = b_
+            q_.close()
+            for p_num in range(n_proc):
+                proc[p_num].join()
+            #############################################
         else:
             # Local views in the ambient space
             if local_opts['U_method'] == 'k_nn':
@@ -192,12 +442,14 @@ class LocalViews:
                     neigh_dist_.append(np.ones(np.sum(mask), dtype=bool))
                 U = sparse_matrix(np.array(neigh_ind_), np.array(neigh_dist_))
                     
-            if local_opts['algo'] == 'Smooth-RATS':
-                local_param_pre = self.compute_Smooth_LPCA(d, X, d_e, U, local_opts)
+            if local_opts['algo'] == 'Smooth-LPCA':
+                local_param_pre = self.compute_Smooth_LPCA(d, X, d_e, U, GL.L, local_opts)
             elif local_opts['algo'] == 'LISOMAP':
                 local_param_pre = self.compute_LISOMAP(d, X, d_e, U, local_opts)
             elif local_opts['algo'] == 'LKPCA':
                 local_param_pre = self.compute_LKPCA(d, X, d_e, U, local_opts)
+            elif local_opts['algo'] == 'EXTPCA':
+                local_param_pre = self.compute_EXTPCA(d, X, d_e, U, local_opts)
             else:
                 local_param_pre = self.compute_LPCA(d, X, d_e, U, local_opts)
             self.log('Done.', log_time=True)
@@ -211,15 +463,21 @@ class LocalViews:
             
         print('Max local distortion =', np.max(local_param_post.zeta))
         if self.debug:
-            if local_opts['algo'] == 'LDLE':
-                self.GL = GL
+            if local_opts['algo'] == 'LDLE' or local_opts['algo'] == 'RFFLE':
                 self.IPGE = IPGE
                 self.gamma = gamma
                 self.epsilon = epsilon
             self.local_param_pre = local_param_pre
+            if local_opts['algo'] == 'LDLE' or local_opts['algo'] == 'LEPC':
+                self.GL = GL
+            if local_opts['algo'] == 'RFFLE':
+                self.rff_v = rff_v
+                self.rff_xi = rff_xi
         
         if local_opts['algo'] == 'LDLE':
             self.phi = GL.phi
+        elif local_opts['algo'] == 'RFFLE':
+            self.phi = phi
             
         self.U = U
         self.local_param_post = local_param_post
@@ -227,6 +485,10 @@ class LocalViews:
     def compute_LDLE(self, d, d_e, phi, U, Atilde, gamma, local_opts, print_prop = 0.25):
         n, N = phi.shape
         N = phi.shape[1]
+        if local_opts['brute_force'] and (d==2):
+            all_pairs = [list(i) for i in itertools.combinations(np.arange(N).tolist(), d)]
+        else:
+            all_pairs = None
         tau = local_opts['tau']
         delta = local_opts['delta']
         local_param = Param('LDLE')
@@ -244,56 +506,390 @@ class LocalViews:
                 end_ind = (p_num+1)*chunk_sz
 
             for k in range(start_ind, end_ind):
-                # to store i_1, ..., i_d
-                i = np.zeros(d, dtype='int')
-
                 # Grab the precomputed U_k, Atilde_{kij}, gamma_{ki}
                 U_k = U[k,:].indices
-                Atilde_k = Atilde[k,:,:]
                 gamma_k = gamma[k,:]
+                d_e_k = d_e[np.ix_(U_k, U_k)]
+                
+                if all_pairs is not None:
+                    zeta_min = np.inf
+                    zeta_min_ind = None
+                    
+                    for i in all_pairs:
+                        # Compute Psi_k
+                        local_param.Psi_gamma[k,:] = gamma_k[i]
+                        local_param.Psi_i[k,:] = i
 
-                # Compute theta_1
-                Atikde_kii = Atilde_k.diagonal()
-                theta_1 = np.percentile(Atikde_kii, tau)
+                        # Compute zeta_{kk}
+                        
+                        zeta_ = compute_zeta(d_e_k, local_param.eval_({'view_index': k,
+                                                                        'data_mask': U_k}))
+                        if zeta_min > zeta_:
+                            zeta_min = zeta_
+                            zeta_min_ind = i
+                     
+                    local_param.Psi_gamma[k,:] = gamma_k[zeta_min_ind]
+                    local_param.Psi_i[k,:] = zeta_min_ind
+                    local_param.zeta[k] = zeta_min
+                else:
+                    # to store i_1, ..., i_d
+                    i = np.zeros(d, dtype='int')
+                    
+                    Atilde_k = Atilde[k,:,:]
 
-                # Compute Stilde_k
-                Stilde_k = Atikde_kii >= theta_1
+                    # Compute theta_1
+                    Atikde_kii = Atilde_k.diagonal()
+                    theta_1 = np.percentile(Atikde_kii, tau)
 
-                # Compute i_1
-                r_1 = np.argmax(Stilde_k) # argmax finds first index with max value
-                temp = gamma_k * np.abs(Atilde_k[:,r_1])
-                alpha_1 = np.max(temp * Stilde_k)
-                i[0] = np.argmax((temp >= delta*alpha_1) & (Stilde_k))
+                    # Compute Stilde_k
+                    Stilde_k = Atikde_kii >= theta_1
 
-                for s in range(1,d):
-                    i_prev = i[0:s]
-                    # compute temp variable to help compute Hs_{kij} below
-                    temp = inv(Atilde_k[np.ix_(i_prev,i_prev)])
+                    # Compute i_1
+                    r_1 = np.argmax(Stilde_k) # argmax finds first index with max value
+                    temp = gamma_k * np.abs(Atilde_k[:,r_1])
+                    alpha_1 = np.max(temp * Stilde_k)
+                    i[0] = np.argmax((temp >= delta*alpha_1) & (Stilde_k))
 
-                    # Compute theta_s
-                    Hs_kii = Atikde_kii - np.sum(Atilde_k[:,i_prev] * np.dot(temp, Atilde_k[i_prev,:]).T, 1)
-                    temp_ = Hs_kii[Stilde_k]
-                    theta_s = np.percentile(temp_, tau)
+                    for s in range(1,d):
+                        i_prev = i[0:s]
+                        # compute temp variable to help compute Hs_{kij} below
+                        temp = inv(Atilde_k[np.ix_(i_prev,i_prev)])
 
-                    #theta_s=np.max([theta_s,np.min([np.max(temp_),1e-4])])
+                        # Compute theta_s
+                        Hs_kii = Atikde_kii - np.sum(Atilde_k[:,i_prev] * np.dot(temp, Atilde_k[i_prev,:]).T, 1)
+                        temp_ = Hs_kii[Stilde_k]
+                        theta_s = np.percentile(temp_, tau)
 
-                    # Compute i_s
-                    r_s = np.argmax((Hs_kii>=theta_s) & Stilde_k)
-                    Hs_kir_s = Atilde_k[:,[r_s]] - np.dot(Atilde_k[:,i_prev],
-                                                          np.dot(temp, Atilde_k[i_prev,r_s][:,np.newaxis]))
-                    temp = gamma_k * np.abs(Hs_kir_s.flatten())
-                    alpha_s = np.max(temp * Stilde_k)
-                    i[s]=np.argmax((temp >= delta*alpha_s) & Stilde_k);
+                        #theta_s=np.max([theta_s,np.min([np.max(temp_),1e-4])])
 
-                # Compute Psi_k
-                local_param.Psi_gamma[k,:] = gamma_k[i]
-                local_param.Psi_i[k,:] = i
+                        # Compute i_s
+                        r_s = np.argmax((Hs_kii>=theta_s) & Stilde_k)
+                        Hs_kir_s = Atilde_k[:,[r_s]] - np.dot(Atilde_k[:,i_prev],
+                                                              np.dot(temp, Atilde_k[i_prev,r_s][:,np.newaxis]))
+                        temp = gamma_k * np.abs(Hs_kir_s.flatten())
+                        alpha_s = np.max(temp * Stilde_k)
+                        i[s]=np.argmax((temp >= delta*alpha_s) & Stilde_k);
 
+                    # Compute Psi_k
+                    local_param.Psi_gamma[k,:] = gamma_k[i]
+                    local_param.Psi_i[k,:] = i
+
+                    # Compute zeta_{kk}
+                    d_e_k = d_e[np.ix_(U_k, U_k)]
+                    local_param.zeta[k] = compute_zeta(d_e_k,
+                                                       local_param.eval_({'view_index': k,
+                                                                          'data_mask': U_k}))
+
+            q_.put((start_ind, end_ind,
+                    local_param.zeta[start_ind:end_ind],
+                    local_param.Psi_gamma[start_ind:end_ind,:],
+                    local_param.Psi_i[start_ind:end_ind,:]))
+        
+        q_ = mp.Queue()
+        chunk_sz = int(n/n_proc)
+        proc = []
+        for p_num in range(n_proc):
+            proc.append(mp.Process(target=target_proc,
+                                   args=(p_num,chunk_sz,q_),
+                                   daemon=True))
+            proc[-1].start()
+
+        for p_num in range(n_proc):
+            start_ind, end_ind, zeta_, Psi_gamma_, Psi_i_ = q_.get()
+            local_param.zeta[start_ind:end_ind] = zeta_
+            local_param.Psi_gamma[start_ind:end_ind,:] = Psi_gamma_
+            local_param.Psi_i[start_ind:end_ind,:] = Psi_i_
+
+        q_.close()
+        
+        for p_num in range(n_proc):
+            proc[p_num].join()
+            
+        print('local_param: all %d points processed...' % n)
+        print("max distortion is %f" % (np.max(local_param.zeta)))
+        return local_param
+
+    def compute_LEPC(self, d, X, d_e, phi, U, L, local_opts, print_prop = 0.25):
+        n, N = phi.shape
+        p = X.shape[1]
+        print_freq = int(print_prop * n)
+        N = phi.shape[1]
+        local_param = Param('LPCA')
+        local_param.X = X
+        local_param.Psi = np.zeros((n,p,d))
+        local_param.mu = np.zeros((n,p))
+        local_param.zeta = np.zeros(n)
+        var_explained = np.zeros((n,p))
+        n_pc_dir_chosen = np.zeros(X.shape[0])
+        n_proc = local_opts['n_proc']
+
+        # Psi = None
+        # local_param_ = self.compute_LPCA(d, X, d_e, U, local_opts)
+        # Psi = np.zeros((N, n, p))
+        # for k in range(n):
+        #     U_k = U[k,:].indices
+        #     phi_k = phi[U_k,:] - phi[k,:][None,:]
+        #     X_U_k = local_param_.eval_({'view_index': k, 'data_mask': U_k})
+        #     X_k = local_param_.eval_({'view_index': k, 'data_mask': [k]})
+        #     X_tilde_k = X_U_k-X_k
+        #     grads = pinv(X_tilde_k.T.dot(X_tilde_k)).dot(X_tilde_k.T.dot(phi_k))
+        #     Psi[:,k,:] = (local_param_.Psi[k,:].dot(grads)).T
+
+        X_tilde = []
+        N = phi.shape[1]
+        n,p = X.shape
+        Phi_tilde = []
+        Psi = np.zeros((N, n, p))
+        C_list = []
+        A_list = []
+        for k in range(n):
+            U_k = U[k,:].indices
+            phi_k = phi[U_k,:] - phi[k,:][None,:]
+            X_k = X[U_k,:] - X[k,:][None,:]
+            X_tilde.append(X_k.T)
+            Phi_tilde.append(phi_k.T)
+            
+            C_k = X_k.T.dot(X_k)
+            A_k = X_k.T.dot(phi_k)
+            #Psi[:,k,:] = pinv(C_k).dot(A_k).T
+            C_list.append(C_k)
+            A_list.append(A_k)
+
+        # OLDEST
+        # print('Estimating gradients:')
+        # model = Model(cov, b, L, lmbda=local_opts['reg'], device=local_opts['device'])
+        # optim = torch.optim.Adam(model.parameters(), lr=local_opts['alpha'])
+        # for i in range(local_opts['max_iter']):
+        #     loss = model.forward()
+        #     loss = loss + const_term
+        #     loss = loss/(n*N)
+        #     loss.backward()
+        #     optim.step()
+        #     optim.zero_grad()
+        #     print(f"loss ({i}): {loss.item()}")
+
+        print('Estimating gradients:')
+        # model = Model(X_tilde, Phi_tilde, L, Psi=Psi, lmbda=local_opts['reg'], device=local_opts['device'])
+        # optim = torch.optim.Adam(model.parameters(), lr=local_opts['alpha'])
+        # for i in range(local_opts['max_iter']):
+        #     loss = model.forward()
+        #     loss.backward()
+        #     optim.step()
+        #     optim.zero_grad()
+        #     print(f"loss ({i}): {loss.item()}")
+        # local_subspace = model.Psi.cpu().detach().numpy()
+        
+        W = -L.copy().tocsr()
+        W.setdiag(0)
+        W1_list = []
+        W2_list = []
+        U_list = []
+        for k in range(n):
+            U_k = U[k,:].indices
+            U_list.append(U_k)
+            W1_list.append(np.array(W[k,U_k].todense()).flatten())
+            W2_list.append(np.array(W[U_k,k].todense()).flatten())
+            C_k = C_list[k].copy()
+            np.fill_diagonal(C_k, C_k.diagonal() + local_opts['reg']*(np.sum(W1_list[k])+np.sum(W2_list[k])))
+            C_list[k] = pinv(C_k)
+        
+        local_subspace = Psi.copy()
+        local_subspaces = [Psi]
+        is_converged = False
+        np.random.seed(42)
+        inds = np.arange(n)
+        for i in range(local_opts['max_iter']):
+            np.random.shuffle(inds)
+            for k in inds.tolist():
+                U_k = U_list[k]
+                w_1 = W1_list[k]
+                w_2 = W2_list[k]
+                pinvC_k = C_list[k]
+                A_k = A_list[k].copy()
+                Psi_k = Psi[:,U_k,:]
+                A_k += local_opts['reg']*np.sum(w_1[None,:,None]*Psi_k, axis=1).T
+                A_k += local_opts['reg']*np.sum(w_2[None,:,None]*Psi_k, axis=1).T
+                Psi[:,k,:] = pinvC_k.dot(A_k).T
+            delta = np.sum(np.abs(local_subspace - Psi))/(n*N*p)
+            if delta < local_opts['tol']:
+                print('Converged at iter:', i)
+                break
+            print('Iter:', i+1, ':: mean of |grad_{t+1}-grad_{t}|:', delta) 
+            # Psi = local_subspace.copy()
+            # local_subspaces.append(Psi)
+            local_subspace = Psi.copy()
+            local_subspaces.append(local_subspace)
+            
+        self.local_subspace = local_subspace
+        self.local_subspaces = local_subspaces
+
+        # self.nnmodel = NNModel(X, phi, n_epochs=local_opts['max_iter'], lr=local_opts['alpha'])
+        # local_subspace = self.nnmodel.Psi.copy()
+        # self.local_subspace = local_subspace
+        
+        def target_proc(p_num, chunk_sz, q_):
+            start_ind = p_num*chunk_sz
+            if p_num == (n_proc-1):
+                end_ind = n
+            else:
+                end_ind = (p_num+1)*chunk_sz
+
+            for k in range(start_ind, end_ind):
+                U_k = U[k,:].indices
+                local_param.mu[k,:] = np.mean(X[U_k,:], axis=0)
+
+                if local_opts['explain_var'] > 0:
+                    Q_k,Sigma_k,_ = svd(local_subspace[:,k,:].T)
+                    var = np.cumsum(Sigma_k/np.sum(Sigma_k))
+                    var_explained[k,:] = var
+                    d1 = min(d, np.sum(var < local_opts['explain_var'])+1)
+                else:
+                    d1 = d
+                    if d in local_subspace.shape:
+                        Q_k,Sigma_k,_ = svd(local_subspace[:,k,:].T)
+                    else:
+                        Q_k,Sigma_k,_ = svds(local_subspace[:,k,:].T, d, which='LM')
+
+                    var_explained[k,:d] = Sigma_k/np.sum(Sigma_k)
+                n_pc_dir_chosen[k] = d1
+                local_param.Psi[k,:,:d1] = Q_k[:,:d1]
                 # Compute zeta_{kk}
                 d_e_k = d_e[np.ix_(U_k, U_k)]
                 local_param.zeta[k] = compute_zeta(d_e_k,
                                                    local_param.eval_({'view_index': k,
                                                                       'data_mask': U_k}))
+            
+            q_.put((start_ind, end_ind,
+                    local_param.zeta[start_ind:end_ind],
+                    local_param.Psi[start_ind:end_ind,:],
+                    local_param.mu[start_ind:end_ind,:],
+                    var_explained[start_ind:end_ind,:],
+                    n_pc_dir_chosen[start_ind:end_ind]))
+        
+        q_ = mp.Queue()
+        chunk_sz = int(n/n_proc)
+        proc = []
+        for p_num in range(n_proc):
+            proc.append(mp.Process(target=target_proc,
+                                   args=(p_num,chunk_sz,q_),
+                                   daemon=True))
+            proc[-1].start()
+
+        for p_num in range(n_proc):
+            start_ind, end_ind, zeta_, Psi_, mu_, var_explained_, n_pc_dir_chosen_ = q_.get()
+            local_param.zeta[start_ind:end_ind] = zeta_
+            local_param.Psi[start_ind:end_ind,:] = Psi_
+            local_param.mu[start_ind:end_ind,:] = mu_
+            var_explained[start_ind:end_ind,:] = var_explained_
+            n_pc_dir_chosen[start_ind:end_ind] = n_pc_dir_chosen_
+            
+        q_.close()
+        
+        for p_num in range(n_proc):
+            proc[p_num].join()
+        print('local_param: all %d points processed...' % n)
+        print("max distortion is %f" % (np.max(local_param.zeta)))
+        local_param.var_explained = var_explained
+        local_param.n_pc_dir_chosen = n_pc_dir_chosen
+        return local_param
+    
+    def compute_RFFLE(self, d, d_e, phi, U, Atilde, gamma, local_opts, print_prop = 0.25):
+        n, N = phi.shape
+        N = phi.shape[1]
+        if local_opts['brute_force'] and (d==2):
+            all_pairs = [list(i) for i in itertools.combinations(np.arange(N).tolist(), d)]
+        else:
+            all_pairs = None
+        tau = local_opts['tau']
+        delta = local_opts['delta']
+        local_param = Param('RFFLE')
+        local_param.phi = phi
+        local_param.Psi_gamma = np.zeros((n,d))
+        local_param.Psi_i = np.zeros((n,d),dtype='int')
+        local_param.zeta = np.zeros(n)
+        n_proc = local_opts['n_proc']
+        
+        def target_proc(p_num, chunk_sz, q_):
+            start_ind = p_num*chunk_sz
+            if p_num == (n_proc-1):
+                end_ind = n
+            else:
+                end_ind = (p_num+1)*chunk_sz
+
+            for k in range(start_ind, end_ind):
+                # Grab the precomputed U_k, Atilde_{kij}, gamma_{ki}
+                U_k = U[k,:].indices
+                gamma_k = gamma[k,:]
+                d_e_k = d_e[np.ix_(U_k, U_k)]
+                
+                if all_pairs is not None:
+                    zeta_min = np.inf
+                    zeta_min_ind = None
+                    
+                    for i in all_pairs:
+                        # Compute Psi_k
+                        local_param.Psi_gamma[k,:] = gamma_k[i]
+                        local_param.Psi_i[k,:] = i
+
+                        # Compute zeta_{kk}
+                        
+                        zeta_ = compute_zeta(d_e_k, local_param.eval_({'view_index': k,
+                                                                        'data_mask': U_k}))
+                        if zeta_min > zeta_:
+                            zeta_min = zeta_
+                            zeta_min_ind = i
+                     
+                    local_param.Psi_gamma[k,:] = gamma_k[zeta_min_ind]
+                    local_param.Psi_i[k,:] = zeta_min_ind
+                    local_param.zeta[k] = zeta_min
+                else:
+                    # to store i_1, ..., i_d
+                    i = np.zeros(d, dtype='int')
+                    
+                    Atilde_k = Atilde[k,:,:]
+
+                    # Compute theta_1
+                    Atikde_kii = Atilde_k.diagonal()
+                    theta_1 = np.percentile(Atikde_kii, tau)
+
+                    # Compute Stilde_k
+                    Stilde_k = Atikde_kii >= theta_1
+
+                    # Compute i_1
+                    r_1 = np.argmax(Stilde_k) # argmax finds first index with max value
+                    temp = gamma_k * np.abs(Atilde_k[:,r_1])
+                    alpha_1 = np.max(temp * Stilde_k)
+                    i[0] = np.argmax((temp >= delta*alpha_1) & (Stilde_k))
+
+                    for s in range(1,d):
+                        i_prev = i[0:s]
+                        # compute temp variable to help compute Hs_{kij} below
+                        temp = inv(Atilde_k[np.ix_(i_prev,i_prev)])
+
+                        # Compute theta_s
+                        Hs_kii = Atikde_kii - np.sum(Atilde_k[:,i_prev] * np.dot(temp, Atilde_k[i_prev,:]).T, 1)
+                        temp_ = Hs_kii[Stilde_k]
+                        theta_s = np.percentile(temp_, tau)
+
+                        #theta_s=np.max([theta_s,np.min([np.max(temp_),1e-4])])
+
+                        # Compute i_s
+                        r_s = np.argmax((Hs_kii>=theta_s) & Stilde_k)
+                        Hs_kir_s = Atilde_k[:,[r_s]] - np.dot(Atilde_k[:,i_prev],
+                                                              np.dot(temp, Atilde_k[i_prev,r_s][:,np.newaxis]))
+                        temp = gamma_k * np.abs(Hs_kir_s.flatten())
+                        alpha_s = np.max(temp * Stilde_k)
+                        i[s]=np.argmax((temp >= delta*alpha_s) & Stilde_k);
+
+                    # Compute Psi_k
+                    local_param.Psi_gamma[k,:] = gamma_k[i]
+                    local_param.Psi_i[k,:] = i
+
+                    # Compute zeta_{kk}
+                    d_e_k = d_e[np.ix_(U_k, U_k)]
+                    local_param.zeta[k] = compute_zeta(d_e_k,
+                                                       local_param.eval_({'view_index': k,
+                                                                          'data_mask': U_k}))
 
             q_.put((start_ind, end_ind,
                     local_param.zeta[start_ind:end_ind],
@@ -331,7 +927,7 @@ class LocalViews:
         
         local_param = Param('LISOMAP')
         local_param.X = X
-        local_param.model = np.empty(n, dtype=np.object)
+        local_param.model = np.empty(n, dtype=object)
         local_param.zeta = np.zeros(n)
         n_proc = local_opts['n_proc']
         
@@ -391,6 +987,8 @@ class LocalViews:
         local_param.Psi = np.zeros((n,p,d))
         local_param.mu = np.zeros((n,p))
         local_param.zeta = np.zeros(n)
+        var_explained = np.zeros((n,p))
+        n_pc_dir_chosen = np.zeros(X.shape[0])
         n_proc = local_opts['n_proc']
         
         def target_proc(p_num, chunk_sz, q_):
@@ -457,13 +1055,91 @@ class LocalViews:
                     xbar_k = np.mean(X_k,axis=0)[np.newaxis,:]
                     X_k = X_k - xbar_k
                     X_k = X_k.T
-                    if d in X_k.shape:
+                    if local_opts['explain_var'] > 0:
                         Q_k,Sigma_k,_ = svd(X_k)
+                        var = np.cumsum(Sigma_k/np.sum(Sigma_k))
+                        var_explained[k,:] = var
+                        d1 = min(d, np.sum(var < local_opts['explain_var'])+1)
                     else:
-                        Q_k,Sigma_k,_ = svds(X_k, d, which='LM')
+                        d1 = d
+                        if d in X_k.shape:
+                            Q_k,Sigma_k,_ = svd(X_k)
+                        else:
+                            Q_k,Sigma_k,_ = svds(X_k, d, which='LM')
+                        var_explained[k,:d] = Sigma_k/np.sum(Sigma_k)
+                    n_pc_dir_chosen[k] = d1
+
+                local_param.Psi[k,:,:d1] = Q_k[:,:d1]
+                local_param.mu[k,:] = xbar_k
+
+                # Compute zeta_{kk}
+                d_e_k = d_e[np.ix_(U_k, U_k)]
+                local_param.zeta[k] = compute_zeta(d_e_k,
+                                                   local_param.eval_({'view_index': k,
+                                                                      'data_mask': U_k}))
+            
+            q_.put((start_ind, end_ind,
+                    local_param.zeta[start_ind:end_ind],
+                    local_param.Psi[start_ind:end_ind,:],
+                    local_param.mu[start_ind:end_ind,:],
+                    var_explained[start_ind:end_ind,:],
+                    n_pc_dir_chosen[start_ind:end_ind]))
+        
+        q_ = mp.Queue()
+        chunk_sz = int(n/n_proc)
+        proc = []
+        for p_num in range(n_proc):
+            proc.append(mp.Process(target=target_proc,
+                                   args=(p_num,chunk_sz,q_),
+                                   daemon=True))
+            proc[-1].start()
+
+        for p_num in range(n_proc):
+            start_ind, end_ind, zeta_, Psi_, mu_, var_explained_, n_pc_dir_chosen_ = q_.get()
+            local_param.zeta[start_ind:end_ind] = zeta_
+            local_param.Psi[start_ind:end_ind,:] = Psi_
+            local_param.mu[start_ind:end_ind,:] = mu_
+            var_explained[start_ind:end_ind,:] = var_explained_
+            n_pc_dir_chosen[start_ind:end_ind] = n_pc_dir_chosen_
+
+        q_.close()
+        
+        for p_num in range(n_proc):
+            proc[p_num].join()
+        print('local_param: all %d points processed...' % n)
+        print("max distortion is %f" % (np.max(local_param.zeta)))
+        local_param.var_explained = var_explained
+        local_param.n_pc_dir_chosen = n_pc_dir_chosen
+        return local_param
+
+    def compute_EXTPCA(self, d, X, d_e, U, local_opts, print_prop = 0.25):
+        n = U.shape[0]
+        p = X.shape[1]
+        print_freq = int(print_prop * n)
+        
+        local_param = Param('LPCA')
+        local_param.X = X
+        local_param.Psi = np.zeros((n,p,d))
+        local_param.mu = np.zeros((n,p))
+        local_param.zeta = np.zeros(n)
+        n_proc = local_opts['n_proc']
+        
+        def target_proc(p_num, chunk_sz, q_):
+            start_ind = p_num*chunk_sz
+            if p_num == (n_proc-1):
+                end_ind = n
+            else:
+                end_ind = (p_num+1)*chunk_sz
+
+            for k in range(start_ind, end_ind):
+                U_k = U[k,:].indices
+                if d in local_opts['local_subspace'].shape:
+                    Q_k,Sigma_k,_ = svd(local_opts['local_subspace'][:,k,:].T)
+                else:
+                    Q_k,Sigma_k,_ = svds(local_opts['local_subspace'][:,k,:].T, d, which='LM')
 
                 local_param.Psi[k,:,:] = Q_k[:,:d]
-                local_param.mu[k,:] = xbar_k
+                local_param.mu[k,:] = X[k,:]
 
                 # Compute zeta_{kk}
                 d_e_k = d_e[np.ix_(U_k, U_k)]
@@ -506,7 +1182,7 @@ class LocalViews:
         
         local_param = Param('LKPCA')
         local_param.X = X
-        local_param.model = np.empty(n, dtype=np.object)
+        local_param.model = np.empty(n, dtype=object)
         local_param.zeta = np.zeros(n)
         n_proc = local_opts['n_proc']
         
@@ -555,7 +1231,7 @@ class LocalViews:
         print("max distortion is %f" % (np.max(local_param.zeta)))
         return local_param
     
-    def compute_Smooth_LPCA(self, d, X, d_e, U, local_opts, print_prop = 0.25):
+    def compute_Smooth_LPCA(self, d, X, d_e, U, L, local_opts, print_prop = 0.25):
         local_param_ = self.compute_LPCA(d, X, d_e, U, local_opts)
         zeta0 = local_param_.zeta.copy()
         del local_param_
@@ -805,10 +1481,10 @@ class LocalViews:
         shm_pcb.close()
         shm_pcb.unlink()
 
-        if local_opts['algo'] == 'LDLE':
+        if local_opts['algo'] == 'LDLE' or local_opts['algo'] == 'RFFLE' or local_opts['algo'] == 'LEPC':
             local_param.Psi_i = local_param.Psi_i[npo,:]
             local_param.Psi_gamma = local_param.Psi_gamma[npo,:]
-        elif local_opts['algo'] != 'LPCA':
+        elif local_opts['algo'] != 'LPCA' and local_opts['algo'] != 'EXTPCA':
             local_param.model = local_param.model[npo]
         else:
             local_param.Psi = local_param.Psi[npo,:]

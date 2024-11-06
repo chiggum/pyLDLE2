@@ -215,7 +215,7 @@ def compute_CC(D, B, Lpinv_BT):
 
 def build_ortho_optim(d, Utilde, intermed_param,
                       far_off_points=[], repel_by=0.,
-                      beta=None, ret_CCs=False):
+                      max_var_by=None, beta=None, ret_CCs=False):
     M,n = Utilde.shape
     B_row_inds = []
     B_col_inds = []
@@ -278,6 +278,12 @@ def build_ortho_optim(d, Utilde, intermed_param,
     
     Lpinv_BT = compute_Lpinv_MT(Lpinv_helpers, B)
     CC = compute_CC(D, B, Lpinv_BT)
+
+    if max_var_by:
+        Lpinv_BT_first_n_rows = Lpinv_BT[:n,:]
+        Lpinv_BT_first_n_rows = Lpinv_BT_first_n_rows - Lpinv_BT_first_n_rows.sum(axis=0)[None,:]/n
+        CC = CC - max_var_by*Lpinv_BT_first_n_rows.T.dot(Lpinv_BT_first_n_rows)
+    
     if n_repel > 0:
     #if (n_repel > 0) and (repel_by>1e-3):
         temp_arr = (-np.ones(n_repel)).tolist()
@@ -344,7 +350,7 @@ def spectral_alignment(y, d, Utilde,
                       seq_of_intermed_views_in_cluster):
     CC, Lpinv_BT, _, _ = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=global_opts['far_off_points'],
-                                     repel_by=global_opts['repel_by'],
+                                     repel_by=global_opts['repel_by'], max_var_by=global_opts['max_var_by'], 
                                      beta=global_opts['beta'])
         
     M,n = Utilde.shape
@@ -358,9 +364,9 @@ def spectral_alignment(y, d, Utilde,
     v0 = CC0[:,0]
     
     print('Computing eigh(C,k=d)', flush=True)
-    #np.random.seed(42)
-    #v0 = np.random.uniform(0,1,CC.shape[0])
-    if (global_opts['n_repel'] == 0) or (global_opts['repel_by'] == 0):
+    np.random.seed(42)
+    v0 = np.random.uniform(0,1,CC.shape[0])
+    if (global_opts['n_repel'] == 0) or (global_opts['repel_by'] == 0) or (global_opts['max_var_by'] == 0):
         # To find smallest eigenvalues, using shift-inverted algo with mode=normal and which='LM'
         W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, sigma=-1e-3)
         # W_,V_ = scipy.sparse.linalg.lobpcg(CC, CC0.T, largest=False)
@@ -419,9 +425,7 @@ def spectral_alignment(y, d, Utilde,
         y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
     return y, Zstar[:,:n].T
 
-def ltsa_alignment(y, d, Utilde,
-                  C, intermed_param, global_opts, 
-                  seq_of_intermed_views_in_cluster):
+def ltsa_alignment(d, Utilde, intermed_param):
     M,n = Utilde.shape
     Theta_mean = []
     Theta_pinv_normalized = []
@@ -439,29 +443,52 @@ def ltsa_alignment(y, d, Utilde,
         CC[np.ix_(Utilde_i, Utilde_i)] += W_i
         Theta_pinv_normalized.append(Theta_i_pinv)
     
-    np.random.seed(42)
-    v0 = np.random.uniform(0,1,CC.shape[0])
-    if (global_opts['n_repel'] == 0) or (global_opts['repel_by'] == 0):
-        # To find smallest eigenvalues, using shift-inverted algo with mode=normal and which='LM'
-        # W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d+1, v0=v0, sigma=-1e-3)
-        # or just pass which='SM' without using sigma
-        # W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, which='SM')
+    Zstar, _ = null_space(CC, d, k_skip=1, eigen_solver='auto', random_state=42)
+    return Zstar
+
+# def ltsa_alignment(y, d, Utilde,
+#                   C, intermed_param, global_opts, 
+#                   seq_of_intermed_views_in_cluster):
+#     M,n = Utilde.shape
+#     Theta_mean = []
+#     Theta_pinv_normalized = []
+#     CC = np.zeros((n,n))
+#     for i in range(M):
+#         Utilde_i = Utilde[i,:].indices
+#         Theta_i = intermed_param.eval_({'view_index': i, 'data_mask': Utilde_i}).T
+#         Theta_mean.append(np.mean(Theta_i, axis=1))
+#         Theta_i = Theta_i - Theta_mean[-1][:,None]
+#         Theta_i_pinv = scipy.linalg.pinv(Theta_i)
+#         Theta_i_pinv = Theta_i_pinv - np.mean(Theta_i_pinv, axis=0)[None,:]
+#         W_i = -1/len(Utilde_i) - Theta_i_pinv.dot(Theta_i)
+#         W_i[np.diag_indices_from(W_i)] += 1
         
-        Zstar, _ = null_space(CC, d, k_skip=1, eigen_solver='auto', random_state=42)
-    else:
-        print('Not implemented yet.', flush=True)
+#         CC[np.ix_(Utilde_i, Utilde_i)] += W_i
+#         Theta_pinv_normalized.append(Theta_i_pinv)
+    
+#     np.random.seed(42)
+#     v0 = np.random.uniform(0,1,CC.shape[0])
+#     if (global_opts['n_repel'] == 0) or (global_opts['repel_by'] == 0):
+#         # To find smallest eigenvalues, using shift-inverted algo with mode=normal and which='LM'
+#         # W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d+1, v0=v0, sigma=-1e-3)
+#         # or just pass which='SM' without using sigma
+#         # W_,V_ = scipy.sparse.linalg.eigsh(CC, k=d, v0=v0, which='SM')
         
-    for s in range(M):
-        intermed_param.v[s,:] -= Theta_mean[s]
-        Utilde_s = Utilde[s,:].indices
-        Y_s = Zstar[Utilde_s,:].T
-        T_s = np.matmul(Y_s, Theta_pinv_normalized[s]).T
-        v_s = np.mean(Y_s, axis=1)[None,:]
-        intermed_param.T[s,:,:] = np.matmul(intermed_param.T[s,:,:], T_s)
-        intermed_param.v[s,:] = np.matmul(intermed_param.v[s,:][np.newaxis,:], T_s) + v_s
-        C_s = C[s,:].indices
-        y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
-    return y, Zstar
+#         Zstar, _ = null_space(CC, d, k_skip=1, eigen_solver='auto', random_state=42)
+#     else:
+#         print('Not implemented yet.', flush=True)
+        
+#     for s in range(M):
+#         intermed_param.v[s,:] -= Theta_mean[s]
+#         Utilde_s = Utilde[s,:].indices
+#         Y_s = Zstar[Utilde_s,:].T
+#         T_s = np.matmul(Y_s, Theta_pinv_normalized[s]).T
+#         v_s = np.mean(Y_s, axis=1)[None,:]
+#         intermed_param.T[s,:,:] = np.matmul(intermed_param.T[s,:,:], T_s)
+#         intermed_param.v[s,:] = np.matmul(intermed_param.v[s,:][np.newaxis,:], T_s) + v_s
+#         C_s = C[s,:].indices
+#         y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
+#     return y, Zstar
 
 def procrustes_final(y, d, Utilde, C, intermed_param,
                      seq_of_intermed_views_in_cluster, global_opts):
@@ -526,7 +553,7 @@ def procrustes_final(y, d, Utilde, C, intermed_param,
 def rgd_alignment(y, d, Utilde, C, intermed_param, global_opts):
     CC, Lpinv_BT, _, _ = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=global_opts['far_off_points'],
-                                     repel_by=global_opts['repel_by'],
+                                     repel_by=global_opts['repel_by'], max_var_by=global_opts['max_var_by'], 
                                      beta=global_opts['beta'])
     M,n = Utilde.shape
     n_proc = min(M,global_opts['n_proc'])
@@ -627,11 +654,10 @@ def rgd_alignment(y, d, Utilde, C, intermed_param, global_opts):
         y[C_s,:] = intermed_param.eval_({'view_index': s, 'data_mask': C_s})
     return y, Zstar[:,:n].T
 
-
 def gpm_alignment(y, d, Utilde, C, intermed_param, global_opts):
     CC, Lpinv_BT, D, _ = build_ortho_optim(d, Utilde, intermed_param,
                                             far_off_points=global_opts['far_off_points'],
-                                            repel_by=global_opts['repel_by'],
+                                            repel_by=global_opts['repel_by'], max_var_by=global_opts['max_var_by'], 
                                             beta=global_opts['beta'])
     CC = D - CC
     M,n = Utilde.shape
@@ -737,7 +763,7 @@ def sdp_alignment(y, d, Utilde,
                   solver=None):
     CC, Lpinv_BT, _, _ = build_ortho_optim(d, Utilde, intermed_param,
                                      far_off_points=global_opts['far_off_points'],
-                                     repel_by=global_opts['repel_by'],
+                                     repel_by=global_opts['repel_by'], max_var_by=global_opts['max_var_by'], 
                                      beta=global_opts['beta'])
     if (global_opts['n_repel'] > 0) and global_opts['repel_by'] > 0:
         di = np.diag_indices(4)

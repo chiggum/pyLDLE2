@@ -3,7 +3,7 @@ import time
 import numpy as np
 import copy
 
-from .util_ import print_log, compute_zeta
+from .util_ import print_log, compute_zeta, procrustes_cost
 from .util_ import Param
 
 from scipy.spatial.distance import pdist, squareform
@@ -17,16 +17,23 @@ import queue
 import copy
 
 # merging s to m
-def merging_cost(s, m, Utilde_s, Utilde_m, d_e, local_param):
-    Utilde_s_U_Utilde_m = list(Utilde_s.union(Utilde_m))
-    return compute_zeta(d_e[np.ix_(Utilde_s_U_Utilde_m,Utilde_s_U_Utilde_m)],
-                           local_param.eval_({'view_index': m,
-                                              'data_mask': Utilde_s_U_Utilde_m}))
+def merging_cost(s, m, Utilde_s, Utilde_m, d_e, local_param, intermed_opts):
+    if intermed_opts['cost_fn'] == 'distortion':
+        Utilde_s_U_Utilde_m = list(Utilde_s.union(Utilde_m))
+        c = compute_zeta(d_e[np.ix_(Utilde_s_U_Utilde_m,Utilde_s_U_Utilde_m)],
+                         local_param.eval_({'view_index': m,
+                                            'data_mask': Utilde_s_U_Utilde_m}))
+    else: # procrustes
+        U_s = list(Utilde_s)
+        c = procrustes_cost(local_param.eval_({'view_index': s, 'data_mask': U_s}),
+                            local_param.eval_({'view_index': m, 'data_mask': U_s}))
+
+    return c
 
 
 # Computes cost_k, d_k (dest_k)
 def cost_of_moving(k, d_e, neigh_ind_k, U_k, local_param, c, n_C,
-                   Utilde, eta_min, eta_max):
+                   Utilde, eta_min, eta_max, intermed_opts):
     c_k = c[k]
     # Compute |C_{c_k}|
     n_C_c_k = n_C[c_k]
@@ -41,6 +48,8 @@ def cost_of_moving(k, d_e, neigh_ind_k, U_k, local_param, c, n_C,
     c_U_k = c[neigh_ind_k]
     c_U_k_uniq = np.unique(c_U_k).tolist()
     cost_x_k_to = np.zeros(len(c_U_k_uniq)) + np.inf
+
+    U_k_list = list(U_k)
     
     # Iterate over all m in c_{U_k}
     i = 0
@@ -62,13 +71,18 @@ def cost_of_moving(k, d_e, neigh_ind_k, U_k, local_param, c, n_C,
         # mth cluster satisfies all required conditions
         # and is a candidate cluster to move x_k in.
         if n_C_m >= n_C_c_k:
-            # Compute union of Utilde_m U_k
-            U_k_U_Utilde_m = list(U_k.union(Utilde[m]))
-            # Compute the cost of moving x_k to mth cluster,
-            # that is cost_{x_k \rightarrow m}
-            cost_x_k_to[i] = compute_zeta(d_e[np.ix_(U_k_U_Utilde_m,U_k_U_Utilde_m)],
-                                  local_param.eval_({'view_index': m,
-                                                     'data_mask': U_k_U_Utilde_m}))   
+            if intermed_opts['cost_fn'] == 'distortion':
+                # Compute union of Utilde_m U_k
+                U_k_U_Utilde_m = list(U_k.union(Utilde[m]))
+                # Compute the cost of moving x_k to mth cluster,
+                # that is cost_{x_k \rightarrow m}
+                cost_x_k_to[i] = compute_zeta(d_e[np.ix_(U_k_U_Utilde_m,U_k_U_Utilde_m)],
+                                      local_param.eval_({'view_index': m,
+                                                         'data_mask': U_k_U_Utilde_m}))
+            else: # procrustes
+                cost_x_k_to[i] = procrustes_cost(local_param.eval_({'view_index': k, 'data_mask': U_k_list}),
+                                                 local_param.eval_({'view_index': m, 'data_mask': U_k_list}))
+                
         i += 1
     
     # find the cluster with minimum cost
@@ -169,7 +183,7 @@ class IntermedViews:
                     else:
                         k1 = S[k]
                     cost_[k1], dest_[k1] = cost_of_moving(k1, d_e, neigh_ind[k1], U_[k1], local_param,
-                                                          c, n_C, Utilde, eta, eta_max)
+                                                          c, n_C, Utilde, eta, eta_max, intermed_opts)
                 
                 existing_shm_cost.close()
                 existing_shm_dest.close()
@@ -246,7 +260,7 @@ class IntermedViews:
                 else: # sequential update
                     for k in S:
                         np_cost[k], np_dest[k] = cost_of_moving(k, d_e, neigh_ind[k], U_[k], local_param,
-                                                                c, n_C, Utilde, eta, eta_max)
+                                                                c, n_C, Utilde, eta, eta_max, intermed_opts)
                 ###########################################
                 ###########################################
                 # Recompute point with minimum cost
@@ -303,10 +317,10 @@ class IntermedViews:
                         continue
                     Utilde_m = Utilde[m]
                     mc = merging_cost(c_id, m, Utilde_s, Utilde_m, 
-                                      d_e, local_param)
+                                      d_e, local_param, intermed_opts)
                     pq_arr[2*ctr,:] = [clstr_dist[c_id],mc,c_id,m]
                     mc = merging_cost(m, c_id, Utilde_m, Utilde_s, 
-                                      d_e, local_param)
+                                      d_e, local_param, intermed_opts)
                     pq_arr[2*ctr+1,:] = [clstr_dist[m],mc,m,c_id]
                     ctr += 1
             q_.put(pq_arr[:2*ctr,:])
@@ -376,14 +390,20 @@ class IntermedViews:
     
     def fit(self, d, d_e, U, local_param, intermed_opts):
         n = d_e.shape[0]
-        if intermed_opts['eta_min'] > 1:
-            neigh_ind = []
-            for i in range(n):
-                neigh_ind.append(U[i,:].indices.tolist())
-            if intermed_opts['algo'] == 'best':
-                c, n_C = self.best(d, d_e, U, neigh_ind, local_param, intermed_opts)
+        if (intermed_opts['eta_min'] > 1) or (intermed_opts['c'] is not None):
+            if intermed_opts['c'] is None:
+                neigh_ind = []
+                for i in range(n):
+                    neigh_ind.append(U[i,:].indices.tolist())
+                if intermed_opts['algo'] == 'best':
+                    c, n_C = self.best(d, d_e, U, neigh_ind, local_param, intermed_opts)
+                else:
+                    c, n_C = self.match_n_merge(d, d_e, U, neigh_ind, local_param, intermed_opts)
             else:
-                c, n_C = self.match_n_merge(d, d_e, U, neigh_ind, local_param, intermed_opts)
+                c = intermed_opts['c']
+                n_C = np.zeros(c.shape[0], dtype=int)
+                for i in range(c.shape[0]):
+                    n_C[i] = np.sum(c==i)
 
             self.log('Pruning and cleaning up.')
             # Prune empty clusters
@@ -400,28 +420,21 @@ class IntermedViews:
 
             # Compute intermediate views
             intermed_param = copy.deepcopy(local_param)
-            if intermed_opts['local_algo'] == 'LDLE':
+            if intermed_param.Psi_i is not None:
                 intermed_param.Psi_i = local_param.Psi_i[non_empty_C,:]
+            if intermed_param.Psi_gamma is not None:
                 intermed_param.Psi_gamma = local_param.Psi_gamma[non_empty_C,:]
+            if intermed_param.b is not None:
                 intermed_param.b = intermed_param.b[non_empty_C]
-            elif intermed_opts['local_algo'] != 'LPCA':
-                intermed_param.model = local_param.model[non_empty_C]
-                intermed_param.b = intermed_param.b[non_empty_C]
-            else:
+            if intermed_param.Psi is not None:
                 intermed_param.Psi = local_param.Psi[non_empty_C,:]
-                intermed_param.mu = local_param.mu[non_empty_C,:]
-                intermed_param.b = intermed_param.b[non_empty_C]
+            if intermed_param.mu is not None:
+                intermed_param.mu = intermed_param.mu[non_empty_C,:]
+            if intermed_param.model is not None:
+                intermed_param.model = local_param.model[non_empty_C]
 
             # Compute Utilde_m
             Utilde = C.dot(U)
-
-            intermed_param.zeta = np.ones(M)
-            for m in range(M):
-                Utilde_m = Utilde[m,:].indices
-                d_e_Utilde_m = d_e[np.ix_(Utilde_m,Utilde_m)]
-                intermed_param.zeta[m] = compute_zeta(d_e_Utilde_m,
-                                                      intermed_param.eval_({'view_index': m,
-                                                                            'data_mask': Utilde_m}))
             np.random.seed(42)
             intermed_param.noise_seed = np.random.randint(M*M, size=M)
             self.log('Done.', log_time=True)
@@ -434,7 +447,7 @@ class IntermedViews:
             intermed_param = copy.deepcopy(local_param)
             np.random.seed(42)
             intermed_param.noise_seed = np.random.randint(n*n, size=n)
-        print("After clustering, max distortion is %f" % (np.max(intermed_param.zeta)))
+            
         self.C = C
         self.c = c
         self.n_C = n_C

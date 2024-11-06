@@ -57,7 +57,7 @@ class GlobalViews:
             # Compute sequence of intermedieate views
             seq_of_intermed_views_in_cluster, \
             parents_of_intermed_views_in_cluster, \
-            cluster_of_intermed_view = self.compute_seq_of_intermediate_views(Utilde, n_C, 
+            cluster_of_intermed_view = self.compute_seq_of_intermediate_views(d, Utilde, n_C, 
                                                                              n_Utilde_Utilde,
                                                                              intermed_param, global_opts)
             
@@ -105,7 +105,7 @@ class GlobalViews:
             self.cluster_of_intermed_view = cluster_of_intermed_view
     
     # Motivated from graph lateration
-    def compute_seq_of_intermediate_views(self, Utilde, n_C, n_Utilde_Utilde,
+    def compute_seq_of_intermediate_views(self, d, Utilde, n_C, n_Utilde_Utilde,
                                           intermed_param, global_opts, print_prop = 0.25):
         M = Utilde.shape[0]
         print_freq = int(print_prop * M)
@@ -116,7 +116,7 @@ class GlobalViews:
         # Utilde_{mm'} in mth and m'th intermediate views
         W_rows, W_cols = triu(n_Utilde_Utilde).nonzero()
         n_elem = W_rows.shape[0]
-        W_data = np.zeros(n_elem)
+        W_data = np.zeros((n_elem,d))
         chunk_sz = int(n_elem/n_proc)
         def target_proc(p_num, q_):
             start_ind = p_num*chunk_sz
@@ -124,7 +124,7 @@ class GlobalViews:
                 end_ind = n_elem
             else:
                 end_ind = (p_num+1)*chunk_sz
-            W_data_ = np.zeros(end_ind-start_ind)
+            W_data_ = np.zeros((end_ind-start_ind,d))
             for i in range(start_ind, end_ind):
                 m = W_rows[i]
                 mpp = W_cols[i]
@@ -137,7 +137,23 @@ class GlobalViews:
                 # Compute ambiguity as the minimum singular value of
                 # the d x d matrix Vbar_{mm'}^TVbar_{m'm}
                 svdvals_ = svdvals(np.dot(Vbar_mmp.T,Vbar_mpm))
-                W_data_[i-start_ind] = svdvals_[-1]
+                #W_data_[i-start_ind] = svdvals_[-1]
+                W_data_[i-start_ind,:] = svdvals_
+
+                #svdvals_mmp = svdvals(Vbar_mmp)
+                #svdvals_mpm = svdvals(Vbar_mpm)
+                #s_mmp, sigma_mmp = svdvals_mmp[0], svdvals_mmp[-1]
+                #s_mpm, sigma_mpm = svdvals_mpm[0], svdvals_mpm[-1]
+                #s_, sigma_ = svdvals_[0], svdvals_[-1]
+                #W_data_[i-start_ind] = np.log((sigma_mmp*sigma_mpm + sigma_)/(s_mmp*s_mpm+1e-12) + 1e-12)
+                
+                #print(svdvals_[0], flush=True)
+                # if svdvals_[-1]/(svdvals_[0]+1e-12) < 0.9: # if inverse of condition number is small
+                #    W_data_[i-start_ind] = -np.inf
+                # else:
+                #    temp_ = np.linalg.norm(Vbar_mmp)**2 + np.linalg.norm(Vbar_mpm)**2 - 2*np.sum(svdvals_)
+                #    W_data_[i-start_ind] = -(1/Vbar_mpm.shape[0]) * temp_
+                    
             q_.put((start_ind, end_ind, W_data_))
         
         q_ = mp.Queue()
@@ -148,7 +164,7 @@ class GlobalViews:
         
         for p_num in range(n_proc):
             start_ind, end_ind, W_data_ = q_.get()
-            W_data[start_ind:end_ind] = W_data_
+            W_data[start_ind:end_ind,:] = W_data_
         q_.close()
         
         for p_num in range(n_proc):
@@ -156,8 +172,24 @@ class GlobalViews:
         
         self.log('Done', log_time=True)
         self.log('Computing a lateration.')
-        W = csr_matrix((W_data, (W_rows, W_cols)), shape=(M,M))
+        W_data[W_data<1e-6] = 0
+        W_score = W_data[:,-1]
+        for i in range(W_data.shape[1]-2,-1,-1):
+            mask = W_score==0
+            print('Updating scores of #edges:', np.sum(mask))
+            n_zero_elem = np.sum(mask)
+            if n_zero_elem == 0:
+                break
+            temp = W_data[mask,i]
+            if n_zero_elem < len(W_score):
+                temp2 = 0.5*W_score[~mask]
+                W_score[mask] = (np.min(temp2)/np.max(temp))*temp
+            else:
+                W_score[mask] = temp
+        
+        W = csr_matrix((W_score, (W_rows, W_cols)), shape=(M,M))
         W = W + W.T
+        
         # Compute maximum spanning tree/forest of W
         T = minimum_spanning_tree(-W)
         n_comp = connected_components(T, directed=False, return_labels=False)
@@ -181,7 +213,7 @@ class GlobalViews:
         inf_zeta = np.max(intermed_param.zeta)+1
         rank_arr = np.zeros((M,3))
         rank_arr[:,1] = n_C
-        rank_arr[:,2] = -intermed_param.zeta
+        rank_arr[:,2] = np.random.uniform(0, 1, M)
         while n_visited < M:
             # First intermediate view in the sequence
             #s_1 = np.argmax(n_C * (1-is_visited))
@@ -662,8 +694,9 @@ class GlobalViews:
         max_iter1 = global_opts['max_internal_iter']
         refine_algo = global_opts['refine_algo_name']
         patience_ctr = global_opts['patience']
-        err_tol = global_opts['err_tol']
+        tol = global_opts['tol']
         prev_err = None
+        prev_edges = None
         Utilde_t = Utilde.copy()
         solver = None
         
@@ -690,6 +723,8 @@ class GlobalViews:
         for it0 in range(max_iter0):
             self.tracker['refine_iter_start_at'].append(time.perf_counter())
             self.log('Refining with ' + refine_algo + ' algorithm for ' + str(max_iter1) + ' iterations.')
+            self.log('repel_by:' + str(global_opts['repel_by']))
+            self.log('max_var_by:' + str(global_opts['max_var_by']))
             self.log('Refinement iteration: %d' % self.it0, log_time=True)
             
             global_opts['far_off_points'] = compute_far_off_points(d_e, global_opts)
@@ -738,11 +773,13 @@ class GlobalViews:
                 err = err/E_Gamma_t
                 self.log('Alignment error: %0.6f' % (err), log_time=True)
                 if prev_err is not None:
-                    if np.abs(err-prev_err) < err_tol:
+                    if (np.abs(err-prev_err)/(prev_err+1e-12) < tol) and\
+                        (np.abs(E_Gamma_t-prev_edges)/(prev_edges+1e-12) < tol):
                         patience_ctr -= 1
                     else:
                         patience_ctr = global_opts['patience']
                 prev_err = err
+                prev_edges = E_Gamma_t
                 
             self.add_spacing_bw_clusters(y, d, seq_of_intermed_views_in_cluster,
                                          intermed_param, C)
@@ -777,4 +814,6 @@ class GlobalViews:
             
             if (global_opts['repel_by'] is not None):
                 global_opts['repel_by'] *= global_opts['repel_decay']
+            if (global_opts['max_var_by'] is not None):
+                global_opts['max_var_by'] *= global_opts['max_var_decay']
         return y, color_of_pts_on_tear

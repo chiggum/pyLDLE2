@@ -45,6 +45,7 @@ def double_manifold_k_nn(data, ddX, k_nn, metric, n_proc=1):
     n = data.shape[0] # no. of points on the original manifold
     dX = ddX==0 # a boolean array s.t. dX[i] == 1 iff i-th pt is on boundary
     n_dX = np.sum(dX) # no. of points on the boundary
+    print('No. of points =', n)
     print('No. of points on the boundary =', n_dX)
     n_interior = n-n_dX # no. of points in the interior
 
@@ -56,7 +57,7 @@ def double_manifold_k_nn(data, ddX, k_nn, metric, n_proc=1):
     ind_mask = np.arange(n)
     ind_mask[~dX] = n+np.arange(n_interior)
     
-    k_nn_ = 2*k_nn
+    k_nn_ = k_nn+1
     neigh_dist, neigh_ind = nearest_neighbors(data, k_nn_, metric)
     
     # Now we construct a sparse distance matrix corresp
@@ -177,15 +178,76 @@ def double_manifold_k_nn(data, ddX, k_nn, metric, n_proc=1):
     
     neigh_dist, neigh_ind = nearest_neighbors(cs_graph, k_nn=k_nn, metric='precomputed')
     return neigh_dist, neigh_ind
+
+def extend_manifold_k_nn(data, ddX, k_nn, metric, n_proc=1):
+    """Doubles the manifold represented by X and computes
+    k-nearest neighbors of each point on the double.
+    
+    Parameters
+    ----------
+    data : {array} of shape (n_samples, n_features) or {array} of shape (n_samples, n_samples)
+           A 2d array where each row represents a data point or
+           distance of a point to all other points.
+    ddX : array shape (n_samples,)
+          A 1d np.array of shape (n,) where ddX[i] = 0 iff the
+          i-th point X[i,:] represents a point on the boundary
+          of the manifold. Note that n_boundary = np.sum(ddX==0).
+    k_nn : int
+           Number of nearest neighbors to compute on the double.
+    n_proc : int
+             Number of processors to use.
+    Returns
+    -------
+    neigh_dist : array shape (2*n_samples-n_boundary, k_nn)
+                 distance of k-nearest neighbors from each
+                 point on the double.
+    neigh_ind : array shape (2*n_samples-n_boundary, k_nn)
+                indices of k-nearest neighbors from each point
+                on the double.
+    """
+    k_nn_ = k_nn+1
+    neigh_dist, neigh_ind = nearest_neighbors(data, k_nn_, metric)
+    dX = ddX == 0
+    collar = np.zeros(ddX.shape[0], dtype=bool)
+    collar[neigh_ind[dX,:].flatten()] = True
+    n_collar = np.sum(collar)
+    data_collar = data[collar,:]
+    ddX_collar = ddX[collar]
+    print('n_collar=', n_collar)
+    #pdb.set_trace()
+    
+    neigh_dist_, neigh_ind_ = double_manifold_k_nn(data_collar, ddX_collar,
+                                                 k_nn_, metric, n_proc=n_proc)
+    ind_correction_map = np.zeros(neigh_ind_.shape[0])
+    ind_correction_map[:n_collar] = np.where(collar)[0]
+    ind_correction_map[n_collar:] = np.arange(neigh_ind_.shape[0]-n_collar) + neigh_ind.shape[0]
+    neigh_ind_ = ind_correction_map[neigh_ind_]
+    
+#     neigh_dist[dX,:] = neigh_dist_[:n_collar,:][dX[collar],:]
+#     neigh_ind[dX,:] = neigh_ind_[:n_collar,:][dX[collar],:]
+#     neigh_dist = np.concatenate([neigh_dist, neigh_dist_[:n_collar,:][~dX[collar],:], neigh_dist_[n_collar:,:]], axis=0)
+#     neigh_ind = np.concatenate([neigh_ind, neigh_ind_[:n_collar,:][~dX[collar],:], neigh_ind_[n_collar:,:]], axis=0)
+
+    neigh_dist = np.concatenate([neigh_dist, neigh_dist_[n_collar:,:]], axis=0)
+    neigh_ind = np.concatenate([neigh_ind, neigh_ind_[n_collar:,:]], axis=0)
+    
+    n_ = neigh_ind.shape[0]
+
+    cs_graph = csr_matrix((neigh_dist.flatten(), (np.repeat(np.arange(n_), k_nn_), neigh_ind.flatten())),
+                          shape = (n_, n_))
+    
+    cs_graph = cs_graph.maximum(cs_graph.transpose())
+    
+    neigh_dist, neigh_ind = nearest_neighbors(cs_graph, k_nn=k_nn, metric='precomputed')
+    return neigh_dist, neigh_ind
     
 
 def get_default_local_opts(algo='LPCA', metric0='euclidean', k=28,  k_nn=49, k_tune=7, 
                            metric='euclidean', update_metric=True, radius=0.5, U_method='k_nn',
-                           gl_type='unnorm', tuning='self', N=100, scale_by='gamma',
-                           Atilde_method='LDLE_1', alpha=1, max_iter=300, reg=0.,
-                           p=0.99, tau=50, delta=0.9, lkpca_kernel='linear', to_postprocess= True,
-                           pp_n_thresh=32, lambda1_init=8, lambda1_decay=0.75, lambda1_min=1e-3,
-                           power=5, max_sparsity=0.9, doubly_stochastic_max_iter=0):
+                           gl_type='unnorm', tuning='self', N=100, scale_by='gamma', Atilde_method='LDLE_1',
+                           alpha=0.01, max_iter=100, explain_var=0, reg=0.5, device='cuda', tol=1e-6,
+                           p=0.99, tau=50, delta=0.9, lkpca_kernel='linear', to_postprocess=True,
+                           pp_n_thresh=32, doubly_stochastic_max_iter=0, brute_force=False):
     """Sets and returns a dictionary of default_local_opts, (experimental) options are work in progress.
     
     Parameters
@@ -204,7 +266,7 @@ def get_default_local_opts(algo='LPCA', metric0='euclidean', k=28,  k_nn=49, k_t
         This is used for nearest neighbor graph construction.
         The neighborhood size is kept bigger than the size of the
         local views. This is because, during clustering where we
-        construct intermediate views, we need access to distances
+        construct intermediate views, we may need access to distances
         between points in a bigger neighborhood around each point.
         The value of k_nn must be >= k. Then the size of neighborhood
         is set to max(k_nn, eta_max * k) where eta_max is in intermed_opts.
@@ -259,15 +321,22 @@ def get_default_local_opts(algo='LPCA', metric0='euclidean', k=28,  k_nn=49, k_t
     delta : float
         A hyperparameter used in computing parameterizations
         of local views in LDLE. The value must be in (0,1).
-    alpha : float
-        Step size in Riemannian gradient descent when using
-        Smooth-LPCA (experimental).
+    tol: float
+        tolerance for convergence.
     max_iter: int
-        Max number of Riemannian gradient descent steps in
-        Smooth-LPCA (experimental).
+        Max number of optimization steps for estimating gradients
+        of eigenvectors using gradient descent.
+    explain_var: float
+        Number of principal directions obtained from the subspace
+        spanned by eigenvectors gradients locally. Ignored if zero.
+        If non-zero, then the argument 'd' is treated as the maximum
+        dimension.
+    device: str
+        Device to be used for above gradient descent.
+    alpha : float
+        Learning rate for the above gradient descent.
     reg : float
-        Desired regularization (Smoothness) in Smooth-LPCA
-        (experimental).
+        Desired regularization (Smoothness) in eigenvectors gradients.
     lkpca_kernel: str
         The kernel for local KPCA.
     to_postprocess : bool
@@ -278,32 +347,20 @@ def get_default_local_opts(algo='LPCA', metric0='euclidean', k=28,  k_nn=49, k_t
         Threshold to use multiple processors or a single processor
         while postprocessing the local parameterizations. A small
         value such as 32 leads to faster postprocessing.
-    lambda1_init : float
-        Initialization of lambda1 for RPCA-GODEC (experimental).
-    lambda1_decay : float
-        Decay of lambda1 for RPCA-GODEC (experimental).
-    lambda1_min : float
-        Minimum allowed valued of lambda1 for RPCA-GODEC (experimental).
-    power : int
-        Number of power iterations for initialization in RPCA-GODEC
-        (experimental).
-    max_sparsity : float
-        maximum fraction of the desired sparsity (experimental).
     doubly_stochastic_max_iter: int
         max number of sinkhorn iterations for converting
         self tuned kernel in LDLE to doubly stochastic.
+    brute_force: bool
     """
     return {'k_nn': k_nn, 'k_tune': k_tune, 'k': k, 'metric0': metric0,
             'metric': metric, 'update_metric': update_metric, 'radius': radius,
            'U_method': U_method, 'gl_type': gl_type, 'tuning': tuning, 'N': N, 'scale_by': scale_by,
-           'Atilde_method': Atilde_method, 'p': p, 'tau': tau, 'delta': delta,
-           'alpha': alpha, 'max_iter': max_iter, 'reg': reg, 'lkpca_kernel': lkpca_kernel,
-           'to_postprocess': to_postprocess, 'algo': algo,
-           'pp_n_thresh': pp_n_thresh, 'lambda1_init': lambda1_init, 'lambda1_decay': lambda1_decay,
-           'lambda1_min': lambda1_min, 'power': power, 'max_sparsity': max_sparsity,
-           'doubly_stochastic_max_iter': doubly_stochastic_max_iter}
+           'Atilde_method': Atilde_method, 'p': p, 'tau': tau, 'delta': delta, 'alpha': alpha, 'tol': tol,
+            'max_iter': max_iter, 'explain_var': explain_var,  'reg': reg, 'lkpca_kernel': lkpca_kernel,
+           'to_postprocess': to_postprocess, 'algo': algo, 'pp_n_thresh': pp_n_thresh,
+           'doubly_stochastic_max_iter': doubly_stochastic_max_iter, 'brute_force': brute_force}
 
-def get_default_intermed_opts(algo='best', n_times=4, eta_min=5, eta_max=25, len_S_thresh=256):
+def get_default_intermed_opts(algo='best', cost_fn='distortion', n_times=4, eta_min=5, eta_max=25, len_S_thresh=256, c=None):
     """Sets and returns a dictionary of default_intermed_opts, (experimental) options are work in progress.
     
     Parameters
@@ -313,6 +370,9 @@ def get_default_intermed_opts(algo='best', n_times=4, eta_min=5, eta_max=25, len
         'best' for the optimal algorithm (much slower
         but creates intermediate views with lower distortion).
         'mnm' is (experimental).
+    cost_fn: str
+        Defines the cost function to move/merge a point/cluster into
+        another cluster. Options are distortion or procrustes. 
     n_times : int
         (experimental) Hypereparameter for 'mnm' algo. Number of times to match
         and merge. If n is the #local views then the #intermediate
@@ -329,9 +389,11 @@ def get_default_intermed_opts(algo='best', n_times=4, eta_min=5, eta_max=25, len
         Threshold on the number of points for which 
         the costs are to be updated, to invoke
         multiple processors. Used with 'best' algo only.
+    c: np.array
+        Cluster (partition) labels of each point computed using external procedure.
     """
-    return {'algo': algo, 'n_times': n_times, 'eta_min': eta_min,
-            'eta_max': eta_max, 'len_S_thresh': len_S_thresh}
+    return {'algo': algo, 'cost_fn': cost_fn, 'n_times': n_times, 'eta_min': eta_min,
+            'eta_max': eta_max, 'len_S_thresh': len_S_thresh, 'c': c}
     
 def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_iter=20, color_tear=True,
                             vis_before_init=False, compute_error=False,
@@ -340,7 +402,8 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
                             max_internal_iter=100, alpha=0.3, eps=1e-8,
                             add_dim=False, beta={'align':None, 'repel': 1},
                             repel_by=0., repel_decay=1., n_repel=0,
-                            far_off_points_type='reuse_fixed', patience=5, err_tol=1e-6,
+                            max_var_by=None, max_var_decay=0.9,
+                            far_off_points_type='reuse_fixed', patience=5, tol=1e-2,
                             tear_color_method='spectral', tear_color_eig_inds=[1,0,2],
                             metric='euclidean', color_cutoff_frac=0.001,
                             color_largest_tear_comp_only=False,
@@ -422,8 +485,9 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
     patience : int
         The number of iteration to wait for error below tolerance
         to persist before stopping the refinement.
-    err_tol : float
-        The tolerance level for the alignment error.
+    tol : float
+        The tolerance level for the relative change in the alignment error and the
+        relative change in the size of the tear.
     tear_color_method : str
         Method to color the tear. Options are 'spectral' or 'heuristic'.
         The latter keeps the coloring of the tear same accross
@@ -457,8 +521,9 @@ def get_default_global_opts(align_transform='rigid', to_tear=True, nu=3, max_ite
                'alpha': alpha, 'eps': eps, 'add_dim': add_dim,
                'beta': beta, 'repel_by': repel_by,
                'repel_decay': repel_decay, 'n_repel': n_repel,
+               'max_var_by': max_var_by, 'max_var_decay': max_var_decay,
                'far_off_points_type': far_off_points_type,
-               'patience': patience, 'err_tol': err_tol,
+               'patience': patience, 'tol': tol,
                'tear_color_method': tear_color_method,
                'tear_color_eig_inds': tear_color_eig_inds,
                'metric': metric, 'color_cutoff_frac': color_cutoff_frac,
@@ -544,9 +609,12 @@ class BUML:
         self.intermed_opts = default_intermed_opts
         # Update k_nn 
         self.local_opts['k_nn'] = max(self.local_opts['k_nn'], self.local_opts['k'])
-        self.local_opts['k_nn0'] = max(self.local_opts['k_nn'],
-                                       self.intermed_opts['eta_max']*self.local_opts['k'])
-        print("local_opts['k_nn0'] =", self.local_opts['k_nn0'], "is created.")
+        if self.intermed_opts['cost_fn'] == 'distortion':
+            self.local_opts['k_nn0'] = max(self.local_opts['k_nn'],
+                                           self.intermed_opts['eta_max']*self.local_opts['k'])
+            print("local_opts['k_nn0'] =", self.local_opts['k_nn0'], "is created.")
+        else:
+            self.local_opts['k_nn0'] = self.local_opts['k_nn']
         #############################################
         global_opts['k'] = self.local_opts['k']
         global_opts['n_proc'] = n_proc
@@ -601,7 +669,7 @@ class BUML:
                                               self.local_start_time, 
                                               self.global_start_time)
     
-    def fit(self, X = None, d_e = None, ddX = None):
+    def fit(self, X = None, d_e = None, ddX = None, to_extend=True):
         """Run the algorithm. Either X or d_e must be supplied.
         
         Parameters
@@ -633,11 +701,18 @@ class BUML:
                                                       k_nn=self.local_opts['k_nn0'],
                                                       metric=self.local_opts['metric0'])
         else:
-            self.log('Doubling manifold.')
-            neigh_dist, neigh_ind = double_manifold_k_nn(data, ddX,
-                                                         self.local_opts['k_nn0'],
-                                                         self.local_opts['metric0'],
-                                                         self.local_opts['n_proc'])
+            if not to_extend:
+                self.log('Doubling manifold.')
+                neigh_dist, neigh_ind = double_manifold_k_nn(data, ddX,
+                                                             self.local_opts['k_nn0'],
+                                                             self.local_opts['metric0'],
+                                                             self.local_opts['n_proc'])
+            else:
+                self.log('Extending manifold.')
+                neigh_dist, neigh_ind = extend_manifold_k_nn(data, ddX,
+                                                             self.local_opts['k_nn0'],
+                                                             self.local_opts['metric0'],
+                                                             self.local_opts['n_proc'])
             self.log('Done.', log_time=True)
         
 #         self.neigh_ind = neigh_ind
@@ -668,8 +743,8 @@ class BUML:
         
         
         # Construct low dimensional local views
-        LocalViews = local_views_.LocalViews(self.exit_at, self.verbose, self.debug)
-        LocalViews.fit(self.d, data, d_e, neigh_dist, neigh_ind, ddX, self.local_opts)
+        self.LocalViews = local_views_.LocalViews(self.exit_at, self.verbose, self.debug)
+        self.LocalViews.fit(self.d, data, d_e, neigh_dist, neigh_ind, ddX, self.local_opts)
         
         # Halving distance matrix
         if ddX is not None:
@@ -682,26 +757,22 @@ class BUML:
             self.neigh_ind = neigh_ind
             self.neigh_dist = neigh_dist
         
-        self.LocalViews = LocalViews
         if self.exit_at == 'local_views':
             return
         
         # Construct intermediate views
-        IntermedViews = intermed_views_.IntermedViews(self.exit_at, self.verbose, self.debug)
-        IntermedViews.fit(self.d, d_e, LocalViews.U,
-                          LocalViews.local_param_post,
-                          self.intermed_opts)
+        self.IntermedViews = intermed_views_.IntermedViews(self.exit_at, self.verbose, self.debug)
+        self.IntermedViews.fit(self.d, d_e, self.LocalViews.U,
+                              self.LocalViews.local_param_post,
+                              self.intermed_opts)
         
-        self.IntermedViews = IntermedViews
         if self.exit_at == 'intermed_views':
             return
         
         # Construct Global view
-        GlobalViews = global_views_.GlobalViews(self.exit_at, self.verbose, self.debug)
-        GlobalViews.fit(self.d, d_e_small, IntermedViews.Utilde, IntermedViews.C, IntermedViews.c,
-                        IntermedViews.n_C, IntermedViews.intermed_param,
-                        self.global_opts, self.vis, self.vis_opts)
+        self.GlobalViews = global_views_.GlobalViews(self.exit_at, self.verbose, self.debug)
+        self.GlobalViews.fit(self.d, d_e_small, self.IntermedViews.Utilde, self.IntermedViews.C, self.IntermedViews.c,
+                            self.IntermedViews.n_C, self.IntermedViews.intermed_param,
+                            self.global_opts, self.vis, self.vis_opts)
         
-        self.GlobalViews = GlobalViews
-        
-        return GlobalViews.y_final
+        return self.GlobalViews.y_final
