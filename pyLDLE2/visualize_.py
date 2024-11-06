@@ -514,7 +514,7 @@ class Visualize:
         lw = 1
         # create figure and axes
         fig, ax = plt.subplots(figsize=figsize)
-
+        global_ticks = []
         ticks = []
         ticklabels = []
         x0 = 0
@@ -530,6 +530,7 @@ class Visualize:
                                        showmedians=False,
                                        showextrema=False,
                                        widths=widths, vert=vert)
+                global_ticks.append(x0)
                 if vert:
                     x0 += offset2
                 else:
@@ -600,7 +601,8 @@ class Visualize:
             plt.yticks(yticks, yticklabels)
             
         if self.save_dir:
-            plt.savefig(self.save_dir+'/global_distortion_violinplot_overlay.eps') 
+            plt.savefig(self.save_dir+'/global_distortion_violinplot_overlay.eps')
+        return global_ticks
         
     def global_distortion_viloinplot(self, dist_dict, ylabel='$\log(D_k)$',
                                      title='violinplot for $\log(D_k)$',
@@ -1434,7 +1436,7 @@ class Visualize:
     
     def global_embedding(self, y, labels, cmap0, color_of_pts_on_tear=None, cmap1=None,
                          title=None, figsize=None, s=30, set_title=False, elev=None, azim=None, roll=None,
-                         vmin=None, vmax=None, show_axis=False):
+                         vmin=None, vmax=None, show_axis=False, ax=None):
         d = y.shape[1]
         if d == 1:
             y = np.concatenate([y,y],axis=1)
@@ -1442,17 +1444,20 @@ class Visualize:
         if d > 3:
             return
         
-        fig = plt.figure(figsize=figsize)
+        if ax is None:
+            fig = plt.figure(figsize=figsize)
         if matplotlib.get_backend().startswith('Qt'):
             figManager = plt.get_current_fig_manager()
             figManager.window.showMaximized()
         
         if d == 2:
-            ax = fig.add_subplot()
+            if ax is None:
+                ax = fig.add_subplot()
             ax.scatter(y[:,0], y[:,1], s=s, c=labels, cmap=cmap0, vmin=vmin, vmax=vmax)
             ax.axis('image')
         elif d == 3:
-            ax = fig.add_subplot(projection='3d')
+            if ax is None:
+                ax = fig.add_subplot(projection='3d')
             ax.scatter(y[:,0], y[:,1], y[:,2], s=s, c=labels, cmap=cmap0, vmin=vmin, vmax=vmax)
             set_axes_equal(ax)
         
@@ -1507,7 +1512,7 @@ class Visualize:
         if self.save_dir:
             if not os.path.isdir(self.save_dir+'/ge'):
                 os.makedirs(self.save_dir+'/ge')
-            plt.savefig(self.save_dir+'/ge/'+str(title)+OUTPUT_EXT, bbox_inches = 'tight',pad_inches = 0)
+            plt.savefig(self.save_dir+'/ge/'+str(title)+OUTPUT_EXT, bbox_inches = 'tight')
         #plt.show()
     
     def global_embedding_images(self, X, img_shape, y, labels, cmap0, color_of_pts_on_tear=None, cmap1=None,
