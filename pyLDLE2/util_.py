@@ -72,11 +72,14 @@ class Param:
         self.zeta = None
         self.noise_seed = None
         self.noise_var = 0
+        self.noise = None
         
-        # For LDLE
+        # For LDLE and RFFLE
         self.Psi_gamma = None
         self.Psi_i = None
         self.phi = None
+        self.gamma = None
+        self.w = None
         
         # For LPCA and its variants
         self.Psi = None
@@ -95,8 +98,12 @@ class Param:
         k = opts['view_index']
         mask = opts['data_mask']
         
-        if self.algo == 'LDLE':
-            temp = self.Psi_gamma[k,:][np.newaxis,:]*self.phi[np.ix_(mask,self.Psi_i[k,:])]
+        if self.algo == 'LDLE' or self.algo == 'RFFLE':
+            if self.w is None:
+                temp = self.Psi_gamma[k,:][np.newaxis,:]*self.phi[np.ix_(mask,self.Psi_i[k,:])]
+            else:
+                w_ = self.w[k,:]
+                temp = (self.gamma[k,:][np.newaxis,:]*self.phi[mask,:]).dot(w_)
             n = self.phi.shape[0]
         elif self.algo == 'LPCA':
             temp = np.dot(self.X[mask,:]-self.mu[k,:][np.newaxis,:],self.Psi[k,:,:])
@@ -108,6 +115,9 @@ class Param:
             np.random.seed(self.noise_seed[k])
             temp2 = np.random.normal(0, self.noise_var, (n, temp.shape[1]))
             temp = temp + temp2[mask,:]
+
+        if self.noise is not None:
+            temp = temp + self.noise[k, mask, :]
             
         if self.add_dim:
             temp = np.concatenate([temp,np.zeros((temp.shape[0],1))], axis=1)
@@ -125,7 +135,7 @@ class Param:
     def reconstruct_(self, opts):
         k = opts['view_index']
         y_ = opts['embeddings']
-        if self.algo == 'LDLE':
+        if self.algo == 'LDLE' or self.algo=='RFFLE':
             pass
         elif self.algo == 'LPCA':
             temp = np.dot(np.dot(y_-self.v[[k],:], self.T[k,:,:].T),self.Psi[k,:,:].T)+self.mu[k,:][np.newaxis,:]
@@ -137,7 +147,7 @@ class Param:
         k = opts['view_index']
         X_ = opts['out_of_samples']
         
-        if self.algo == 'LDLE':
+        if self.algo == 'LDLE' or self.algo=='RFFLE':
             temp = self.Psi_gamma[k,:][np.newaxis,:]*self.phi[np.ix_(mask,self.Psi_i[k,:])]
             n = self.phi.shape[0]
         elif self.algo == 'LPCA':
@@ -213,6 +223,7 @@ def nearest_neighbors(data, k_nn, metric, n_jobs=-1, sort_results=True):
     else:
         neigh_dist = np.zeros((n,1))
         neigh_ind = np.arange(n).reshape((n,1)).astype('int')
+        
     return neigh_dist, neigh_ind
             
 def sparse_matrix(neigh_ind, neigh_dist):
@@ -249,8 +260,7 @@ def compute_zeta(d_e_mask0, Psi_k_mask):
     disc_lip_const = pdist(Psi_k_mask)[mask]/d_e_mask_
     return np.max(disc_lip_const)/(np.min(disc_lip_const) + 1e-12)
 
-
-def custom_procrustes(X, Y, reflection='best'):
+def custom_procrustes(X, Y, compute_cost=False):
     n,m = X.shape
     ny,my = Y.shape
 
@@ -260,49 +270,27 @@ def custom_procrustes(X, Y, reflection='best'):
     X0 = X - muX
     Y0 = Y - muY
 
-    ssX = (X0**2.).sum()
-    ssY = (Y0**2.).sum()
-
-    # centred Frobenius norm
-    normX = np.sqrt(ssX)
-    normY = np.sqrt(ssY)
-
-    # scale to equal (unit) norm
-    X0 /= normX
-    Y0 /= normY
-
-    if my < m:
-        Y0 = np.concatenate((Y0, np.zeros(n, m-my)),0)
-
-    # optimum rotation matrix of Y
     A = np.dot(X0.T, Y0)
-    U,s,Vt = np.linalg.svd(A,full_matrices=False)
+    U,S,Vt = np.linalg.svd(A,full_matrices=False)
     V = Vt.T
     T = np.dot(V, U.T)
+    v = muX - np.dot(muY, T)
 
-    if reflection != 'best':
-
-        # does the current solution use a reflection?
-        have_reflection = np.linalg.det(T) < 0
-
-        # if that's not what was specified, force another reflection
-        if reflection != have_reflection:
-            V[:,-1] *= -1
-            s[-1] *= -1
-            T = np.dot(V, U.T)
-
-    # transformation matrix
-    if my < m:
-        T = T[:my,:]
-    c = muX - np.dot(muY, T)
-   
-    return T, c
+    if compute_cost:
+        c = np.sum(X0**2) + np.sum(Y0**2) - 2*np.sum(S)
+        return T, v, c
+    else:
+        return T, v
 
 # Solves for T, v s.t. T, v = argmin_{R,w)||AR + w - B||_F^2
 # Here A and B have same shape n x d, T is d x d and v is 1 x d
 def procrustes(A, B):
-    T, c = custom_procrustes(B,A)
-    return T, c
+    T, v = custom_procrustes(B,A)
+    return T, v
+
+def procrustes_cost(A, B):
+    _, _, c = custom_procrustes(B,A, compute_cost=True)
+    return c
 
 def ixmax(x, k=0, idx=None):
     col = x[idx, k] if idx is not None else x[:, k]
@@ -331,6 +319,11 @@ def compute_distortion_at(y_d_e, s_d_e):
         distortion_at[i] = np.max(scale_factors[i,mask])/np.min(scale_factors[i,mask])
         mask[i] = 1
     return distortion_at, max_distortion
+
+def compute_distortion_at_from_data(Y, X, n_nbrs=5):
+    s_d_e = shortest_paths(X, n_nbrs=n_nbrs, return_predecessors=False)
+    y_d_e = shortest_paths(Y, n_nbrs=n_nbrs, return_predecessors=False)
+    return compute_distortion_at(y_d_e, s_d_e)
 
 def compute_quantile_distortion_at(y_d_e, s_d_e, quantile=0.9):
     scale_factors = (y_d_e+1e-12)/(s_d_e+1e-12)
