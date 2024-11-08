@@ -27,162 +27,7 @@ from multiprocess import shared_memory
 
 from sklearn.manifold import Isomap
 from sklearn.decomposition import KernelPCA
-from scipy.sparse.linalg import cg
-
-
 import itertools
-
-import torch
-import torch.nn as nn
-
-def scipy_coo_to_torch_sparse(coo):
-    values = coo.data
-    indices = np.vstack((coo.row, coo.col))
-    i = torch.LongTensor(indices)
-    v = torch.FloatTensor(values)
-    shape = coo.shape
-    return torch.sparse.FloatTensor(i, v, torch.Size(shape))
-
-# class Model(torch.nn.Module):
-#     def __init__(self, cov, b, L, lmbda=1, device='cpu'):
-#         super(Model, self).__init__()
-#         self.N, self.n, self.p = b.shape
-#         Psi = torch.zeros((self.N, self.n, self.p), device=device)
-#         self.Psi = torch.nn.Parameter(Psi, requires_grad=True)
-#         #self.L = torch.tensor(L.astype('float32')).to(device)
-#         self.L = scipy_coo_to_torch_sparse(L).to(device)
-#         self.lmbda = lmbda
-#         self.cov = []
-#         for k in range(self.n):
-#             self.cov.append(torch.tensor(cov[k].astype('float32')).to(device))
-#         self.b = torch.tensor(b.astype('float32')).to(device)
-        
-#     def forward(self):
-#         loss = 0
-#         for j in range(self.p):
-#             loss += self.lmbda*torch.sum(torch.sparse.mm(self.L, self.Psi[:,:,j].T)*self.Psi[:,:,j].T)
-        
-#         loss = loss - 2*torch.sum(self.Psi*self.b)
-        
-#         for k in range(self.n):
-#             loss += torch.sum(torch.matmul(self.Psi[:,k,:], self.cov[k])*self.Psi[:,k,:])
-#         return loss
-
-class Model(torch.nn.Module):
-    def __init__(self, X_tilde, Phi_tilde, L, Psi=None, lmbda=1, device='cpu'):
-        super(Model, self).__init__()
-        self.n = len(X_tilde)
-        self.p = X_tilde[0].shape[0]
-        self.N = Phi_tilde[0].shape[0]
-        if Psi is None:
-            Psi = torch.zeros((self.N, self.n, self.p), device=device)
-        else:
-            Psi = torch.tensor(Psi.copy().astype('float32')).to(device)
-        self.Psi = torch.nn.Parameter(Psi, requires_grad=True)
-        self.L = scipy_coo_to_torch_sparse(L).to(device)
-        # self.L_row_inds = L.row
-        # self.L_col_inds = L.col
-        # self.L_vals = L.data
-        self.lmbda = lmbda
-        self.X_tilde = []
-        self.Phi_tilde = []
-        for k in range(self.n):
-            self.X_tilde.append(torch.tensor(X_tilde[k].astype('float32')).to(device))
-            self.Phi_tilde.append(torch.tensor(Phi_tilde[k].astype('float32')).to(device))
-        
-    def forward(self):
-        loss = 0
-        if self.lmbda > 0:
-            for j in range(self.p):
-                loss += self.lmbda*torch.sum(torch.sparse.mm(self.L, self.Psi[:,:,j].T)*self.Psi[:,:,j].T)
-            # for k in range(len(self.L_row_inds)):
-            #     i = self.L_row_inds[k]
-            #     j = self.L_col_inds[k]
-            #     Wij = -self.L_vals[k]
-            #     v1 = self.Psi[:,j,:] - self.Psi[:,i,:]
-            #     v2 = self.Psi[:,j,:] + self.Psi[:,i,:]
-            #     v1_norm = torch.linalg.vector_norm(v1, dim=-1)
-            #     v2_norm = torch.linalg.vector_norm(v2, dim=-1)
-            #     loss += Wij*torch.sum(torch.minimum(v1_norm, v2_norm))
-        
-        for k in range(self.n):
-            loss += torch.sum((torch.matmul(self.Psi[:,k,:],self.X_tilde[k]) - self.Phi_tilde[k])**2)
-
-        loss = loss/(self.N*self.n)
-        return loss
-
-class NNModelBase(torch.nn.Module):
-    def __init__(self, p, h_size, n_layers, device='cuda'):
-        super(NNModelBase, self).__init__()
-        self.layers = []
-        self.params = []
-        for j in range(n_layers):
-            if j == 0:
-                self.layers.append(nn.Linear(p, h_size).to(device))
-                self.params += list(self.layers[-1].parameters())
-                self.layers.append(nn.ReLU().to(device))
-            elif j == n_layers-1:
-                self.layers.append(nn.Linear(h_size, 1).to(device))
-                self.params += list(self.layers[-1].parameters())
-            else:
-                self.layers.append(nn.Linear(h_size, h_size).to(device))
-                self.params += list(self.layers[-1].parameters())
-                self.layers.append(nn.ReLU().to(device))
-
-    def forward(self, x):
-        for i in range(len(self.layers)):
-            x = self.layers[i].forward(x)
-        return x
-
-class NNModel:
-    def __init__(self, X, phi, h_size=128, n_layers=3, batch_size=32,
-                 n_epochs=100, print_freq=1, device='cuda', lr=0.01):
-        p = X.shape[1]
-        n_models = phi.shape[1]
-        models = []
-        loss_fns = []
-        optimizers = []
-        for i in range(n_models):
-            models.append(NNModelBase(p, h_size, n_layers).to(device))
-            loss_fns.append(nn.MSELoss())
-            optimizers.append(torch.optim.Adam(models[-1].params, lr=lr))
-                
-        X_ = torch.tensor(X.astype('float32'), device=device)
-        phi_ = torch.tensor(phi.astype('float32'), device=device)
-
-        np.random.seed(42)
-        n_batches = X.shape[0]//batch_size + 1
-        for i in range(n_epochs):
-            inds = np.arange(X.shape[0])
-            np.random.shuffle(inds)
-            cur_loss = 0
-            for j in range(n_batches):
-                if j == (n_batches-1):
-                    batch = inds[j*batch_size:]
-                else:
-                    batch = inds[j*batch_size:(j+1)*batch_size]
-                for k in range(len(models)):
-                    y_pred = models[k](X_[batch,:])
-                    loss = loss_fns[k](y_pred, phi_[batch,k:k+1])
-                    loss = loss/batch_size
-                    optimizers[k].zero_grad()
-                    loss.backward()
-                    optimizers[k].step()
-                    cur_loss += loss.item()
-        
-            if i%print_freq==0:
-                print('epoch', i+1, 'loss:', cur_loss/(n_batches*len(models)))
-
-        Psi = np.zeros((phi.shape[1], X.shape[0], X.shape[1]))
-        for i in range(len(models)):
-            X_ = torch.tensor(X.astype('float32'), device=device)
-            X_.requires_grad = True
-            y_pred = models[i](X_).sum()
-            y_pred.backward(retain_graph=True)
-            Psi[i,:] = X_.grad.detach().cpu().numpy()
-
-        self.Psi = Psi
-
 
 class LocalViews:
     def __init__(self, exit_at=None, verbose=True, debug=False):
@@ -644,7 +489,7 @@ class LocalViews:
         Phi_tilde = []
         Psi = np.zeros((N, n, p))
         C_list = []
-        A_list = []
+        b_list = []
         for k in range(n):
             U_k = U[k,:].indices
             phi_k = phi[U_k,:] - phi[k,:][None,:]
@@ -653,123 +498,19 @@ class LocalViews:
             Phi_tilde.append(phi_k.T)
             
             C_k = X_k.T.dot(X_k)
-            A_k = X_k.T.dot(phi_k)
+            b_k = X_k.T.dot(phi_k)
             #Psi[:,k,:] = pinv(C_k).dot(A_k).T
             C_list.append(C_k)
-            A_list.append(A_k)
-
-        # OLDEST
-        # print('Estimating gradients:')
-        # model = Model(cov, b, L, lmbda=local_opts['reg'], device=local_opts['device'])
-        # optim = torch.optim.Adam(model.parameters(), lr=local_opts['alpha'])
-        # for i in range(local_opts['max_iter']):
-        #     loss = model.forward()
-        #     loss = loss + const_term
-        #     loss = loss/(n*N)
-        #     loss.backward()
-        #     optim.step()
-        #     optim.zero_grad()
-        #     print(f"loss ({i}): {loss.item()}")
+            b_list.append(b_k)
 
         print('Estimating gradients:')
-        # model = Model(X_tilde, Phi_tilde, L, Psi=Psi, lmbda=local_opts['reg'], device=local_opts['device'])
-        # optim = torch.optim.Adam(model.parameters(), lr=local_opts['alpha'])
-        # for i in range(local_opts['max_iter']):
-        #     loss = model.forward()
-        #     loss.backward()
-        #     optim.step()
-        #     optim.zero_grad()
-        #     print(f"loss ({i}): {loss.item()}")
-        # local_subspace = model.Psi.cpu().detach().numpy()
-        
-        #W = -L.copy().tocsr()
-        #W.setdiag(0)
-        
-        # W1_list = []
-        # W2_list = []
-        # U_list = []
-        # for k in range(n):
-        #     U_k = U[k,:].indices
-        #     U_list.append(U_k)
-        #     W1_list.append(np.array(W[k,U_k].todense()).flatten())
-        #     W2_list.append(np.array(W[U_k,k].todense()).flatten())
-        #     C_k = C_list[k].copy()
-        #     np.fill_diagonal(C_k, C_k.diagonal() + local_opts['reg']*(np.sum(W1_list[k])+np.sum(W2_list[k])))
-        #     C_list[k] = pinv(C_k)
-        
-        # local_subspace = Psi.copy()
-        # local_subspaces = [Psi]
-        # is_converged = False
-        # np.random.seed(42)
-        # inds = np.arange(n)
-        # for i in range(local_opts['max_iter']):
-        #     np.random.shuffle(inds)
-        #     for k in inds.tolist():
-        #         U_k = U_list[k]
-        #         w_1 = W1_list[k]
-        #         w_2 = W2_list[k]
-        #         pinvC_k = C_list[k]
-        #         A_k = A_list[k].copy()
-        #         Psi_k = Psi[:,U_k,:]
-        #         A_k += local_opts['reg']*np.sum(w_1[None,:,None]*Psi_k, axis=1).T
-        #         A_k += local_opts['reg']*np.sum(w_2[None,:,None]*Psi_k, axis=1).T
-        #         Psi[:,k,:] = pinvC_k.dot(A_k).T
-        #     delta = np.sum(np.abs(local_subspace - Psi))/(n*N*p)
-        #     if delta < local_opts['tol']:
-        #         print('Converged at iter:', i)
-        #         break
-        #     print('Iter:', i+1, ':: mean of |grad_{t+1}-grad_{t}|:', delta) 
-        #     # Psi = local_subspace.copy()
-        #     # local_subspaces.append(Psi)
-        #     local_subspace = Psi.copy()
-        #     local_subspaces.append(local_subspace)
-
-        #AA_row = []
-        #AA_col = []
-        #AA_data = []
-        bb = np.concatenate(A_list, axis=0)
-        # for k in range(n):
-        #     U_k = U[k,:].indices
-        #     W_U_k = np.array(W[k,U_k].todense()).flatten()
-        #     C_k = C_list[k].copy()
-        #     np.fill_diagonal(C_k, C_k.diagonal() + local_opts['reg']*np.sum(W_U_k))
-
-        #     temp = np.arange(k*p, (k+1)*p)
-        #     row1 = np.repeat(temp, p).tolist()
-        #     col1 = np.tile(temp, p).tolist()
-        #     data1 = C_k.flatten().tolist()
-
-        #     row2 = np.repeat(temp, len(U_k)).tolist()
-        #     col2 = np.arange(p)[:,None] +  U_k[None,:]*p
-        #     col2 = col2.flatten().tolist()
-        #     data2 = np.tile((-local_opts['reg']*W_U_k).tolist(), p).tolist()
-
-        #     AA_row += row1
-        #     AA_col += col1
-        #     AA_data += data1
-
-        #     AA_row += row2
-        #     AA_col += col2
-        #     AA_data += data2
-
-        #AA = csr_matrix((AA_data, (AA_row, AA_col)), shape=(n*p, n*p))
+        bb = np.concatenate(b_list, axis=0)
         AA = local_opts['reg']*kron(L, identity(p), format='csr')
         AA = AA + block_diag(C_list, format='csr')
-        start_time = time.time()
-        # for i in range(bb.shape[1]):
-        #     Psi[i,:,:] = cg(AA, bb[:,i])[0].reshape(n, p)
-        
         Psi = spsolve(AA, bb).T
         Psi = Psi.reshape(N, n, p)
-        print(time.time() - start_time, flush=True)
         local_subspace = Psi.copy()
-            
         self.local_subspace = local_subspace
-        #self.local_subspaces = local_subspaces
-
-        # self.nnmodel = NNModel(X, phi, n_epochs=local_opts['max_iter'], lr=local_opts['alpha'])
-        # local_subspace = self.nnmodel.Psi.copy()
-        # self.local_subspace = local_subspace
         
         def target_proc(p_num, chunk_sz, q_):
             start_ind = p_num*chunk_sz
