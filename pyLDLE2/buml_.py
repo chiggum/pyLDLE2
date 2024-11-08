@@ -244,9 +244,8 @@ def extend_manifold_k_nn(data, ddX, k_nn, metric, n_proc=1):
 
 def get_default_local_opts(algo='LPCA', metric0='euclidean', k=28,  k_nn=49, k_tune=7, 
                            metric='euclidean', update_metric=True, radius=0.5, U_method='k_nn',
-                           gl_type='unnorm', tuning='self', N=100, scale_by='gamma', Atilde_method='LDLE_1',
-                           alpha=0.01, max_iter=100, explain_var=0, reg=0.5, device='cuda', tol=1e-6,
-                           p=0.99, tau=50, delta=0.9, lkpca_kernel='linear', to_postprocess=True,
+                           gl_type='unnorm', tuning='self', N=10, scale_by='gamma', Atilde_method='LDLE_1',
+                           explain_var=0, reg=0.5, p=0.99, tau=50, delta=0.9, lkpca_kernel='linear', to_postprocess=True,
                            pp_n_thresh=32, doubly_stochastic_max_iter=0, brute_force=False):
     """Sets and returns a dictionary of default_local_opts, (experimental) options are work in progress.
     
@@ -321,20 +320,11 @@ def get_default_local_opts(algo='LPCA', metric0='euclidean', k=28,  k_nn=49, k_t
     delta : float
         A hyperparameter used in computing parameterizations
         of local views in LDLE. The value must be in (0,1).
-    tol: float
-        tolerance for convergence.
-    max_iter: int
-        Max number of optimization steps for estimating gradients
-        of eigenvectors using gradient descent.
     explain_var: float
         Number of principal directions obtained from the subspace
         spanned by eigenvectors gradients locally. Ignored if zero.
         If non-zero, then the argument 'd' is treated as the maximum
         dimension.
-    device: str
-        Device to be used for above gradient descent.
-    alpha : float
-        Learning rate for the above gradient descent.
     reg : float
         Desired regularization (Smoothness) in eigenvectors gradients.
     lkpca_kernel: str
@@ -355,8 +345,8 @@ def get_default_local_opts(algo='LPCA', metric0='euclidean', k=28,  k_nn=49, k_t
     return {'k_nn': k_nn, 'k_tune': k_tune, 'k': k, 'metric0': metric0,
             'metric': metric, 'update_metric': update_metric, 'radius': radius,
            'U_method': U_method, 'gl_type': gl_type, 'tuning': tuning, 'N': N, 'scale_by': scale_by,
-           'Atilde_method': Atilde_method, 'p': p, 'tau': tau, 'delta': delta, 'alpha': alpha, 'tol': tol,
-            'max_iter': max_iter, 'explain_var': explain_var,  'reg': reg, 'lkpca_kernel': lkpca_kernel,
+           'Atilde_method': Atilde_method, 'p': p, 'tau': tau, 'delta': delta,
+            'explain_var': explain_var,  'reg': reg, 'lkpca_kernel': lkpca_kernel,
            'to_postprocess': to_postprocess, 'algo': algo, 'pp_n_thresh': pp_n_thresh,
            'doubly_stochastic_max_iter': doubly_stochastic_max_iter, 'brute_force': brute_force}
 
