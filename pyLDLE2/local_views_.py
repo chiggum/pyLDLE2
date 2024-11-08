@@ -11,12 +11,13 @@ from .util_ import Param, sparse_matrix
 from .l1pca_optimal_ import l1pca_optimal
 
 from scipy.linalg import inv, svd, pinv
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, kron, identity, block_diag
 from scipy.sparse.linalg import svds
 from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import pdist, squareform
 from scipy.sparse.csgraph import minimum_spanning_tree, breadth_first_order
 from scipy.sparse import coo_matrix, csr_matrix
+from scipy.sparse.linalg import spsolve
 
 from sklearn.decomposition import SparsePCA
 from hyperspy.learn.rpca import rpca_godec
@@ -26,6 +27,8 @@ from multiprocess import shared_memory
 
 from sklearn.manifold import Isomap
 from sklearn.decomposition import KernelPCA
+from scipy.sparse.linalg import cg
+
 
 import itertools
 
@@ -679,49 +682,90 @@ class LocalViews:
         #     print(f"loss ({i}): {loss.item()}")
         # local_subspace = model.Psi.cpu().detach().numpy()
         
-        W = -L.copy().tocsr()
-        W.setdiag(0)
-        W1_list = []
-        W2_list = []
-        U_list = []
-        for k in range(n):
-            U_k = U[k,:].indices
-            U_list.append(U_k)
-            W1_list.append(np.array(W[k,U_k].todense()).flatten())
-            W2_list.append(np.array(W[U_k,k].todense()).flatten())
-            C_k = C_list[k].copy()
-            np.fill_diagonal(C_k, C_k.diagonal() + local_opts['reg']*(np.sum(W1_list[k])+np.sum(W2_list[k])))
-            C_list[k] = pinv(C_k)
+        #W = -L.copy().tocsr()
+        #W.setdiag(0)
         
+        # W1_list = []
+        # W2_list = []
+        # U_list = []
+        # for k in range(n):
+        #     U_k = U[k,:].indices
+        #     U_list.append(U_k)
+        #     W1_list.append(np.array(W[k,U_k].todense()).flatten())
+        #     W2_list.append(np.array(W[U_k,k].todense()).flatten())
+        #     C_k = C_list[k].copy()
+        #     np.fill_diagonal(C_k, C_k.diagonal() + local_opts['reg']*(np.sum(W1_list[k])+np.sum(W2_list[k])))
+        #     C_list[k] = pinv(C_k)
+        
+        # local_subspace = Psi.copy()
+        # local_subspaces = [Psi]
+        # is_converged = False
+        # np.random.seed(42)
+        # inds = np.arange(n)
+        # for i in range(local_opts['max_iter']):
+        #     np.random.shuffle(inds)
+        #     for k in inds.tolist():
+        #         U_k = U_list[k]
+        #         w_1 = W1_list[k]
+        #         w_2 = W2_list[k]
+        #         pinvC_k = C_list[k]
+        #         A_k = A_list[k].copy()
+        #         Psi_k = Psi[:,U_k,:]
+        #         A_k += local_opts['reg']*np.sum(w_1[None,:,None]*Psi_k, axis=1).T
+        #         A_k += local_opts['reg']*np.sum(w_2[None,:,None]*Psi_k, axis=1).T
+        #         Psi[:,k,:] = pinvC_k.dot(A_k).T
+        #     delta = np.sum(np.abs(local_subspace - Psi))/(n*N*p)
+        #     if delta < local_opts['tol']:
+        #         print('Converged at iter:', i)
+        #         break
+        #     print('Iter:', i+1, ':: mean of |grad_{t+1}-grad_{t}|:', delta) 
+        #     # Psi = local_subspace.copy()
+        #     # local_subspaces.append(Psi)
+        #     local_subspace = Psi.copy()
+        #     local_subspaces.append(local_subspace)
+
+        #AA_row = []
+        #AA_col = []
+        #AA_data = []
+        bb = np.concatenate(A_list, axis=0)
+        # for k in range(n):
+        #     U_k = U[k,:].indices
+        #     W_U_k = np.array(W[k,U_k].todense()).flatten()
+        #     C_k = C_list[k].copy()
+        #     np.fill_diagonal(C_k, C_k.diagonal() + local_opts['reg']*np.sum(W_U_k))
+
+        #     temp = np.arange(k*p, (k+1)*p)
+        #     row1 = np.repeat(temp, p).tolist()
+        #     col1 = np.tile(temp, p).tolist()
+        #     data1 = C_k.flatten().tolist()
+
+        #     row2 = np.repeat(temp, len(U_k)).tolist()
+        #     col2 = np.arange(p)[:,None] +  U_k[None,:]*p
+        #     col2 = col2.flatten().tolist()
+        #     data2 = np.tile((-local_opts['reg']*W_U_k).tolist(), p).tolist()
+
+        #     AA_row += row1
+        #     AA_col += col1
+        #     AA_data += data1
+
+        #     AA_row += row2
+        #     AA_col += col2
+        #     AA_data += data2
+
+        #AA = csr_matrix((AA_data, (AA_row, AA_col)), shape=(n*p, n*p))
+        AA = local_opts['reg']*kron(L, identity(p), format='csr')
+        AA = AA + block_diag(C_list, format='csr')
+        start_time = time.time()
+        # for i in range(bb.shape[1]):
+        #     Psi[i,:,:] = cg(AA, bb[:,i])[0].reshape(n, p)
+        
+        Psi = spsolve(AA, bb).T
+        Psi = Psi.reshape(N, n, p)
+        print(time.time() - start_time, flush=True)
         local_subspace = Psi.copy()
-        local_subspaces = [Psi]
-        is_converged = False
-        np.random.seed(42)
-        inds = np.arange(n)
-        for i in range(local_opts['max_iter']):
-            np.random.shuffle(inds)
-            for k in inds.tolist():
-                U_k = U_list[k]
-                w_1 = W1_list[k]
-                w_2 = W2_list[k]
-                pinvC_k = C_list[k]
-                A_k = A_list[k].copy()
-                Psi_k = Psi[:,U_k,:]
-                A_k += local_opts['reg']*np.sum(w_1[None,:,None]*Psi_k, axis=1).T
-                A_k += local_opts['reg']*np.sum(w_2[None,:,None]*Psi_k, axis=1).T
-                Psi[:,k,:] = pinvC_k.dot(A_k).T
-            delta = np.sum(np.abs(local_subspace - Psi))/(n*N*p)
-            if delta < local_opts['tol']:
-                print('Converged at iter:', i)
-                break
-            print('Iter:', i+1, ':: mean of |grad_{t+1}-grad_{t}|:', delta) 
-            # Psi = local_subspace.copy()
-            # local_subspaces.append(Psi)
-            local_subspace = Psi.copy()
-            local_subspaces.append(local_subspace)
             
         self.local_subspace = local_subspace
-        self.local_subspaces = local_subspaces
+        #self.local_subspaces = local_subspaces
 
         # self.nnmodel = NNModel(X, phi, n_epochs=local_opts['max_iter'], lr=local_opts['alpha'])
         # local_subspace = self.nnmodel.Psi.copy()

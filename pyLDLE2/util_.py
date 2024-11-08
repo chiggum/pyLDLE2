@@ -11,6 +11,9 @@ import multiprocess as mp
 import os
 import pickle
 
+import sklearn.metrics._dist_metrics
+sklearn.metrics._dist_metrics.EuclideanDistance = sklearn.metrics._dist_metrics.EuclideanDistance64
+
 def path_exists(path):
     return os.path.exists(path) or os.path.islink(path)
 
